@@ -12,7 +12,7 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its DeepSeek 
 ## Usage
 
 - Hold Alt: the paragraph under the mouse gets a dashed outline, so you can see what will be translated.
-- Alt + hover over a paragraph: the translation appears above it (below it if there is little room above).
+- Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is about as wide as the paragraph, between 320 and 720 px.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Close with Esc, a click outside the popup, or by moving the mouse away from the paragraph and the popup.
 - Translating the same paragraph again on the page comes from the cache: instant and free.

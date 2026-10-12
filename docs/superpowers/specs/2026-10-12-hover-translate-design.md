@@ -126,9 +126,10 @@ Text to translate: `innerText`, trimmed, with three or more consecutive line bre
 
 - Host: `<div id="hover-translate-root">` in `document.documentElement` with an open Shadow DOM inside. Host styles are inline with `!important` (`all: initial`, `position: absolute`, `display: block`, `z-index: 2147483647`) so site rules like `div { display: none !important }` do not touch it. Content styles go through `adoptedStyleSheets` (site CSP does not block them); the popup DOM is built with `createElement`, no `innerHTML`.
 - Coordinates are document coordinates (block rectangle + scroll), so the popup scrolls with the page. When an inner container (`overflow: auto`) scrolls, the popup moves with its paragraph (a capture-phase `scroll` listener).
-- Width follows the content, at most 480 px and no wider than the window minus 16 px.
+- Width follows the content, at most as wide as the block within readable limits: `clamp(block width, 320, 720)` px, and no wider than the window minus 16 px. So a wide paragraph gets a 720 px popup (lines stay readable), a regular paragraph gets a popup of its own width (lines run in parallel with the source), and a narrow column gets 320 px (the translation ends up shorter than the source, not a tall ribbon).
 - **Horizontal:** left edge = paragraph's left edge + 32 px, adjusted so the popup does not leave the window (8 px from the edges).
-- **Vertical:** the side is chosen once, on open:
+- **Beside a tall block:** if the block is taller than 240 px (about 10 lines) and the window has at least 320 px free to its right, the popup goes to the right of the block with a 6 px gap, aligned to the block's top (clamped into the window), up to the window height. This reads like parallel text: the translation sits at the same height as the source. Without that room the rules below apply.
+- **Vertical:** the side (right, above or below) is chosen once, on open:
   - above the paragraph if there are at least 120 px above it in the window;
   - otherwise below the paragraph if there is at least as much room below as above;
   - otherwise above anyway.
@@ -248,5 +249,10 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   25. Nothing translatable under the mouse (`#huge`, an input) → no outline.
   26. Shift held before Alt → no outline.
   27. Page with hostile CSS → the outline is visible.
+  28. A 1000 px wide paragraph → a 720 px wide popup.
+  29. A 600 px wide paragraph → a popup as wide as the paragraph.
+  30. A 200 px narrow column → a 320 px wide popup, above it.
+  31. A tall narrow block with room on its right → the popup is 6 px to its right, aligned to its top.
+  32. A tall block spanning the window → the popup stays above or below it.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

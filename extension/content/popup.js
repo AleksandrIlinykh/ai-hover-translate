@@ -4,8 +4,10 @@
   const MARGIN = 8;
   const SHIFT_X = 32;
   const MIN_SPACE_ABOVE = 120;
-  const MAX_WIDTH = 480;
+  const MIN_WIDTH = 320;
+  const MAX_WIDTH = 720;
   const MIN_HEIGHT = 80;
+  const TALL_BLOCK = 240;
 
   // Inline !important beats any page rule, including `div { display: none !important }`.
   const HOST_STYLE = ['all: initial', 'position: absolute', 'top: 0', 'left: 0', 'display: block', 'z-index: 2147483647']
@@ -87,6 +89,9 @@
     }
 
     function chooseSide(rect) {
+      // A tall block reads best with its translation alongside it, like parallel text.
+      const roomRight = document.documentElement.clientWidth - rect.right - GAP - MARGIN;
+      if (rect.height > TALL_BLOCK && roomRight >= MIN_WIDTH) return 'right';
       if (rect.top >= MIN_SPACE_ABOVE) return 'above';
       return window.innerHeight - rect.bottom >= rect.top ? 'below' : 'above';
     }
@@ -100,14 +105,25 @@
       const rect = block.getBoundingClientRect();
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      const room = (side === 'above' ? rect.top : viewportHeight - rect.bottom) - GAP - MARGIN;
-      popupEl.style.maxWidth = `${Math.min(MAX_WIDTH, viewportWidth - 2 * MARGIN)}px`;
-      // No room beside a paragraph taller than the window: overlap it and use the whole window.
-      popupEl.style.maxHeight = `${room >= MIN_HEIGHT ? room : viewportHeight - 2 * MARGIN}px`;
+      // As wide as the block, within readable line lengths.
+      const readableWidth = clamp(rect.width, MIN_WIDTH, MAX_WIDTH);
+      if (side === 'right') {
+        popupEl.style.maxWidth = `${Math.min(readableWidth, viewportWidth - rect.right - GAP - MARGIN)}px`;
+        popupEl.style.maxHeight = `${viewportHeight - 2 * MARGIN}px`;
+      } else {
+        const room = (side === 'above' ? rect.top : viewportHeight - rect.bottom) - GAP - MARGIN;
+        popupEl.style.maxWidth = `${Math.min(readableWidth, viewportWidth - 2 * MARGIN)}px`;
+        // No room beside a paragraph taller than the window: overlap it and use the whole window.
+        popupEl.style.maxHeight = `${room >= MIN_HEIGHT ? room : viewportHeight - 2 * MARGIN}px`;
+      }
       const { width, height } = popupEl.getBoundingClientRect();
-      const wantedTop = side === 'above' ? rect.top - GAP - height : rect.bottom + GAP;
-      const top = clamp(wantedTop, MARGIN, viewportHeight - MARGIN - height);
-      const left = clamp(rect.left + SHIFT_X, MARGIN, viewportWidth - MARGIN - width);
+      const wanted = {
+        above: { left: rect.left + SHIFT_X, top: rect.top - GAP - height },
+        below: { left: rect.left + SHIFT_X, top: rect.bottom + GAP },
+        right: { left: rect.right + GAP, top: rect.top },
+      }[side];
+      const top = clamp(wanted.top, MARGIN, viewportHeight - MARGIN - height);
+      const left = clamp(wanted.left, MARGIN, viewportWidth - MARGIN - width);
       place(left, top);
       offset = { x: left - rect.left, y: top - rect.top };
     }
