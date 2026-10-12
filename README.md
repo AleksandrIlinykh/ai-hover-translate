@@ -16,8 +16,9 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its DeepSeek 
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry.
 - A grey outline with a hint means there is nothing to send: an input field, too much text (select the part you need) or text already in your language.
-- Click the popup to pin it: it stays while you read and scroll. Close it with Esc or its "×".
-- Hover the popup for a "Copy" button. After an error, "Retry" sends the text again.
+- Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
+- Drag the popup by its title bar to put it where you like: it then stays at that place on screen while you scroll, handy for reading a long paragraph.
+- "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
 

@@ -152,8 +152,9 @@ Text to translate: `innerText`, trimmed, with three or more consecutive line bre
   - The popup always stays inside the window: its vertical position is clamped to [8 px; window height - 8 px - popup height]. This covers paragraphs taller than the screen (top scrolled past the edge): the popup then overlaps part of the paragraph but stays visible.
   - Above the paragraph, the popup's bottom edge sticks to the paragraph: while the text streams in, the position is recalculated (via `requestAnimationFrame`) and the popup grows upward.
 - States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. Errors get one action button: "Open settings" for the missing key, "Retry" for everything else (it re-sends the same text and mode in the same popup). "The extension was updated" has no button.
-- Tools in the top-right corner: "Copy" (shown on hover once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (shown when pinned, closes the popup).
+- **Title bar:** a minimal 24 px bar across the top (light grey, darker in the dark theme, a thin line under it), in the style of macOS and Windows windows. On its right: "Copy" (shown once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (always there, closes the popup). Only the text area under the bar scrolls; the bar stays on top.
 - **Pinning:** any `mousedown` inside the popup pins it (blue border). A pinned popup ignores the mouse leaving and clicks outside; it closes with Esc, its "×", a window resize or the next translation.
+- **Dragging:** pressing the bar (outside its buttons) and moving drags the popup (pointer events with pointer capture; the cursor is a grabbing hand). Dragging pins the popup and detaches it from the block: it switches to `position: fixed`, so it stays at the same place on screen while the page or an inner container scrolls, and it may use the whole window height. It cannot be dragged past the window edges (8 px margin), and on a window resize it is moved back inside the window instead of closing. Esc, "×" and the next translation close it as usual; the next popup opens attached to its block again.
 - Look: system font 14px/1.5, 10×12 px padding, 8 px radius, shadow; light and dark theme via `prefers-color-scheme`.
 - Only one popup is open at a time.
 
@@ -162,7 +163,7 @@ Closing:
 - `Esc`;
 - `mousedown` outside the popup (unless pinned);
 - the mouse outside both the paragraph and the popup rectangles for longer than `LEAVE_GRACE_MS = 300` (slack to move the mouse onto the popup across the gap); this rule is off while a mouse button is held (selecting popup text) and for a pinned popup;
-- window resize;
+- window resize (a dragged popup is kept inside the window instead);
 - translating another paragraph.
 
 On close, the port to background is disconnected and any unfinished API request is cancelled.
@@ -279,9 +280,13 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   35. A selection elsewhere on the page → Alt over another paragraph still translates that paragraph.
   36. A selection longer than `MAX_CHARS` → a grey outline with a hint, no request.
   37. Text already in the target language → a hint, no request (runs only where Chrome's language detector is available; the decision rule is unit-tested).
-  38. Clicking the popup pins it: it survives the mouse leaving and outside clicks, closes with "×" or Esc.
+  38. Clicking the popup pins it: it survives the mouse leaving and outside clicks, closes with "×" or Esc; "×" is always on the title bar.
   39. "Copy" puts the translation on the clipboard; errors offer no "Copy".
   40. An API error offers "Retry", which translates on the second try; a missing key offers "Open settings" instead.
   41. The same text translated again from another page is answered from the session cache without a request; the cache is per target language and mode; errors are not cached.
+  42. Dragging the title bar moves the popup by exactly the mouse distance and pins it.
+  43. After dragging, scrolling the page leaves the popup at the same place on screen.
+  44. A popup dragged far past the top-left corner stops 8 px from the window edges.
+  45. A dragged popup survives a window resize and stays inside the smaller window.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

@@ -278,7 +278,9 @@
   );
 
   addEventListener('resize', () => {
-    if (popup.isOpen()) closePopup();
+    if (!popup.isOpen()) return;
+    if (popup.isDetached()) popup.keepInView();
+    else closePopup();
   });
 
   addEventListener(

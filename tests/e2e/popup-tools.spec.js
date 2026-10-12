@@ -9,6 +9,15 @@ async function openOn(page, selector) {
   await page.keyboard.up('Alt');
 }
 
+async function dragBar(page, dx, dy) {
+  const bar = await popupRoot(page).locator('.bar').boundingBox();
+  const start = { x: bar.x + 10, y: bar.y + bar.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + dx, start.y + dy, { steps: 5 });
+  await page.mouse.up();
+}
+
 async function pin(page) {
   const box = await popupBox(page).boundingBox();
   await page.mouse.click(box.x + 20, box.y + box.height - 8);
@@ -24,9 +33,7 @@ test.describe('with a working key', () => {
   });
 
   test('clicking the popup pins it, so it stays when the mouse leaves', async ({ page }) => {
-    await expect(tool(page, 'close')).toBeHidden();
     await pin(page);
-    await expect(tool(page, 'close')).toBeVisible();
     await page.mouse.move(5, 700);
     await page.waitForTimeout(600);
     await expect(popupRoot(page)).toHaveCount(1);
@@ -39,6 +46,49 @@ test.describe('with a working key', () => {
     await expect(popupRoot(page)).toHaveCount(1);
     await tool(page, 'close').click();
     await expect(popupRoot(page)).toHaveCount(0);
+  });
+
+  test('the title bar always has a close button', async ({ page }) => {
+    await expect(tool(page, 'close')).toBeVisible();
+    await tool(page, 'close').click();
+    await expect(popupRoot(page)).toHaveCount(0);
+  });
+
+  test('dragging the title bar moves the popup and pins it', async ({ page }) => {
+    const before = await popupBox(page).boundingBox();
+    await dragBar(page, 200, 150);
+    const after = await popupBox(page).boundingBox();
+    expect({ dx: Math.round(after.x - before.x), dy: Math.round(after.y - before.y) }).toEqual({ dx: 200, dy: 150 });
+    await expect(popupBox(page)).toHaveClass(/is-pinned/);
+    await page.mouse.move(5, 700);
+    await page.waitForTimeout(600);
+    await expect(popupRoot(page)).toHaveCount(1);
+  });
+
+  test('a dragged popup stays in place on screen while the page scrolls', async ({ page }) => {
+    await dragBar(page, 200, 150);
+    const before = await popupBox(page).boundingBox();
+    const paragraphBefore = await page.locator('#p1').boundingBox();
+    await page.evaluate(() => window.scrollBy(0, 400));
+    await expect.poll(async () => Math.round((await page.locator('#p1').boundingBox()).y)).toBe(Math.round(paragraphBefore.y - 400));
+    const after = await popupBox(page).boundingBox();
+    expect({ x: Math.round(after.x), y: Math.round(after.y) }).toEqual({ x: Math.round(before.x), y: Math.round(before.y) });
+  });
+
+  test('a dragged popup cannot leave the window', async ({ page }) => {
+    await dragBar(page, -2000, -2000);
+    const box = await popupBox(page).boundingBox();
+    expect({ x: Math.round(box.x), y: Math.round(box.y) }).toEqual({ x: 8, y: 8 });
+  });
+
+  test('a dragged popup survives a window resize and stays visible', async ({ page }) => {
+    await dragBar(page, 600, 300);
+    await page.setViewportSize({ width: 900, height: 500 });
+    await page.waitForTimeout(300);
+    await expect(popupRoot(page)).toHaveCount(1);
+    const box = await popupBox(page).boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(900 - 8 + 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(500 - 8 + 1);
   });
 
   test('Esc closes a pinned popup', async ({ page }) => {

@@ -18,9 +18,10 @@
   const POPUP_CSS = `
     .popup {
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
       width: max-content;
-      overflow-y: auto;
-      padding: 10px 12px;
+      overflow: hidden;
       border: 1px solid #d0d7de;
       border-radius: 8px;
       background: #ffffff;
@@ -28,28 +29,49 @@
       box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18);
       font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       text-align: left;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      user-select: text;
       cursor: auto;
     }
     .popup.is-pinned { border-color: #1f6feb; }
+    .bar {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+      height: 24px;
+      padding: 0 4px;
+      border-bottom: 1px solid #d8dee4;
+      background: #f6f8fa;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+    }
+    .popup.is-dragging .bar { cursor: grabbing; }
+    .body {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px 12px 10px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      user-select: text;
+    }
     .popup.is-loading .text { animation: pulse 1s ease-in-out infinite; }
     .popup.is-error .text { color: #cf222e; }
-    .tools { float: right; display: flex; gap: 2px; margin: -6px -8px 2px 8px; }
     .tool {
-      visibility: hidden;
-      padding: 2px 6px;
+      height: 20px;
+      padding: 0 6px;
       border: 1px solid transparent;
       border-radius: 4px;
       background: transparent;
       color: inherit;
-      font: 12px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font: 12px/18px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       opacity: 0.7;
       cursor: pointer;
     }
     .tool:hover { opacity: 1; border-color: currentColor; }
-    .popup.has-text:hover .copy, .popup.is-pinned .close { visibility: visible; }
+    .close { font-size: 15px; }
+    .copy { visibility: hidden; }
+    .popup.has-text .copy { visibility: visible; }
     .action {
       display: none;
       margin-top: 8px;
@@ -65,13 +87,15 @@
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .popup { border-color: #30363d; background: #161b22; color: #e6edf3; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); }
+      .bar { border-color: #30363d; background: #0d1117; }
       .popup.is-error .text { color: #ff7b72; }
     }
   `;
 
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
-  // Translation popup. Clicking it pins it: it then stays until Esc, its close button or the next translation.
+  // Translation popup with a small title bar. Clicking it pins it; dragging the bar pins it and
+  // detaches it from the block, so it stays put on screen while the page scrolls.
   function createPopup({ onOpenSettings, onRetry, onClose }) {
     const host = document.createElement('div');
     host.id = ROOT_ID;
@@ -81,10 +105,6 @@
     sheet.replaceSync(POPUP_CSS);
     shadow.adoptedStyleSheets = [sheet];
 
-    const popupEl = document.createElement('div');
-    popupEl.className = 'popup';
-    const textEl = document.createElement('div');
-    textEl.className = 'text';
     const button = (className, label, onClick) => {
       const element = document.createElement('button');
       element.type = 'button';
@@ -93,25 +113,33 @@
       element.addEventListener('click', onClick);
       return element;
     };
+    const popupEl = document.createElement('div');
+    popupEl.className = 'popup';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
     const copyButton = button('tool copy', 'Copy', () => copy());
-    const closeButton = button('tool close', '\u00d7', () => onClose());
+    const closeButton = button('tool close', '×', () => onClose());
     closeButton.setAttribute('aria-label', 'Close');
-    const tools = document.createElement('div');
-    tools.className = 'tools';
-    tools.append(copyButton, closeButton);
-    popupEl.append(
-      tools,
+    bar.append(copyButton, closeButton);
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'body';
+    const textEl = document.createElement('div');
+    textEl.className = 'text';
+    bodyEl.append(
       textEl,
       button('action settings', 'Open settings', () => onOpenSettings()),
       button('action retry', 'Retry', () => onRetry()),
     );
+    popupEl.append(bar, bodyEl);
     popupEl.addEventListener('mousedown', () => popupEl.classList.add('is-pinned'));
+    bar.addEventListener('pointerdown', startDrag);
     shadow.append(popupEl);
 
     let block = null;
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
+    let detached = false; // dragged: fixed on screen instead of attached to the block
 
     // action: 'settings' or 'retry' adds that button under an error.
     function render(text, { loading = false, error = false, action = null } = {}) {
@@ -182,22 +210,67 @@
       offset = { x: left - rect.left, y: top - rect.top };
     }
 
+    // Detached popups use viewport coordinates (position: fixed) and never leave the window.
+    function placeFixed(left, top) {
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      popupEl.style.maxWidth = `${Math.min(parseFloat(popupEl.style.maxWidth) || MAX_WIDTH, viewportWidth - 2 * MARGIN)}px`;
+      popupEl.style.maxHeight = `${viewportHeight - 2 * MARGIN}px`;
+      const { width, height } = popupEl.getBoundingClientRect();
+      host.style.setProperty('left', `${clamp(left, MARGIN, viewportWidth - MARGIN - width)}px`, 'important');
+      host.style.setProperty('top', `${clamp(top, MARGIN, viewportHeight - MARGIN - height)}px`, 'important');
+    }
+
+    function keepInView() {
+      const rect = popupEl.getBoundingClientRect();
+      placeFixed(rect.left, rect.top);
+    }
+
+    function startDrag(event) {
+      if (event.button !== 0 || event.target.closest('button')) return;
+      event.preventDefault(); // no text selection, no mousedown: pin explicitly
+      popupEl.classList.add('is-pinned', 'is-dragging');
+      if (!detached) {
+        const rect = popupEl.getBoundingClientRect();
+        detached = true;
+        host.style.setProperty('position', 'fixed', 'important');
+        placeFixed(rect.left, rect.top);
+      }
+      const start = popupEl.getBoundingClientRect();
+      const origin = { x: event.clientX, y: event.clientY };
+      bar.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => placeFixed(start.left + moveEvent.clientX - origin.x, start.top + moveEvent.clientY - origin.y);
+      const stop = () => {
+        popupEl.classList.remove('is-dragging');
+        bar.removeEventListener('pointermove', move);
+        bar.removeEventListener('pointerup', stop);
+        bar.removeEventListener('pointercancel', stop);
+      };
+      bar.addEventListener('pointermove', move);
+      bar.addEventListener('pointerup', stop);
+      bar.addEventListener('pointercancel', stop);
+    }
+
     function schedulePosition() {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        if (block) position();
+        if (!block) return;
+        if (detached) keepInView();
+        else position();
       });
     }
 
     return {
       open(target) {
         block = target;
+        detached = false;
+        host.style.setProperty('position', 'absolute', 'important');
         side = chooseSide(block.getBoundingClientRect());
-        popupEl.classList.remove('is-pinned');
+        popupEl.classList.remove('is-pinned', 'is-dragging');
         render('…', { loading: true });
         document.documentElement.append(host);
-        popupEl.scrollTop = 0;
+        bodyEl.scrollTop = 0;
         position();
       },
       setLoading() {
@@ -214,10 +287,11 @@
       },
       // Keep the popup glued to its block when something scrolls (the window or an inner container).
       follow() {
-        if (!block) return;
+        if (!block || detached) return;
         const rect = block.getBoundingClientRect();
         place(rect.left + offset.x, rect.top + offset.y);
       },
+      keepInView,
       close() {
         cancelAnimationFrame(frame);
         frame = 0;
@@ -226,6 +300,7 @@
       },
       isOpen: () => block !== null,
       isPinned: () => popupEl.classList.contains('is-pinned'),
+      isDetached: () => detached,
       getBlock: () => block,
       getRect: () => popupEl.getBoundingClientRect(),
       isOwn: (node) => node === host || node?.getRootNode?.() === shadow,
