@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Hover Translate",
+  "version": "0.1.0",
+  "description": "Hold Alt and hover over a paragraph to see its DeepSeek translation above it.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.deepseek.com/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/block.js", "content/popup.js", "content/main.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "action": { "default_title": "Hover Translate settings" }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hover Translate fixture</title>
+  <style>
+    body { margin: 0; font: 16px/1.5 sans-serif; }
+    main { width: 600px; margin: 0 auto; padding: 300px 0 2000px; }
+    p, li, div { margin: 0 0 24px; }
+    #tall { width: 200px; line-height: 3; }
+  </style>
+</head>
+<body>
+  <p id="top" style="position: absolute; top: 4px; left: 100px; margin: 0;">Paragraph at the very top</p>
+  <main>
+    <p id="p1">The quick brown fox jumps over the lazy dog. <a href="#">Read more</a></p>
+    <p id="p2">Second paragraph with <span id="p2-span">an inline span</span> inside.</p>
+    <ul><li id="li1">List item text</li></ul>
+    <div id="card"><span id="card-text">Text in a div without paragraphs</span></div>
+    <p id="digits">12345 67890</p>
+    <input id="input" value="Input text">
+    <div id="editable" contenteditable="true">Editable text</div>
+    <div id="huge"></div>
+    <p id="tall"></p>
+  </main>
+  <script>
+    document.getElementById('huge').textContent = 'Lorem ipsum dolor sit amet. '.repeat(150);
+    document.getElementById('tall').textContent = 'Tall paragraph text. '.repeat(120);
+  </script>
+</body>
+</html>

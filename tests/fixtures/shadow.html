@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shadow DOM</title>
+  <style>
+    body { margin: 0; padding: 300px 40px 0; font: 16px/1.5 sans-serif; }
+  </style>
+</head>
+<body>
+  <shadow-card id="card"></shadow-card>
+  <script>
+    customElements.define('shadow-card', class extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' }).innerHTML =
+          '<style>p { margin: 0; }</style><p id="inner"><span id="inner-span">Text inside</span> a shadow root</p>';
+      }
+    });
+  </script>
+</body>
+</html>
