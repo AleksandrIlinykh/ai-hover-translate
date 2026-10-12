@@ -8,6 +8,7 @@
   const MAX_WIDTH = 720;
   const MIN_HEIGHT = 80;
   const TALL_BLOCK = 240;
+  const COPIED_MS = 1200;
 
   // Inline !important beats any page rule, including `div { display: none !important }`.
   const HOST_STYLE = ['all: initial', 'position: absolute', 'top: 0', 'left: 0', 'display: block', 'z-index: 2147483647']
@@ -32,9 +33,24 @@
       user-select: text;
       cursor: auto;
     }
+    .popup.is-pinned { border-color: #1f6feb; }
     .popup.is-loading .text { animation: pulse 1s ease-in-out infinite; }
     .popup.is-error .text { color: #cf222e; }
-    .settings {
+    .tools { float: right; display: flex; gap: 2px; margin: -6px -8px 2px 8px; }
+    .tool {
+      visibility: hidden;
+      padding: 2px 6px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      font: 12px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+    .tool:hover { opacity: 1; border-color: currentColor; }
+    .popup.has-text:hover .copy, .popup.is-pinned .close { visibility: visible; }
+    .action {
       display: none;
       margin-top: 8px;
       padding: 4px 10px;
@@ -45,7 +61,7 @@
       font: inherit;
       cursor: pointer;
     }
-    .popup.has-settings .settings { display: block; }
+    .popup.has-settings .settings, .popup.has-retry .retry { display: block; }
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .popup { border-color: #30363d; background: #161b22; color: #e6edf3; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); }
@@ -55,7 +71,8 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
-  function createPopup({ onOpenSettings }) {
+  // Translation popup. Clicking it pins it: it then stays until Esc, its close button or the next translation.
+  function createPopup({ onOpenSettings, onRetry, onClose }) {
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
@@ -68,12 +85,27 @@
     popupEl.className = 'popup';
     const textEl = document.createElement('div');
     textEl.className = 'text';
-    const settingsButton = document.createElement('button');
-    settingsButton.type = 'button';
-    settingsButton.className = 'settings';
-    settingsButton.textContent = 'Open settings';
-    settingsButton.addEventListener('click', () => onOpenSettings());
-    popupEl.append(textEl, settingsButton);
+    const button = (className, label, onClick) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = className;
+      element.textContent = label;
+      element.addEventListener('click', onClick);
+      return element;
+    };
+    const copyButton = button('tool copy', 'Copy', () => copy());
+    const closeButton = button('tool close', '\u00d7', () => onClose());
+    closeButton.setAttribute('aria-label', 'Close');
+    const tools = document.createElement('div');
+    tools.className = 'tools';
+    tools.append(copyButton, closeButton);
+    popupEl.append(
+      tools,
+      textEl,
+      button('action settings', 'Open settings', () => onOpenSettings()),
+      button('action retry', 'Retry', () => onRetry()),
+    );
+    popupEl.addEventListener('mousedown', () => popupEl.classList.add('is-pinned'));
     shadow.append(popupEl);
 
     let block = null;
@@ -81,11 +113,33 @@
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
 
-    function render(text, { loading = false, error = false, withSettings = false } = {}) {
+    // action: 'settings' or 'retry' adds that button under an error.
+    function render(text, { loading = false, error = false, action = null } = {}) {
       textEl.textContent = text;
       popupEl.classList.toggle('is-loading', loading);
       popupEl.classList.toggle('is-error', error);
-      popupEl.classList.toggle('has-settings', withSettings);
+      popupEl.classList.toggle('has-text', !loading && !error);
+      popupEl.classList.toggle('has-settings', action === 'settings');
+      popupEl.classList.toggle('has-retry', action === 'retry');
+    }
+
+    async function copy() {
+      const text = textEl.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // The async clipboard needs a secure page; the old command works everywhere else.
+        const area = document.createElement('textarea');
+        area.value = text;
+        shadow.append(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+      }
+      copyButton.textContent = 'Copied';
+      setTimeout(() => {
+        copyButton.textContent = 'Copy';
+      }, COPIED_MS);
     }
 
     function chooseSide(rect) {
@@ -140,17 +194,22 @@
       open(target) {
         block = target;
         side = chooseSide(block.getBoundingClientRect());
+        popupEl.classList.remove('is-pinned');
         render('…', { loading: true });
         document.documentElement.append(host);
         popupEl.scrollTop = 0;
         position();
       },
+      setLoading() {
+        render('…', { loading: true });
+        schedulePosition();
+      },
       setText(text) {
         render(text);
         schedulePosition();
       },
-      setError(message, { withSettings = false } = {}) {
-        render(message, { error: true, withSettings });
+      setError(message, { action = null } = {}) {
+        render(message, { error: true, action });
         schedulePosition();
       },
       // Keep the popup glued to its block when something scrolls (the window or an inner container).
@@ -166,6 +225,7 @@
         block = null;
       },
       isOpen: () => block !== null,
+      isPinned: () => popupEl.classList.contains('is-pinned'),
       getBlock: () => block,
       getRect: () => popupEl.getBoundingClientRect(),
       isOwn: (node) => node === host || node?.getRootNode?.() === shadow,

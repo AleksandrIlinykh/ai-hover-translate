@@ -8,11 +8,13 @@ const sseData = (content) => `data: ${JSON.stringify({ choices: [{ index: 0, del
 // Fake OpenAI-compatible API plus the fixture pages, on a random local port.
 // The API key picks the behaviour: bad → 401, broke → 402, empty → no text,
 // slow → one chunk per second, split → a four-byte emoji cut between writes,
+// flaky → 500 on the first request and normal answers after it,
 // anything else → "[RU] <text>" in three chunks.
 export async function startMockServer() {
   const requests = [];
+  const state = { flakyFailed: false };
   const server = http.createServer((req, res) => {
-    handle(req, res, requests).catch((error) => {
+    handle(req, res, requests, state).catch((error) => {
       console.error(error);
       res.destroy();
     });
@@ -29,7 +31,7 @@ export async function startMockServer() {
   };
 }
 
-async function handle(req, res, requests) {
+async function handle(req, res, requests, state) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -39,13 +41,13 @@ async function handle(req, res, requests) {
     const html = await readFile(new URL(req.url.slice(1), FIXTURES));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html);
   } else if (req.method === 'POST' && req.url === '/chat/completions') {
-    await completions(req, res, requests);
+    await completions(req, res, requests, state);
   } else {
     res.writeHead(404).end();
   }
 }
 
-async function completions(req, res, requests) {
+async function completions(req, res, requests, state) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const record = {
@@ -65,6 +67,13 @@ async function completions(req, res, requests) {
   };
 
   const key = record.authorization?.replace(/^Bearer /, '');
+  if (key === 'flaky' && !state.flakyFailed) {
+    state.flakyFailed = true;
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    finish(JSON.stringify({ error: { message: 'Internal error', type: 'api_error' } }));
+    return;
+  }
+
   if (key === 'bad' || key === 'broke') {
     const [status, message] = key === 'bad' ? [401, 'Authentication Fails'] : [402, 'Insufficient Balance'];
     res.writeHead(status, { 'Content-Type': 'application/json' });

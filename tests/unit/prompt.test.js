@@ -16,3 +16,15 @@ test('buildMessages asks for the translation only and keeps line breaks', () => 
   assert.match(system.content, /Output only the translation/);
   assert.match(system.content, /line breaks/);
 });
+
+test('buildMessages in dictionary mode asks for a short dictionary entry', () => {
+  const [system, user] = buildMessages('bank', 'Russian', 'dictionary');
+  assert.match(system.content, /bilingual dictionary/);
+  assert.match(system.content, /Reply in Russian/);
+  assert.match(system.content, /part of speech/);
+  assert.deepEqual(user, { role: 'user', content: 'bank' });
+});
+
+test('buildMessages uses the plain translation prompt by default', () => {
+  assert.deepEqual(buildMessages('x', 'German'), buildMessages('x', 'German', 'text'));
+});

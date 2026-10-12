@@ -52,14 +52,44 @@ test('releasing Alt removes the outline but keeps the popup', async ({ page }) =
   await expect(popupRoot(page)).toHaveCount(1);
 });
 
-for (const selector of ['#huge', '#input']) {
-  test(`nothing translatable under ${selector} means no outline`, async ({ page }) => {
+for (const [selector, hint] of [
+  ['#huge', 'Too much text. Select the part you need.'],
+  ['#input', 'Input fields are not translated.'],
+]) {
+  test(`${selector} gets a grey outline with a hint and no request`, async ({ page, server }) => {
     await altHover(page, selector);
-    await nextFrames(page);
+    await expect(outline(page).locator('.hint')).toHaveText(hint);
+    expect(await outline(page).getAttribute('data-muted')).toBe('true');
     await page.waitForTimeout(300);
-    await expect(outline(page)).toHaveCount(0);
+    await expect(popupRoot(page)).toHaveCount(0);
+    expect(server.requests).toHaveLength(0);
   });
 }
+
+test('empty space between paragraphs shows no outline', async ({ page }) => {
+  const paragraph = await page.locator('#p1').boundingBox();
+  await page.mouse.move(paragraph.x + 300, paragraph.y + paragraph.height + 12);
+  await page.keyboard.down('Alt');
+  await nextFrames(page);
+  await page.waitForTimeout(300);
+  await expect(outline(page)).toHaveCount(0);
+});
+
+test('text already in the target language gets a hint instead of a request', async ({ page, server, setSettings }) => {
+  const availability = await page.evaluate(async () => {
+    try {
+      return await globalThis.LanguageDetector.availability();
+    } catch {
+      return 'unavailable';
+    }
+  });
+  test.skip(availability !== 'available', `Chrome's language detector is ${availability} in this browser`);
+  await setSettings({ targetLang: 'en' });
+  await altHover(page, '#p1');
+  await expect(outline(page).locator('.hint')).toHaveText('Already in English.');
+  await page.waitForTimeout(300);
+  expect(server.requests).toHaveLength(0);
+});
 
 test('Shift held before Alt shows no outline', async ({ page }) => {
   await moveTo(page, '#p1');

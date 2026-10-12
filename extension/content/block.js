@@ -19,24 +19,37 @@
     return node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
   }
 
-  // The element itself or its nearest block-level ancestor that holds readable text.
-  function findBlock(start) {
+  // What Alt + hover over an element would translate: the element itself or its nearest block-level
+  // ancestor with readable text, as { target, text }. When that block can't be translated the result
+  // is { target, reason } with reason 'editable' or 'too-long'; null means there is nothing to read.
+  function inspectBlock(start) {
     let node = start?.nodeType === Node.TEXT_NODE ? start.parentElement : start;
     if (!(node instanceof Element)) return null;
-    if (node.closest('input, textarea, select') || node.isContentEditable) return null;
+    const field = node.closest('input, textarea, select');
+    if (field) return { target: field, reason: 'editable' };
+    if (node.isContentEditable) return { target: node.closest('[contenteditable]') ?? node, reason: 'editable' };
     for (; node && node !== document.body && node !== document.documentElement; node = parentOf(node)) {
       if (!(node instanceof HTMLElement)) continue;
       if (!BLOCK_DISPLAYS.has(getComputedStyle(node).display)) continue;
-      const text = node.innerText;
+      const text = blockText(node);
       if (!LETTER.test(text)) continue;
-      return text.trim().length > MAX_CHARS ? null : node;
+      return text.length > MAX_CHARS ? { target: node, reason: 'too-long' } : { target: node, text };
     }
     return null;
+  }
+
+  // Whether the point is over a line of text rather than a container's padding or margin.
+  function isOverText(x, y) {
+    const node = document.caretRangeFromPoint?.(x, y)?.startContainer;
+    if (node?.nodeType !== Node.TEXT_NODE) return false;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return [...range.getClientRects()].some((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
   }
 
   function blockText(block) {
     return block.innerText.trim().replace(/\n{3,}/g, '\n\n');
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { elementAt, findBlock, blockText });
+  Object.assign((globalThis.hoverTranslate ??= {}), { elementAt, inspectBlock, isOverText });
 })();

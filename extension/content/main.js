@@ -1,13 +1,25 @@
 (() => {
-  const { elementAt, findBlock, blockText, createPopup, createHighlight } = globalThis.hoverTranslate;
+  const { elementAt, inspectBlock, isOverText, selectionAt, isShortPhrase, alreadyInLanguage, createPopup, createHighlight } =
+    globalThis.hoverTranslate;
 
   const TRIGGER_DELAY_MS = 200;
   const LEAVE_GRACE_MS = 300;
   const CACHE_LIMIT = 100;
+  const DETECT_TIMEOUT_MS = 300;
+  const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
+  const HINTS = {
+    editable: 'Input fields are not translated.',
+    'too-long': 'Too much text. Select the part you need.',
+    'too-long-selection': 'Too much text. Select a shorter part.',
+  };
+  const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
 
-  const cache = new Map();
+  const cache = new Map(); // `${mode}:${text}` -> translation, for this page
+  const sameLanguage = new Map(); // text -> whether it is already in the target language
   const popup = createPopup({
     onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
+    onRetry: () => retry(),
+    onClose: () => closePopup(),
   });
   const highlight = createHighlight();
 
@@ -19,21 +31,69 @@
   let triggerTimer = 0;
   let leaveTimer = 0;
   let previewFrame = 0;
+  let triggerTicket = 0;
   let port = null;
+  let shown = null; // { text, mode } of the open popup
+  let targetLang = DEFAULT_LANG;
 
-  // Block under the mouse; undefined while the mouse is over our own popup.
-  function blockUnderMouse() {
+  chrome.storage.local
+    .get('settings')
+    .then(({ settings }) => {
+      targetLang = settings?.targetLang || DEFAULT_LANG;
+    })
+    .catch(() => {});
+
+  // What Alt would act on under the mouse: undefined over our own popup, null over nothing to read,
+  // otherwise { target, text } or { target, reason } (target is a block element or a selection Range).
+  function pickUnderMouse() {
     const element = elementAt(mouseX, mouseY);
     if (element && popup.isOwn(element)) return undefined;
-    return element ? findBlock(element) : null;
+    const picked = selectionAt(mouseX, mouseY) ?? (element ? inspectBlock(element) : null);
+    // Over a huge block's padding or margins rather than its text there is nothing to point at.
+    if (picked?.reason === 'too-long' && !picked.selection && !isOverText(mouseX, mouseY)) return null;
+    return picked;
   }
 
-  function trigger() {
+  function hintFor(picked) {
+    if (picked.reason === 'too-long') return HINTS[picked.selection ? 'too-long-selection' : 'too-long'];
+    if (picked.reason) return HINTS[picked.reason];
+    if (sameLanguage.get(picked.text)) return `Already in ${languageNames.of(targetLang)}.`;
+    return '';
+  }
+
+  // The same block, or the same selected range.
+  function sameTarget(a, b) {
+    if (a === b) return true;
+    if (!(a instanceof Range) || !(b instanceof Range)) return false;
+    try {
+      return a.compareBoundaryPoints(Range.START_TO_START, b) === 0 && a.compareBoundaryPoints(Range.END_TO_END, b) === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  async function trigger() {
     if (!altDown || combo || mouseX === null) return;
-    const block = blockUnderMouse();
-    if (!block || block === popup.getBlock()) return;
+    const picked = pickUnderMouse();
+    if (!picked || picked.reason || sameTarget(picked.target, popup.getBlock())) return;
     usedAlt = true;
-    show(block);
+    const ticket = ++triggerTicket;
+    const skip = await isAlreadyInTargetLanguage(picked.text);
+    if (ticket !== triggerTicket) return; // the mouse has moved on to something else
+    if (skip) updatePreview();
+    else show(picked);
+  }
+
+  // Asks Chrome's on-device detector; a slow or missing detector never holds up a translation.
+  async function isAlreadyInTargetLanguage(text) {
+    if (sameLanguage.has(text)) return sameLanguage.get(text);
+    const verdict = await Promise.race([
+      alreadyInLanguage(text, targetLang),
+      new Promise((resolve) => setTimeout(resolve, DETECT_TIMEOUT_MS)),
+    ]);
+    if (verdict === undefined) return false;
+    remember(sameLanguage, text, verdict);
+    return verdict;
   }
 
   // Outline what Alt + hover would translate, before the trigger delay runs out.
@@ -42,10 +102,14 @@
       highlight.hide();
       return;
     }
-    const block = blockUnderMouse();
-    if (block === undefined) return; // over the popup: keep the current outline
-    if (block) highlight.show(block);
-    else highlight.hide();
+    const picked = pickUnderMouse();
+    if (picked === undefined) return; // over the popup: keep the current outline
+    if (!picked) {
+      highlight.hide();
+      return;
+    }
+    const hint = hintFor(picked);
+    highlight.show(picked.target, { muted: Boolean(hint), hint });
   }
 
   function schedulePreview() {
@@ -56,16 +120,23 @@
     });
   }
 
-  function show(block) {
+  function show(picked) {
     closePopup();
-    const text = blockText(block);
-    popup.open(block);
-    const cached = cache.get(text);
-    if (cached === undefined) translate(text);
+    const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
+    shown = { text: picked.text, mode };
+    popup.open(picked.target);
+    const cached = cache.get(`${mode}:${picked.text}`);
+    if (cached === undefined) translate(picked.text, mode);
     else popup.setText(cached);
   }
 
-  function translate(text) {
+  function retry() {
+    if (!shown || !popup.isOpen()) return;
+    popup.setLoading();
+    translate(shown.text, shown.mode);
+  }
+
+  function translate(text, mode) {
     let current;
     try {
       current = chrome.runtime.connect({ name: 'translate' });
@@ -81,19 +152,19 @@
         result += message.text;
         popup.setText(result);
       } else if (message.type === 'done') {
-        remember(text, result);
+        remember(cache, `${mode}:${text}`, result);
         disconnect();
       } else if (message.type === 'error') {
-        popup.setError(message.message, { withSettings: message.code === 'no_key' });
+        popup.setError(message.message, { action: message.code === 'no_key' ? 'settings' : 'retry' });
         disconnect();
       }
     });
     current.onDisconnect.addListener(() => {
       if (port !== current) return; // we disconnected on purpose
       port = null;
-      popup.setError('The translation was interrupted. Try again.');
+      popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
     });
-    current.postMessage({ text });
+    current.postMessage({ text, mode });
   }
 
   function disconnect() {
@@ -102,10 +173,10 @@
     current?.disconnect();
   }
 
-  function remember(text, translation) {
-    cache.delete(text);
-    cache.set(text, translation);
-    if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
+  function remember(map, key, value) {
+    map.delete(key);
+    map.set(key, value);
+    if (map.size > CACHE_LIMIT) map.delete(map.keys().next().value);
   }
 
   function closePopup() {
@@ -120,7 +191,7 @@
   }
 
   function checkLeave() {
-    if (!popup.isOpen()) return;
+    if (!popup.isOpen() || popup.isPinned()) return;
     const inside =
       isInside(popup.getBlock().getBoundingClientRect(), mouseX, mouseY) || isInside(popup.getRect(), mouseX, mouseY);
     if (inside) {
@@ -213,12 +284,15 @@
   addEventListener(
     'mousedown',
     (event) => {
-      if (popup.isOpen() && !popup.isOwn(event.target)) closePopup();
+      if (popup.isOpen() && !popup.isPinned() && !popup.isOwn(event.target)) closePopup();
     },
     true,
   );
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.settings) cache.clear();
+    if (area !== 'local' || !changes.settings) return;
+    cache.clear();
+    sameLanguage.clear();
+    targetLang = changes.settings.newValue?.targetLang || DEFAULT_LANG;
   });
 })();

@@ -4,6 +4,8 @@ import { errorFromStatus, makeError } from './lib/errors.js';
 import { LANGUAGES, loadSettings } from './lib/settings.js';
 
 const IDLE_TIMEOUT_MS = 30_000;
+const MODES = new Set(['text', 'dictionary']);
+const CACHE_PREFIX = 'cache:';
 const TEMPERATURE = 1.3; // DeepSeek's recommended temperature for translation
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -14,8 +16,8 @@ chrome.runtime.onConnect.addListener((port) => {
     connected = false;
     controller.abort();
   });
-  port.onMessage.addListener(({ text }) => {
-    translate(text, controller.signal, (message) => {
+  port.onMessage.addListener(({ text, mode }) => {
+    translate(text, MODES.has(mode) ? mode : 'text', controller.signal, (message) => {
       if (connected) port.postMessage(message);
     });
   });
@@ -27,10 +29,18 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 
-async function translate(text, signal, send) {
+async function translate(text, mode, signal, send) {
   const settings = await loadSettings();
   if (!settings.apiKey) {
     send({ type: 'error', ...makeError('no_key') });
+    return;
+  }
+
+  const key = await cacheKey(settings, mode, text);
+  const cached = (await chrome.storage.session.get(key))[key];
+  if (cached !== undefined) {
+    send({ type: 'chunk', text: cached });
+    send({ type: 'done' });
     return;
   }
 
@@ -48,7 +58,7 @@ async function translate(text, signal, send) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
       body: JSON.stringify({
         model: settings.model,
-        messages: buildMessages(text, LANGUAGES[settings.targetLang]),
+        messages: buildMessages(text, LANGUAGES[settings.targetLang], mode),
         stream: true,
         temperature: TEMPERATURE,
       }),
@@ -58,17 +68,37 @@ async function translate(text, signal, send) {
       send({ type: 'error', ...errorFromStatus(response.status, await response.text()) });
       return;
     }
-    let gotText = false;
+    let translation = '';
     await readStream(response.body, touch, (chunk) => {
-      gotText = true;
+      translation += chunk;
       send({ type: 'chunk', text: chunk });
     });
-    send(gotText ? { type: 'done' } : { type: 'error', ...makeError('empty') });
+    if (!translation) {
+      send({ type: 'error', ...makeError('empty') });
+      return;
+    }
+    send({ type: 'done' });
+    await remember(key, translation);
   } catch {
     if (signal.aborted) return; // the page closed the popup
     send({ type: 'error', ...makeError(idle.signal.aborted ? 'timeout' : 'network') });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// Translations are shared by all tabs for the browser session (chrome.storage.session).
+async function cacheKey(settings, mode, text) {
+  const data = new TextEncoder().encode(JSON.stringify([settings.baseUrl, settings.model, settings.targetLang, mode, text]));
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+  return CACHE_PREFIX + Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function remember(key, translation) {
+  try {
+    await chrome.storage.session.set({ [key]: translation });
+  } catch {
+    await chrome.storage.session.clear(); // quota is full: start over
   }
 }
 

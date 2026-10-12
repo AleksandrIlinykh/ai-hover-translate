@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures.js';
 
-function translateViaPort(page, text) {
+function translateViaPort(page, text, mode) {
   return page.evaluate(
-    (value) =>
+    ({ value, mode }) =>
       new Promise((resolve) => {
         const messages = [];
         const port = chrome.runtime.connect({ name: 'translate' });
@@ -13,9 +13,9 @@ function translateViaPort(page, text) {
             resolve(messages);
           }
         });
-        port.postMessage({ text: value });
+        port.postMessage({ text: value, mode });
       }),
-    text,
+    { value: text, mode },
   );
 }
 
@@ -107,4 +107,41 @@ test('aborts the API request when the port disconnects', async ({ page, server, 
       }),
   );
   await expect.poll(() => server.requests[0]?.aborted).toBe(true);
+});
+
+test('a dictionary request uses the dictionary prompt', async ({ page, server, setSettings }) => {
+  await setSettings();
+  await translateViaPort(page, 'bank', 'dictionary');
+  expect(server.requests[0].body.messages[0].content).toContain('bilingual dictionary');
+});
+
+test('an unknown mode falls back to a plain translation', async ({ page, server, setSettings }) => {
+  await setSettings();
+  await translateViaPort(page, 'bank', 'weird');
+  expect(server.requests[0].body.messages[0].content).toContain('professional translator');
+});
+
+test('a repeated translation comes from the session cache, even on another page', async ({ context, page, server, setSettings, extensionId }) => {
+  await setSettings();
+  expect(joined(await translateViaPort(page, 'Hello cache'))).toBe('[RU] Hello cache');
+  const other = await context.newPage();
+  await other.goto(`chrome-extension://${extensionId}/options.html`);
+  expect(await translateViaPort(other, 'Hello cache')).toEqual([{ type: 'chunk', text: '[RU] Hello cache' }, { type: 'done' }]);
+  expect(server.requests).toHaveLength(1);
+});
+
+test('the session cache is per target language and per mode', async ({ page, server, setSettings }) => {
+  await setSettings();
+  await translateViaPort(page, 'Hi');
+  await translateViaPort(page, 'Hi', 'dictionary');
+  await setSettings({ targetLang: 'de' });
+  await translateViaPort(page, 'Hi');
+  expect(server.requests).toHaveLength(3);
+});
+
+test('errors are not cached', async ({ page, server, setSettings }) => {
+  await setSettings({ apiKey: 'flaky' });
+  expect((await translateViaPort(page, 'Hi')).at(-1).code).toBe('server');
+  expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
+  expect(server.requests).toHaveLength(2);
 });

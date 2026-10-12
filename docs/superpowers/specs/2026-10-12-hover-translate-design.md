@@ -11,6 +11,8 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 - Alt + hover over a paragraph → a popup where the translation streams in (the first words show as soon as DeepSeek starts answering).
 - Without Alt nothing happens and no requests are sent.
 - Translating the same paragraph again on the same page is instant, with no request.
+- The same text is sent to the API at most once per browser session, whichever tab it is in.
+- No settings for any of the interaction: what gets translated, pinning, copying and retrying follow from what the user does.
 - Errors are clear and shown right in the popup.
 - On regular sites (articles, documentation, Wikipedia, GitHub) the popup does not break the site layout and is not broken by it.
 
@@ -18,10 +20,10 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 
 - Publishing to the Chrome Web Store, syncing settings across devices.
 - Translating inside iframes, input fields, contenteditable.
-- Word breakdowns, dictionary, transcription.
-- Translating the whole page or a text selection.
+- Transcription, usage examples, full dictionary articles (short selections get a brief entry only).
+- Translating the whole page.
+- Sending page context (title, neighbouring paragraphs) to the model.
 - A configurable hotkey (Alt only).
-- A cache shared across pages and tabs.
 - Firefox, Safari.
 
 ## Approach
@@ -36,15 +38,17 @@ hover-translate/
     manifest.json
     background.js       ES module: 'translate' port, API request, opening the settings
     lib/
-      prompt.js         buildMessages(text, languageName)
+      prompt.js         buildMessages(text, languageName, mode)
       sse.js            createSseParser(), deltaFromPayload(payload)
       errors.js         errorFromStatus(status, bodyText), makeError(code)
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), loadSettings()
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
-      block.js          elementAt(x, y), findBlock(element), blockText(block)
-      popup.js          createPopup({ onOpenSettings })
+      block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
+      selection.js      selectionAt(x, y), isShortPhrase(text)
+      language.js       isAlreadyIn(results, lang), alreadyInLanguage(text, lang)
+      popup.js          createPopup({ onOpenSettings, onRetry, onClose })
       highlight.js      createHighlight()
-      main.js           trigger, talking to background, closing, page cache
+      main.js           trigger, what to translate, talking to background, closing, page cache
     options.html
     options.js
   tests/
@@ -64,7 +68,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `manifest_version: 3`, `name: "Hover Translate"`, `version: "0.1.0"`.
 - `permissions: ["storage"]`, `host_permissions: ["https://api.deepseek.com/*"]`.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `action: { default_title: "Hover Translate settings" }`; clicking the icon opens the settings.
 
@@ -106,17 +110,28 @@ While Alt is held (and it is not a combo), the block that would be translated is
 
 - Look: a 2 px dashed `#1f6feb` border, 3 px outside the block, 4 px radius, `rgba(31, 111, 235, 0.1)` fill; readable on light and dark pages.
 - It is a separate `<div id="hover-translate-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
-- Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Nothing translatable under the mouse (input, block over `MAX_CHARS`, empty space) means no outline.
+- Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Empty space (no text under the mouse) means no outline.
+- **Muted outline with a hint** where Alt + hover would not translate: a grey (`#8c959f`) dashed border, `rgba(140, 149, 159, 0.12)` fill and a small label above the box (inside its top-left corner when the box touches the top of the window). The label also has `pointer-events: none`, so it can never be picked as text itself. Hints:
+  - input field or editable area: "Input fields are not translated."
+  - block longer than `MAX_CHARS`: "Too much text. Select the part you need."
+  - selection longer than `MAX_CHARS`: "Too much text. Select a shorter part."
+  - text already in the target language: "Already in {language}." (English language name from `Intl.DisplayNames`).
 - Removed when Alt is released, on a combo, and on window `blur`. The popup stays open; the outline does not.
 
-## Finding the block
+## What gets translated
 
-`findBlock(element)`:
+`main.js` picks one target under the mouse, in this order (our own popup is skipped first):
 
-1. No element: `null`. `main.js` filters out our own popup before calling `findBlock`.
-2. The element is inside `input`, `textarea`, `select` or an editable area (`isContentEditable`): `null`.
-3. Walk up from the element (stopping before `body`/`html`). The first element whose `display` is one of `block`, `list-item`, `table-cell`, `table-caption`, `flex`, `grid`, `flow-root` and whose `innerText` has at least one letter (`\p{L}`) is the candidate.
-4. If the candidate's text is longer than `MAX_CHARS = 3000`: `null` (it is a page wrapper, not a paragraph). Otherwise the candidate.
+1. **The user's selection**, when the mouse is over one of its lines (`selectionAt(x, y)`, 2 px tolerance). The target is a copy of the selection `Range`; the popup and the outline position themselves against its rectangle. Only the selected text is sent. Selections inside editable areas are ignored. A selection longer than `MAX_CHARS` gets the muted outline instead.
+2. **The block under the mouse** (`inspectBlock(element)`):
+   1. The element is inside `input`, `textarea`, `select` or an editable area (`isContentEditable`): not translated, reason `editable`.
+   2. Walk up from the element (stopping before `body`/`html`). The first element whose `display` is one of `block`, `list-item`, `table-cell`, `table-caption`, `flex`, `grid`, `flow-root` and whose `innerText` has at least one letter (`\p{L}`) is the candidate.
+   3. If the candidate's text is longer than `MAX_CHARS = 3000`: not translated, reason `too-long` (it is a page wrapper, not a paragraph); the hint suggests selecting a part. This only applies when the mouse is over a line of text (`isOverText`, via `caretRangeFromPoint`), so moving across the margins between paragraphs shows nothing.
+   4. Otherwise the candidate.
+
+**Dictionary mode:** a selection of at most 3 words and 40 characters is sent with `mode: 'dictionary'` and gets a short dictionary entry instead of a plain translation.
+
+**Same language:** before sending, the text goes to Chrome's on-device `LanguageDetector`. If its top guess is the target language (primary subtag) with confidence of at least 0.8, nothing is sent and the muted outline says so. The check never blocks a translation: no detector, a model that is still downloading, an error, or no answer within 300 ms all mean "translate". Verdicts are remembered per text (100 entries, cleared with the settings).
 
 The element under the cursor is looked up inside open Shadow DOM trees (web components), and the walk up steps out of a shadow root to its host.
 
@@ -136,15 +151,17 @@ Text to translate: `innerText`, trimmed, with three or more consecutive line bre
   - The gap between paragraph and popup is 6 px. `max-height` = room on the chosen side minus the gap and the margin; if that is under 80 px (paragraph taller than the window), the popup overlaps the paragraph and may take the whole window minus margins. If the text does not fit, the popup scrolls inside.
   - The popup always stays inside the window: its vertical position is clamped to [8 px; window height - 8 px - popup height]. This covers paragraphs taller than the screen (top scrolled past the edge): the popup then overlaps part of the paragraph but stays visible.
   - Above the paragraph, the popup's bottom edge sticks to the paragraph: while the text streams in, the position is recalculated (via `requestAnimationFrame`) and the popup grows upward.
-- States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. The "no key" error shows an "Open settings" button.
+- States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. Errors get one action button: "Open settings" for the missing key, "Retry" for everything else (it re-sends the same text and mode in the same popup). "The extension was updated" has no button.
+- Tools in the top-right corner: "Copy" (shown on hover once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (shown when pinned, closes the popup).
+- **Pinning:** any `mousedown` inside the popup pins it (blue border). A pinned popup ignores the mouse leaving and clicks outside; it closes with Esc, its "×", a window resize or the next translation.
 - Look: system font 14px/1.5, 10×12 px padding, 8 px radius, shadow; light and dark theme via `prefers-color-scheme`.
 - Only one popup is open at a time.
 
 Closing:
 
 - `Esc`;
-- `mousedown` outside the popup;
-- the mouse outside both the paragraph and the popup rectangles for longer than `LEAVE_GRACE_MS = 300` (slack to move the mouse onto the popup across the gap); this rule is off while a mouse button is held (selecting popup text);
+- `mousedown` outside the popup (unless pinned);
+- the mouse outside both the paragraph and the popup rectangles for longer than `LEAVE_GRACE_MS = 300` (slack to move the mouse onto the popup across the gap); this rule is off while a mouse button is held (selecting popup text) and for a pinned popup;
 - window resize;
 - translating another paragraph.
 
@@ -152,11 +169,13 @@ On close, the port to background is disconnected and any unfinished API request 
 
 ## Cache
 
-In `content/main.js`: a `Map` from text to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (`chrome.storage.onChanged`).
+In `content/main.js`: a `Map` from `{mode}:{text}` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (`chrome.storage.onChanged`).
+
+In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[baseUrl, model, targetLang, mode, text]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
 
 ## Talking to background
 
-Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text }`. Background replies with:
+Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text, mode }` (`mode` is `'text'` or `'dictionary'`; anything else is treated as `'text'`). Background replies with:
 
 - `{ type: 'chunk', text }`: the next piece of the translation;
 - `{ type: 'done' }`: the translation is finished;
@@ -180,6 +199,7 @@ Prompt (`buildMessages`):
 
 - system: `You are a professional translator. Translate the user's text into {languageName}. Output only the translation, with no explanations, notes, or quotes. Preserve the meaning, tone, and line breaks. Leave code, URLs, and names that are normally not translated as they are. If the text is already in {languageName}, return it unchanged.`
 - user: the text itself.
+- dictionary mode, system: `You are a bilingual dictionary. The user's text is a word or a short phrase. Reply in {languageName}, in plain text only: on the first line give the most common translation; then add up to three lines, one per sense, each as "part of speech: meanings", most common first. Add nothing else.`
 
 Stream parsing (`sse.js`):
 
@@ -246,7 +266,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   22. Holding Alt over a paragraph → a dashed outline 3 px around it appears before any request is sent.
   23. With Alt held the mouse moves to another paragraph → the outline moves with it.
   24. Releasing Alt → the outline disappears, the popup stays.
-  25. Nothing translatable under the mouse (`#huge`, an input) → no outline.
+  25. Nothing translatable under the mouse (`#huge`, an input) → a grey outline with the matching hint, no request; empty space between paragraphs → no outline.
   26. Shift held before Alt → no outline.
   27. Page with hostile CSS → the outline is visible.
   28. A 1000 px wide paragraph → a 720 px wide popup.
@@ -254,5 +274,14 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   30. A 200 px narrow column → a 320 px wide popup, above it.
   31. A tall narrow block with room on its right → the popup is 6 px to its right, aligned to its top.
   32. A tall block spanning the window → the popup stays above or below it.
+  33. Alt over a selection → only the selected text is sent, with the plain prompt; the outline traces the selection.
+  34. A selection of one word → the dictionary prompt.
+  35. A selection elsewhere on the page → Alt over another paragraph still translates that paragraph.
+  36. A selection longer than `MAX_CHARS` → a grey outline with a hint, no request.
+  37. Text already in the target language → a hint, no request (runs only where Chrome's language detector is available; the decision rule is unit-tested).
+  38. Clicking the popup pins it: it survives the mouse leaving and outside clicks, closes with "×" or Esc.
+  39. "Copy" puts the translation on the clipboard; errors offer no "Copy".
+  40. An API error offers "Retry", which translates on the second try; a missing key offers "Open settings" instead.
+  41. The same text translated again from another page is answered from the session cache without a request; the cache is per target language and mode; errors are not cached.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

@@ -9,7 +9,14 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/block.js", "content/popup.js", "content/highlight.js", "content/main.js"],
+      "js": [
+        "content/block.js",
+        "content/selection.js",
+        "content/language.js",
+        "content/popup.js",
+        "content/highlight.js",
+        "content/main.js"
+      ],
       "run_at": "document_end"
     }
   ],
