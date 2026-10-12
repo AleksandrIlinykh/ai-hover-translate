@@ -43,6 +43,7 @@ hover-translate/
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
       block.js          elementAt(x, y), findBlock(element), blockText(block)
       popup.js          createPopup({ onOpenSettings })
+      highlight.js      createHighlight()
       main.js           trigger, talking to background, closing, page cache
     options.html
     options.js
@@ -63,7 +64,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `manifest_version: 3`, `name: "Hover Translate"`, `version: "0.1.0"`.
 - `permissions: ["storage"]`, `host_permissions: ["https://api.deepseek.com/*"]`.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/popup.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `action: { default_title: "Hover Translate settings" }`; clicking the icon opens the settings.
 
@@ -98,6 +99,15 @@ State: last mouse coordinates, whether Alt is held, whether another key was pres
 - The timer (`TRIGGER_DELAY_MS = 200`) fires: take the element at the last mouse point and look for a block. If a block is found and it is not the block already shown, translate it.
 
 So when the mouse crosses several paragraphs with Alt held, the one where it stops gets translated.
+
+## Highlight
+
+While Alt is held (and it is not a combo), the block that would be translated is outlined right away, without waiting for `TRIGGER_DELAY_MS`, so a wrong pick (another paragraph, a whole column) is visible before any request is sent.
+
+- Look: a 2 px dashed `#1f6feb` border, 3 px outside the block, 4 px radius, `rgba(31, 111, 235, 0.1)` fill; readable on light and dark pages.
+- It is a separate `<div id="hover-translate-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
+- Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Nothing translatable under the mouse (input, block over `MAX_CHARS`, empty space) means no outline.
+- Removed when Alt is released, on a combo, and on window `blur`. The popup stays open; the outline does not.
 
 ## Finding the block
 
@@ -232,5 +242,11 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   19. An inner container scrolls → the popup stays 6 px above the paragraph.
   20. Paragraph taller than the window → popup taller than half the window, not 80 px.
   21. Selecting popup text with the mouse going past its edge → the popup stays open.
+  22. Holding Alt over a paragraph → a dashed outline 3 px around it appears before any request is sent.
+  23. With Alt held the mouse moves to another paragraph → the outline moves with it.
+  24. Releasing Alt → the outline disappears, the popup stays.
+  25. Nothing translatable under the mouse (`#huge`, an input) → no outline.
+  26. Shift held before Alt → no outline.
+  27. Page with hostile CSS → the outline is visible.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

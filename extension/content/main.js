@@ -1,5 +1,5 @@
 (() => {
-  const { elementAt, findBlock, blockText, createPopup } = globalThis.hoverTranslate;
+  const { elementAt, findBlock, blockText, createPopup, createHighlight } = globalThis.hoverTranslate;
 
   const TRIGGER_DELAY_MS = 200;
   const LEAVE_GRACE_MS = 300;
@@ -9,6 +9,7 @@
   const popup = createPopup({
     onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
   });
+  const highlight = createHighlight();
 
   let mouseX = null;
   let mouseY = null;
@@ -17,16 +18,42 @@
   let usedAlt = false;
   let triggerTimer = 0;
   let leaveTimer = 0;
+  let previewFrame = 0;
   let port = null;
+
+  // Block under the mouse; undefined while the mouse is over our own popup.
+  function blockUnderMouse() {
+    const element = elementAt(mouseX, mouseY);
+    if (element && popup.isOwn(element)) return undefined;
+    return element ? findBlock(element) : null;
+  }
 
   function trigger() {
     if (!altDown || combo || mouseX === null) return;
-    const element = elementAt(mouseX, mouseY);
-    if (!element || popup.isOwn(element)) return;
-    const block = findBlock(element);
+    const block = blockUnderMouse();
     if (!block || block === popup.getBlock()) return;
     usedAlt = true;
     show(block);
+  }
+
+  // Outline what Alt + hover would translate, before the trigger delay runs out.
+  function updatePreview() {
+    if (!altDown || combo || mouseX === null) {
+      highlight.hide();
+      return;
+    }
+    const block = blockUnderMouse();
+    if (block === undefined) return; // over the popup: keep the current outline
+    if (block) highlight.show(block);
+    else highlight.hide();
+  }
+
+  function schedulePreview() {
+    if (previewFrame) return;
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = 0;
+      updatePreview();
+    });
   }
 
   function show(block) {
@@ -112,6 +139,7 @@
   function releaseAlt() {
     altDown = false;
     clearTimeout(triggerTimer);
+    highlight.hide();
   }
 
   addEventListener(
@@ -120,7 +148,10 @@
       mouseX = event.clientX;
       mouseY = event.clientY;
       if (altDown && !event.altKey) releaseAlt(); // keyup happened outside the page
-      if (altDown && !combo) scheduleTrigger();
+      if (altDown && !combo) {
+        scheduleTrigger();
+        schedulePreview();
+      }
       if (event.buttons === 0) checkLeave(); // a drag, e.g. selecting popup text, never closes it
     },
     { capture: true, passive: true },
@@ -135,12 +166,16 @@
         // Ctrl/Shift/Meta already held (Ctrl+Alt+…, the Alt+Shift layout switch) is not a translation request.
         combo = event.ctrlKey || event.shiftKey || event.metaKey;
         usedAlt = false;
-        if (!combo) scheduleTrigger();
+        if (!combo) {
+          scheduleTrigger();
+          updatePreview();
+        }
         return;
       }
       if (altDown) {
         combo = true; // Alt+Tab, Alt+←, … are not translation requests
         clearTimeout(triggerTimer);
+        highlight.hide();
       }
       if (event.key === 'Escape' && popup.isOpen()) closePopup();
     },
@@ -166,6 +201,7 @@
     'scroll',
     () => {
       if (popup.isOpen()) popup.follow();
+      if (altDown && !combo) schedulePreview();
     },
     { capture: true, passive: true },
   );
