@@ -53,3 +53,52 @@ export async function altHover(page, selector) {
   await moveTo(page, selector);
   await page.keyboard.down('Alt');
 }
+
+// Runs `expression` in the extension's isolated world on `page`, where its content scripts live.
+// Unlike page.evaluate(), this is not a user gesture.
+export async function inContentScript(page, expression) {
+  const client = await page.context().newCDPSession(page);
+  const worlds = [];
+  client.on('Runtime.executionContextCreated', ({ context }) => worlds.push(context));
+  await client.send('Runtime.enable');
+  const world = worlds.find((context) => context.auxData?.type === 'isolated' && context.name === 'Hover Translate');
+  const { result } = await client.send('Runtime.evaluate', { expression, contextId: world.id, awaitPromise: true, returnByValue: true });
+  await client.detach();
+  return result.value;
+}
+
+// Stand-ins for Chrome's on-device LanguageDetector and Translator, which the test browser lacks. The detector
+// always says `language`; the translator answers "[ru on device] <text>" and logs every translator it makes in
+// globalThis.fakeAI.creates (with whether there was a user gesture). A pair that is not 'available' is downloaded
+// on create(), with a progress event at 50% and a pause of `downloadMs`.
+// Chrome takes no user gesture from Alt (checked), but Playwright's own actions count as one, so here only a click
+// in the last 5 seconds does.
+export function fakeBuiltInAI({ availability = 'available', language = 'en', downloadMs = 0 } = {}) {
+  return `(() => {
+    const log = (globalThis.fakeAI = { creates: [], availability: ${JSON.stringify(availability)} });
+    let clickedAt = -Infinity;
+    addEventListener('click', () => (clickedAt = performance.now()), true);
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      get: () => ({ isActive: performance.now() - clickedAt < 5000 }),
+    });
+    globalThis.LanguageDetector = {
+      availability: async () => 'available',
+      create: async () => ({ detect: async () => [{ detectedLanguage: ${JSON.stringify(language)}, confidence: 0.95 }] }),
+    };
+    globalThis.Translator = {
+      availability: async () => log.availability,
+      create: async ({ sourceLanguage, targetLanguage, monitor }) => {
+        log.creates.push({ sourceLanguage, targetLanguage, activated: navigator.userActivation.isActive });
+        if (log.availability !== 'available') {
+          const progress = new EventTarget();
+          monitor?.(progress);
+          progress.dispatchEvent(Object.assign(new Event('downloadprogress'), { loaded: 0.5 }));
+          await new Promise((resolve) => setTimeout(resolve, ${downloadMs}));
+          log.availability = 'available';
+        }
+        return { translate: async (text) => '[' + targetLanguage + ' on device] ' + text };
+      },
+    };
+  })()`;
+}

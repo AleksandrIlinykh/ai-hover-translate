@@ -4,7 +4,7 @@ Date: 2026-10-12
 
 ## Goal
 
-A Chrome extension for reading sites in a foreign language: hold Alt, hover over a paragraph, and a natural translation into the chosen language pops up above it. An AI model of the user's choice does the translation: a cloud API with the user's own key (DeepSeek by default) or a model running on the same computer. Installed as an unpacked extension.
+A Chrome extension for reading sites in a foreign language: hold Alt, hover over a paragraph, and a natural translation into the chosen language pops up above it. Out of the box Chrome's own on-device translator does it, free and without sending anything anywhere. For translations that fit the context, the user picks an AI model instead: a cloud API with their own key or a model running on the same computer. Installed as an unpacked extension.
 
 ## Success criteria
 
@@ -48,8 +48,9 @@ hover-translate/
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), contextOf(range)
-      language.js       isAlreadyIn(results, lang), alreadyInLanguage(text, lang)
-      popup.js          createPopup({ onOpenSettings, onRetry, onClose })
+      language.js       isAlreadyIn(results, lang), detectLanguage(text), alreadyInLanguage(text, lang)
+      translator.js     sourceLanguage(results), translateInBrowser(text, lang, options), describeProblem(result, lang)
+      popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics })
       highlight.js      createHighlight()
       main.js           trigger, what to translate, talking to background, closing, page cache
     options.html
@@ -73,7 +74,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `action: { default_title: "Hover Translate settings" }`; clicking the icon opens the settings.
 
@@ -83,16 +84,17 @@ Stored in `chrome.storage.local` under the `settings` key:
 
 | Field | Default | Purpose |
 |---|---|---|
-| `provider` | `"deepseek"` | the provider in use |
+| `provider` | `"chrome"` | the provider in use |
 | `targetLang` | `"ru"` | target language code |
 | `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
 
-A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `deepseek`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
+A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `chrome`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry, and DeepSeek stays in use. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
 
 Providers (`lib/providers.js`):
 
 | id | Name | API | Default URL | Default model | Reasoning off |
 |---|---|---|---|---|---|
+| `chrome` | Chrome built-in translator | browser (see "Free translator") | none | none | not an LLM |
 | `deepseek` | DeepSeek | OpenAI | `https://api.deepseek.com` | `deepseek-flash` | `thinking: { type: 'disabled' }` |
 | `openai` | OpenAI | OpenAI | `https://api.openai.com/v1` | `gpt-6-luna` | `reasoning_effort: 'none'` |
 | `anthropic` | Anthropic Claude | Anthropic | `https://api.anthropic.com/v1` | `claude-haiku-5-5` | `thinking: { type: 'disabled' }` |
@@ -106,20 +108,20 @@ Providers (`lib/providers.js`):
 | `lmstudio` | LM Studio | OpenAI | `http://localhost:1234/v1` | none | nothing to send |
 | `custom` | Other OpenAI-compatible API | OpenAI | none | none | nothing to send |
 
-Each preset also has a group (`cloud`, `local`, `other`), whether a key is required (cloud ones only), the page where keys are made, 0 to 3 suggested models and an optional one-line hint (for Qwen: keys work only in their own region). Model names come from the providers' docs as of October 2026; the model field is free text, so a stale suggestion never blocks anyone.
+Each preset also has a group (`free`, `cloud`, `local`, `other`), whether a key is required (cloud ones only), the page where keys are made, 0 to 3 suggested models and an optional one-line hint (for Qwen: keys work only in their own region). Model names come from the providers' docs as of October 2026; the model field is free text, so a stale suggestion never blocks anyone.
 
-The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language: `{ type: 'page-settings' }` is answered with `{ targetLang }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang }` to every tab.
+The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language and the engine: `{ type: 'page-settings' }` is answered with `{ targetLang, engine }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang, engine }` to every tab.
 
 `LANGUAGES` maps a code to its English name, used both in the prompt and in the settings page: ru, en, de, fr, es, it, pt, pl, uk, tr, zh (Chinese (Simplified)), ja, ko.
 
 Settings page (`options.html`), top to bottom:
 
 - "Translate into": the language picker.
-- "AI provider": a select grouped into "Cloud APIs", "On this computer" and "Other", with the preset's hint under it.
+- "Translate with": a select grouped into "Free, on this computer", "Cloud APIs", "Local AI models" and "Other", with the preset's hint under it. For the free translator the key, model and URL fields are hidden (`#apiFields`).
 - "API key" (`type=password`, "API key (optional)" for local and custom ones) with a "Show"/"Hide" button and a "Get a key" link to the provider's key page (hidden when there is none).
 - "Model": free text with suggestions (a `datalist` of the preset's models) and a "Load models" button that asks the API for its `/models` list, keeps chat models only and adds them to the suggestions ("Loaded N models." or the error under the field). Blank with "Choose or type a model" when the provider has no default.
 - "API URL": the address up to `/v1`; clearing it brings back the provider's own.
-- "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red.
+- "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red. With the free translator it runs Chrome's translator right in the settings page, from English (from German when the target is English); the click lets Chrome download that model, with "Downloading the translation model: {n}%" meanwhile.
 
 Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
@@ -197,7 +199,7 @@ Cost: the topic request is about 250 input and 15 output tokens, once per page; 
   - The gap between paragraph and popup is 6 px. `max-height` = room on the chosen side minus the gap and the margin; if that is under 80 px (paragraph taller than the window), the popup overlaps the paragraph and may take the whole window minus margins. If the text does not fit, the popup scrolls inside.
   - The popup always stays inside the window: its vertical position is clamped to [8 px; window height - 8 px - popup height]. This covers paragraphs taller than the screen (top scrolled past the edge): the popup then overlaps part of the paragraph but stays visible.
   - Above the paragraph, the popup's bottom edge sticks to the paragraph: while the text streams in, the position is recalculated (via `requestAnimationFrame`) and the popup grows upward.
-- States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. Errors get one action button: "Open settings" for the missing key, "Retry" for everything else (it re-sends the same text and mode in the same popup). "The extension was updated" has no button.
+- States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. Errors get one action button: "Open settings" for the missing key, "Download" when Chrome's translator needs a model, "Retry" for everything else (it re-sends the same text and mode in the same popup). The loading state can carry a text instead of "…", such as the download progress. "The extension was updated" has no button.
 - **Title bar:** a minimal 24 px bar across the top (light grey, darker in the dark theme, a thin line under it), in the style of macOS and Windows windows. On its right: "Copy" (shown once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (always there, closes the popup). On its left: the page topic tags used for this translation and the button that forgets them (see "Context for the model"). Only the text area under the bar scrolls; the bar stays on top.
 - **Pinning:** any `mousedown` inside the popup pins it (blue border). A pinned popup ignores the mouse leaving and clicks outside; it closes with Esc, its "×", a window resize or the next translation.
 - **Dragging:** pressing the bar (outside its buttons) and moving drags the popup (pointer events with pointer capture; the cursor is a grabbing hand). Dragging pins the popup and detaches it from the block: it switches to `position: fixed`, so it stays at the same place on screen while the page or an inner container scrolls, and it may use the whole window height. It cannot be dragged past the window edges (8 px margin), and on a window resize it is moved back inside the window instead of closing. Esc, "×" and the next translation close it as usual; the next popup opens attached to its block again.
@@ -215,6 +217,27 @@ Closing:
 
 On close, the port to background is disconnected and any unfinished API request is cancelled.
 
+## Free translator (content/translator.js)
+
+With the `chrome` provider the page translates by itself with Chrome's on-device Translator API (Chrome 138+ on desktop; also in Edge). It is not available in the service worker, so content runs it; nothing is sent to background or anywhere else.
+
+- The source language comes from Chrome's language detector (`detectLanguage`, shared with the "Already in" hint): its top guess, when it is not `und` and has a confidence of at least 0.3, as a base code (`pt-BR` → `pt`; `zh-Hant` is kept). Text already in the target language comes back unchanged.
+- One translator per language pair is kept for the page. `Translator.availability()`: `unavailable` → a problem; `available` → `create()` and translate; anything else means a model to download, which Chrome allows only right after a user gesture. Alt is not one (checked in Chromium: modifier keys give no user activation), so without `navigator.userActivation.isActive` the popup says "Chrome needs to download its {source} to {target} model once." with a "Download" button; its click translates again, and `create()` downloads the model, reporting "Downloading the translation model: {n}%" in the popup. Chrome keeps the model, so this happens once per pair. "Test" in the settings does it for English.
+- The whole text is translated at once (`translate()`, not streamed): on the device it is quick.
+- No page topic is asked for and no dictionary prompt exists: a short selection is translated as plain text. The page cache works as for the other providers; the background session cache is not used.
+- An on-page translation in progress is dropped when the popup closes or another translation starts.
+- If background still gets a port request while the free translator is chosen (the page has not heard about the switch yet), it answers `{ type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' }`, and the page switches to the free translator for the retry. The topic message gets no tags.
+
+Problems (`describeProblem`):
+
+| Problem | Text | Button |
+|---|---|---|
+| `needs_download` | Chrome needs to download its {source} to {target} model once. | Download |
+| `unavailable` | Chrome cannot translate {source} to {target} on this computer. Choose an AI provider in the settings. | Open settings |
+| `unsupported` (no Translator or detector) | This browser has no built-in translator. Choose an AI provider in the settings. | Open settings |
+| `unknown_language` | Could not tell which language this text is in. | Retry |
+| `failed` | The built-in translator failed: {error} | Retry |
+
 ## Cache
 
 In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (the `settings-changed` message from background).
@@ -229,7 +252,7 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 - `{ type: 'done' }`: the translation is finished;
 - `{ type: 'error', code, message }`: an error with a readable `message`.
 
-A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang }` (see "Settings").
+A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang, engine }`, where `engine` is `'browser'` for the free translator and `'api'` otherwise (see "Settings" and "Free translator").
 
 ## API request (background.js, lib/chat.js, lib/providers.js)
 
@@ -300,12 +323,14 @@ Unit tests (`node --test`, no dependencies):
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
+- `translator.js`: the source language from the detector's guesses; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); the problem texts.
 - `providers.js`: the list of providers and that the manifest covers their hosts; the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
 - `mock-server.js` on a random port serves the test pages, `POST /chat/completions`, `POST /messages` (Anthropic's format) and `GET /models` (two chat models, an embedding model and one with a `models/` prefix), with CORS headers and `OPTIONS` handling. The API key selects the behavior: `strict` → 400 for a request that carries a reasoning switch; `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (path, key headers, `Origin`, body, whether the client aborted it), topic requests apart from translations.
 - Settings are set through the extension's service worker (`chrome.storage.local.set`): one provider (DeepSeek unless a test picks another) with `baseUrl` pointing at the mock.
+- The test Chromium has no on-device Translator or LanguageDetector in content scripts. Stand-ins are put into the extension's isolated world over CDP (not a user gesture, unlike `page.evaluate`). Playwright's own actions count as user gestures in Chrome, so the stand-in reports activation only within 5 s of a real click.
 - Scenarios:
   1. Alt + hover → popup with `[RU] …` from the mock.
   2. Hover without Alt → no popup after 500 ms, 0 requests.
@@ -374,5 +399,11 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   65. "Load models" adds the API's chat models to the suggestions, or shows the API error.
   66. "Test" translates a sentence with the fields as they are, without saving them, or says what is wrong.
   67. Saving a URL outside the manifest asks Chrome for its host; when Chrome refuses, the settings are saved with a warning.
+  68. The free translator translates on the page: no API request and no topic request, a translator for English to Russian made without a gesture.
+  69. A pair to download shows the message and "Download"; its click shows the progress, then the translation, and the translator is made with a gesture.
+  70. A pair Chrome cannot translate, and a browser without the translator, offer "Open settings".
+  71. Switching from the free translator to an API provider takes effect on an open page.
+  72. Background tells pages the engine, and answers a port request during the free translator with `engine_changed`; no topics.
+  73. Settings page: opens on the free translator with the API fields hidden; "Test" downloads the model from English and translates the sample, from German into English, and says when the browser has no translator.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

@@ -236,3 +236,24 @@ test.describe('other providers', () => {
     expect(server.topicRequests).toHaveLength(0);
   });
 });
+
+test.describe('free built-in translator', () => {
+  const pageSettings = (page) => page.evaluate(() => chrome.runtime.sendMessage({ type: 'page-settings' }));
+
+  test('pages are told which engine translates', async ({ page, setSettings }) => {
+    await setSettings({ targetLang: 'de' });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api' });
+    await setSettings({ provider: 'chrome', targetLang: 'de' });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser' });
+  });
+
+  test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'chrome' });
+    expect(await translateViaPort(page, 'Hi')).toEqual([
+      { type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' },
+    ]);
+    expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
+    expect(server.requests).toHaveLength(0);
+    expect(server.topicRequests).toHaveLength(0);
+  });
+});

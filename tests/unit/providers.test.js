@@ -32,8 +32,9 @@ function covers(pattern, url) {
   return host.startsWith('*.') ? hostname.endsWith(host.slice(1)) : hostname === host;
 }
 
-test('the main cloud APIs, two local servers and any OpenAI-compatible API are offered', () => {
+test('the free built-in translator, the main cloud APIs, two local servers and any OpenAI-compatible API are offered', () => {
   assert.deepEqual(Object.keys(PROVIDERS), [
+    'chrome',
     'deepseek',
     'openai',
     'anthropic',
@@ -49,8 +50,8 @@ test('the main cloud APIs, two local servers and any OpenAI-compatible API are o
   ]);
   for (const [id, preset] of Object.entries(PROVIDERS)) {
     assert.ok(preset.name, id);
-    assert.ok(['openai', 'anthropic'].includes(preset.api), id);
-    assert.ok(['cloud', 'local', 'other'].includes(preset.group), id);
+    assert.ok(['browser', 'openai', 'anthropic'].includes(preset.api), id);
+    assert.ok(['free', 'cloud', 'local', 'other'].includes(preset.group), id);
     assert.equal(preset.keyRequired, preset.group === 'cloud', id);
     if (preset.keyRequired) assert.match(preset.keyUrl, /^https:\/\//, id);
   }
@@ -187,6 +188,7 @@ test('setupProblem names what is missing before anything is sent', () => {
   assert.equal(setupProblem(provider('custom', { baseUrl: '' })), 'no_url');
   assert.equal(setupProblem(provider('custom', { baseUrl: 'not a url' })), 'no_url');
   assert.equal(setupProblem(provider('openai')), null);
+  assert.equal(setupProblem({ id: 'chrome', ...PROVIDERS.chrome, apiKey: '', model: '', baseUrl: '' }), null);
 });
 
 test('hostPattern turns an API URL into the host permission it needs', () => {

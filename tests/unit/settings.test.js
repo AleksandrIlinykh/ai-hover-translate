@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, LANGUAGES, activeProvider, withDefaults } from '../../extension/lib/settings.js';
 import { PROVIDERS } from '../../extension/lib/providers.js';
 
-test('withDefaults returns DeepSeek, Russian and no provider entries when nothing is stored', () => {
-  assert.deepEqual(withDefaults(undefined), { provider: 'deepseek', targetLang: 'ru', providers: {} });
-  assert.deepEqual(DEFAULTS, { provider: 'deepseek', targetLang: 'ru' });
+test('withDefaults returns the free built-in translator, Russian and no provider entries when nothing is stored', () => {
+  assert.deepEqual(withDefaults(undefined), { provider: 'chrome', targetLang: 'ru', providers: {} });
+  assert.deepEqual(DEFAULTS, { provider: 'chrome', targetLang: 'ru' });
 });
 
 test('withDefaults keeps the chosen provider and every provider entry, trimmed', () => {
@@ -30,7 +30,7 @@ test('withDefaults keeps the chosen provider and every provider entry, trimmed',
 test('withDefaults drops unknown providers, unknown fields and non-string values', () => {
   const stored = { provider: 'nope', providers: { nope: { apiKey: 'x' }, openai: { apiKey: 42, extra: 'y' } } };
   assert.deepEqual(withDefaults(stored), {
-    provider: 'deepseek',
+    provider: 'chrome',
     targetLang: 'ru',
     providers: { openai: { apiKey: '', model: '', baseUrl: '' } },
   });
@@ -53,6 +53,13 @@ test('retired DeepSeek model names fall back to the default model', () => {
   assert.equal(withDefaults({ apiKey: 'sk', model: 'deepseek-chat' }).providers.deepseek.model, '');
   const stored = { providers: { deepseek: { model: ' deepseek-reasoner ' } } };
   assert.equal(withDefaults(stored).providers.deepseek.model, '');
+});
+
+test('activeProvider gives the free translator without a key, model or URL', () => {
+  const active = activeProvider(withDefaults(undefined));
+  assert.equal(active.id, 'chrome');
+  assert.equal(active.api, 'browser');
+  assert.equal(active.baseUrl, '');
 });
 
 test('activeProvider fills a blank model and URL with the provider defaults', () => {

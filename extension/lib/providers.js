@@ -1,7 +1,22 @@
-// The APIs the extension can talk to. All but Anthropic speak OpenAI's chat completions.
+// What can translate: Chrome's own on-device translator (api 'browser', run by the page itself, see
+// content/translator.js) and the APIs the extension talks to. All APIs but Anthropic speak OpenAI's chat completions.
 // `extras` turn reasoning off: it slows the answer down and is billed, and a translation does not need it.
 // Some models reject these parameters; background then sends the request again without them (see chat.js).
 export const PROVIDERS = Object.freeze({
+  chrome: {
+    name: 'Chrome built-in translator',
+    group: 'free',
+    api: 'browser',
+    baseUrl: '',
+    model: '',
+    models: [],
+    keyRequired: false,
+    extras: {},
+    hint:
+      'Free and private: Chrome translates on this computer, nothing is sent anywhere. It downloads a model ' +
+      'once for each pair of languages; Test gets the one from English. Page topics and dictionary entries ' +
+      'need an AI provider.',
+  },
   deepseek: {
     name: 'DeepSeek',
     group: 'cloud',
@@ -210,6 +225,7 @@ export function answerText(data) {
 
 // What has to be filled in before anything can be sent: 'no_url', 'no_key', 'no_model', or null.
 export function setupProblem(provider) {
+  if (provider.api === 'browser') return null;
   if (!hostPattern(provider.baseUrl)) return 'no_url';
   if (provider.keyRequired && !provider.apiKey) return 'no_key';
   if (!provider.model) return 'no_model';

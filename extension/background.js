@@ -37,8 +37,11 @@ chrome.declarativeNetRequest
   })
   .catch(() => {});
 
-// Pages get the public part of the settings: the target language.
-const pageSettings = (settings) => ({ targetLang: settings.targetLang });
+// Pages get the public part of the settings: the target language and which engine translates. With the free
+// one (Chrome's translator) the page translates by itself.
+function pageSettings(settings) {
+  return { targetLang: settings.targetLang, engine: activeProvider(settings).api === 'browser' ? 'browser' : 'api' };
+}
 
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== 'local' || !changes.settings) return;
@@ -86,7 +89,7 @@ chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 // Tags for the page topic; none when anything goes wrong, since the topic is only a hint.
 async function findTopics(text) {
   const provider = activeProvider(await loadSettings());
-  if (setupProblem(provider) || !text) return [];
+  if (provider.api === 'browser' || setupProblem(provider) || !text) return [];
   try {
     const response = await sendChat(
       provider,
@@ -103,6 +106,11 @@ async function findTopics(text) {
 async function translate(request, signal, send) {
   const settings = await loadSettings();
   const provider = activeProvider(settings);
+  if (provider.api === 'browser') {
+    // The page did not hear about the switch to the free translator yet; the message is on its way.
+    send({ type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' });
+    return;
+  }
   const problem = setupProblem(provider);
   if (problem) {
     send({ type: 'error', ...makeError(problem, provider) });

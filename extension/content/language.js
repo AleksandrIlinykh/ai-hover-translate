@@ -20,14 +20,19 @@
     return detector;
   }
 
-  async function alreadyInLanguage(text, targetLang) {
+  // The detector's guesses for the text, best first; null when the browser can't detect languages.
+  async function detectLanguage(text) {
     try {
       const active = await getDetector();
-      return active ? isAlreadyIn(await active.detect(text), targetLang) : false;
+      return active ? await active.detect(text) : null;
     } catch {
-      return false;
+      return null;
     }
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { isAlreadyIn, alreadyInLanguage });
+  async function alreadyInLanguage(text, targetLang) {
+    return isAlreadyIn(await detectLanguage(text), targetLang);
+  }
+
+  Object.assign((globalThis.hoverTranslate ??= {}), { isAlreadyIn, detectLanguage, alreadyInLanguage });
 })();

@@ -15,11 +15,64 @@ async function stubPermissionPrompt(page, granted) {
   }, granted);
 }
 
-test('opens on DeepSeek with its defaults, a key link and every provider to choose from', async ({ page, extensionId }) => {
+// Replaces Chrome's on-device translator in the settings page, which the test browser lacks.
+async function fakeTranslatorHere(page, availability) {
+  await page.evaluate((value) => {
+    window.fakeAI = { creates: [], availability: value };
+    globalThis.Translator = {
+      availability: async () => window.fakeAI.availability,
+      create: async ({ sourceLanguage, targetLanguage, monitor }) => {
+        window.fakeAI.creates.push(`${sourceLanguage}>${targetLanguage}`);
+        const progress = new EventTarget();
+        monitor?.(progress);
+        progress.dispatchEvent(Object.assign(new Event('downloadprogress'), { loaded: 1 }));
+        window.fakeAI.availability = 'available';
+        return { translate: async (text) => `[${targetLanguage} on device] ${text}` };
+      },
+    };
+  }, availability);
+}
+
+test('opens on the free translator with nothing to fill in', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
-  await expect(page.locator('#provider')).toHaveValue('deepseek');
-  await expect(page.locator('#provider option')).toHaveCount(12);
-  await expect(page.locator('#provider optgroup')).toHaveCount(3);
+  await expect(page.locator('#provider')).toHaveValue('chrome');
+  await expect(page.locator('#provider option')).toHaveCount(13);
+  await expect(page.locator('#provider optgroup')).toHaveCount(4);
+  await expect(page.locator('#providerHint')).toContainText('Chrome translates on this computer');
+  await expect(page.locator('#apiFields')).toBeHidden();
+  await expect(page.locator('#targetLang')).toHaveValue('ru');
+  await expect(page.locator('#targetLang option')).toHaveCount(13);
+});
+
+test('Test on the free translator downloads the model from English and translates the sample', async ({ page, extensionId, server }) => {
+  await page.goto(optionsUrl(extensionId));
+  await fakeTranslatorHere(page, 'downloadable');
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toContainText('Works');
+  await expect(page.locator('#status')).toContainText('[ru on device] The quick brown fox jumps over the lazy dog.');
+  expect(await page.evaluate(() => window.fakeAI.creates)).toEqual(['en>ru']);
+  expect(server.requests).toHaveLength(0);
+});
+
+test('Test on the free translator into English starts from German', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await fakeTranslatorHere(page, 'available');
+  await page.locator('#targetLang').selectOption('en');
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toContainText('[en on device] Der schnelle braune Fuchs');
+});
+
+test('Test without the built-in translator says so', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.evaluate(() => delete globalThis.Translator);
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toHaveText('This browser has no built-in translator. Choose an AI provider in the settings.');
+});
+
+test('DeepSeek shows its defaults, a key link and its models', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
+  await expect(page.locator('#apiFields')).toBeVisible();
   await expect(page.locator('#apiKey')).toHaveValue('');
   await expect(page.locator('#model')).toHaveValue('deepseek-flash');
   await expect(page.locator('#modelList option')).toHaveCount(2);
@@ -31,6 +84,7 @@ test('opens on DeepSeek with its defaults, a key link and every provider to choo
 
 test('each provider keeps its own key, model and URL while switching, and all are saved', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
   await page.locator('#apiKey').fill('sk-deep');
   await page.locator('#provider').selectOption('openai');
   await expect(page.locator('#apiKey')).toHaveValue('');
@@ -54,6 +108,7 @@ test('each provider keeps its own key, model and URL while switching, and all ar
 
 test('saves trimmed values, and a blank model or URL means the default', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
   await page.locator('#apiKey').fill('  sk-test  ');
   await page.locator('#targetLang').selectOption('de');
   await page.locator('#model').fill('');
@@ -101,6 +156,7 @@ test('a local server needs no key, and its model is left to choose', async ({ pa
 
 test('Show reveals the key and Hide masks it again', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
   await page.locator('#apiKey').fill('sk-visible');
   await page.getByRole('button', { name: 'Show' }).click();
   await expect(page.locator('#apiKey')).toHaveAttribute('type', 'text');
@@ -174,6 +230,7 @@ test('when Chrome is not allowed to reach the host, the settings are saved with 
 
 test('the status disappears when a field changes', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   await page.locator('#apiKey').fill('sk-other');

@@ -114,7 +114,7 @@
       font: inherit;
       cursor: pointer;
     }
-    .popup.has-settings .settings, .popup.has-retry .retry { display: block; }
+    .popup.has-settings .settings, .popup.has-retry .retry, .popup.has-download .download { display: block; }
     .resize { position: absolute; z-index: 1; touch-action: none; }
     .resize.n, .resize.s { left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
     .resize.e, .resize.w { top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
@@ -150,7 +150,7 @@
   // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   // The bar also shows the page topic the translation used, with a button to forget it.
-  function createPopup({ onOpenSettings, onRetry, onClose, onDropTopics }) {
+  function createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics }) {
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
@@ -191,6 +191,7 @@
       textEl,
       button('action settings', 'Open settings', () => onOpenSettings()),
       button('action retry', 'Retry', () => onRetry()),
+      button('action download', 'Download', () => onDownload()),
     );
     popupEl.append(bar, bodyEl);
     for (const edge of EDGES) {
@@ -210,7 +211,7 @@
     let detached = false; // dragged or resized: fixed on screen instead of attached to the block
     let sized = false; // resized: explicit width and height instead of fitting the text
 
-    // action: 'settings' or 'retry' adds that button under an error.
+    // action: 'settings', 'retry' or 'download' adds that button under an error.
     function render(text, { loading = false, error = false, action = null } = {}) {
       textEl.textContent = text;
       popupEl.classList.toggle('is-loading', loading);
@@ -218,6 +219,7 @@
       popupEl.classList.toggle('has-text', !loading && !error);
       popupEl.classList.toggle('has-settings', action === 'settings');
       popupEl.classList.toggle('has-retry', action === 'retry');
+      popupEl.classList.toggle('has-download', action === 'download');
     }
 
     async function copy() {
@@ -376,8 +378,9 @@
         bodyEl.scrollTop = 0;
         position();
       },
-      setLoading() {
-        render('…', { loading: true });
+      // `text` says what is going on, such as a download; the default is an ellipsis.
+      setLoading(text = '…') {
+        render(text, { loading: true });
         schedulePosition();
       },
       setText(text) {

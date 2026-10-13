@@ -1,7 +1,7 @@
 import { PROVIDERS } from './providers.js';
 
 export const DEFAULTS = Object.freeze({
-  provider: 'deepseek',
+  provider: 'chrome',
   targetLang: 'ru',
 });
 
@@ -36,16 +36,13 @@ function providerEntry(id, stored) {
 }
 
 // Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } } }.
-// Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry.
+// Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry,
+// and DeepSeek stays in use.
 export function withDefaults(stored) {
-  const provider = trimmed(stored?.provider);
+  const old = !stored?.providers && PROVIDER_FIELDS.some((field) => trimmed(stored?.[field]));
+  const provider = old ? 'deepseek' : trimmed(stored?.provider);
   const targetLang = trimmed(stored?.targetLang);
-  const entries =
-    stored?.providers && typeof stored.providers === 'object'
-      ? stored.providers
-      : PROVIDER_FIELDS.some((field) => trimmed(stored?.[field]))
-        ? { deepseek: stored }
-        : {};
+  const entries = old ? { deepseek: stored } : stored?.providers && typeof stored.providers === 'object' ? stored.providers : {};
   const providers = {};
   for (const [id, entry] of Object.entries(entries)) {
     if (Object.hasOwn(PROVIDERS, id)) providers[id] = providerEntry(id, entry);

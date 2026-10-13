@@ -7,6 +7,8 @@
     isShortPhrase,
     contextOf,
     alreadyInLanguage,
+    translateInBrowser,
+    describeProblem,
     createPopup,
     createHighlight,
   } = globalThis.hoverTranslate;
@@ -30,6 +32,7 @@
   const popup = createPopup({
     onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
     onRetry: () => retry(),
+    onDownload: () => retry(), // the click lets Chrome download the model
     onClose: () => closePopup(),
     onDropTopics: () => dropTopics(),
   });
@@ -47,6 +50,8 @@
   let port = null;
   let shown = null; // { text, mode, context, topics } of the open popup: what was sent to background
   let targetLang = DEFAULT_LANG;
+  let engine = 'api'; // 'api' (background calls an AI provider) or 'browser' (Chrome's translator, on this page)
+  let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
   let topics = []; // tags of the page topic from DeepSeek, sent with every translation on this page
   let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
   let pageAddress = currentAddress();
@@ -56,6 +61,7 @@
     .sendMessage({ type: 'page-settings' })
     .then((answer) => {
       targetLang = answer?.targetLang || DEFAULT_LANG;
+      engine = answer?.engine || 'api';
     })
     .catch(() => {});
 
@@ -181,7 +187,7 @@
 
   // Asks DeepSeek once per page for the topic of its first long text; the translations after it carry the topic.
   async function askForTopics(text) {
-    if (topicState !== 'unknown' || text.length < TOPIC_MIN_CHARS) return;
+    if (engine !== 'api' || topicState !== 'unknown' || text.length < TOPIC_MIN_CHARS) return;
     topicState = 'asking';
     const address = pageAddress;
     let reply = null;
@@ -209,6 +215,10 @@
   }
 
   function translate(request) {
+    if (engine === 'browser') {
+      translateHere(request);
+      return;
+    }
     let current;
     try {
       current = chrome.runtime.connect({ name: 'translate' });
@@ -227,6 +237,7 @@
         remember(cache, cacheKey(request), result);
         disconnect();
       } else if (message.type === 'error') {
+        if (message.code === 'engine_changed') engine = 'browser';
         popup.setError(message.message, { action: SETUP_CODES.has(message.code) ? 'settings' : 'retry' });
         disconnect();
       }
@@ -239,7 +250,26 @@
     current.postMessage(request);
   }
 
+  // The free engine: Chrome's translator runs right here, and nothing leaves the page.
+  async function translateHere(request) {
+    const ticket = ++localTicket;
+    const showProgress = (share) => {
+      if (ticket === localTicket) popup.setLoading(`Downloading the translation model: ${Math.round(share * 100)}%`);
+    };
+    const result = await translateInBrowser(request.text, targetLang, { onProgress: showProgress });
+    if (ticket !== localTicket) return;
+    localTicket++;
+    if (result.text === undefined) {
+      const { message, action } = describeProblem(result, targetLang);
+      popup.setError(message, { action });
+      return;
+    }
+    popup.setText(result.text);
+    remember(cache, cacheKey(request), result.text);
+  }
+
   function disconnect() {
+    localTicket++;
     const current = port;
     port = null;
     current?.disconnect();
@@ -369,5 +399,6 @@
     sameLanguage.clear();
     forgetTopics();
     targetLang = message.targetLang || DEFAULT_LANG;
+    engine = message.engine || 'api';
   });
 })();

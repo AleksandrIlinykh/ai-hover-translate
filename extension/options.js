@@ -5,8 +5,9 @@ import { buildMessages } from './lib/prompt.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
 
 const TEST_TEXT = 'The quick brown fox jumps over the lazy dog.';
+const TEST_TEXT_DE = 'Der schnelle braune Fuchs springt über den faulen Hund.'; // for a test into English
 const TIMEOUT_MS = 30_000;
-const GROUPS = { cloud: 'Cloud APIs', local: 'On this computer', other: 'Other' };
+const GROUPS = { free: 'Free, on this computer', cloud: 'Cloud APIs', local: 'Local AI models', other: 'Other' };
 const FIELDS = ['apiKey', 'model', 'baseUrl'];
 
 const form = document.getElementById('form');
@@ -55,6 +56,7 @@ function showProvider(id) {
   element('keyHint').hidden = !preset.keyUrl;
   element('keyLink').href = preset.keyUrl ?? '';
   element('keyLink').textContent = preset.keyUrl ? new URL(preset.keyUrl).host : '';
+  element('apiFields').hidden = preset.api === 'browser';
   element('providerHint').hidden = !preset.hint;
   element('providerHint').textContent = preset.hint ?? '';
   element('modelHint').textContent = '';
@@ -144,8 +146,31 @@ element('loadModels').addEventListener('click', async () => {
   }
 });
 
-// Translates one sentence through the same streaming path as the pages, with the fields as they are now.
+// The free provider: Chrome's translator, right here. The click lets Chrome download the model.
+async function testInBrowser() {
+  const targetLang = form.elements.targetLang.value;
+  const [text, sourceLang] = targetLang === 'en' ? [TEST_TEXT_DE, 'de'] : [TEST_TEXT, 'en'];
+  const { translateInBrowser, describeProblem } = globalThis.hoverTranslate;
+  report('Testing...');
+  const started = performance.now();
+  const result = await translateInBrowser(text, targetLang, {
+    sourceLang,
+    onProgress: (share) => report(`Downloading the translation model: ${Math.round(share * 100)}%`),
+  });
+  if (result.text === undefined) {
+    report(describeProblem(result, targetLang).message, true);
+    return;
+  }
+  const seconds = ((performance.now() - started) / 1000).toFixed(1);
+  report(`Works, ${seconds} s: ${result.text.trim()}`);
+}
+
+// Translates one sentence through the same path as the pages, with the fields as they are now.
 element('test').addEventListener('click', async () => {
+  if (PROVIDERS[current].api === 'browser') {
+    await testInBrowser();
+    return;
+  }
   const provider = providerInForm();
   const allowed = requestHost(provider);
   const problem = setupProblem(provider);

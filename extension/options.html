@@ -25,10 +25,11 @@
     <label for="targetLang">Translate into</label>
     <select id="targetLang" name="targetLang"></select>
 
-    <label for="provider">AI provider</label>
+    <label for="provider">Translate with</label>
     <select id="provider" name="provider"></select>
     <p class="hint" id="providerHint" hidden></p>
 
+    <div id="apiFields">
     <label for="apiKey">API key</label>
     <div class="row">
       <input id="apiKey" name="apiKey" type="password" autocomplete="off" spellcheck="false">
@@ -47,6 +48,7 @@
     <label for="baseUrl">API URL</label>
     <input id="baseUrl" name="baseUrl" spellcheck="false">
     <p class="hint">The address up to /v1. Clear it to go back to the provider's own.</p>
+    </div>
 
     <div class="actions">
       <button type="submit">Save</button>
@@ -54,6 +56,7 @@
       <span id="status" role="status"></span>
     </div>
   </form>
+  <script src="content/translator.js"></script>
   <script type="module" src="options.js"></script>
 </body>
 </html>

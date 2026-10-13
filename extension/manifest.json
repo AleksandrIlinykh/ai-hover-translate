@@ -26,6 +26,7 @@
         "content/block.js",
         "content/selection.js",
         "content/language.js",
+        "content/translator.js",
         "content/popup.js",
         "content/highlight.js",
         "content/main.js"
