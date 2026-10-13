@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hover Translate topics fixture</title>
+  <style>
+    body { margin: 0; font: 16px/1.5 sans-serif; }
+    main { width: 600px; margin: 0 auto; padding: 300px 0 1000px; }
+    p { margin: 0 0 300px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p id="long">Our team moved the whole build to a shared continuous integration service last spring. Every pull request now runs the unit tests, the browser tests and a security scan before anyone can merge it into the main branch. The runners are cached between jobs, so a typical check finishes in about six minutes, and a failed job posts its log straight into the review thread where the author sees it first. Nobody waits for a nightly build any more.</p>
+    <p id="short">The build pipeline is green again.</p>
+    <p id="sentence">We shipped it. After the long weekend merge of the shared build pipeline failed on the main branch and nobody noticed it for a week. Then we fixed it.</p>
+    <p id="long2">Release branches are cut every second Tuesday from whatever is green on the main branch at noon. A release manager watches the deployment dashboards for the first hour, rolls the change back with a single command if the error rate goes up, and writes a short note in the changelog so support knows what reached customers and when. Hotfixes skip the queue but still need two approvals from people outside the team.</p>
+  </main>
+</body>
+</html>

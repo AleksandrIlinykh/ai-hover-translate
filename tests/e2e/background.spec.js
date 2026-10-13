@@ -50,6 +50,25 @@ test('sends a retired model name as deepseek-flash', async ({ page, server, setS
   expect(server.requests[0].body.model).toBe('deepseek-flash');
 });
 
+const askTopics = (page, text) => page.evaluate((value) => chrome.runtime.sendMessage({ type: 'topics', text: value }), text);
+
+test('the topic message returns the tags from a small request that is not streamed', async ({ page, server, setSettings }) => {
+  await setSettings();
+  expect(await askTopics(page, 'Some long text')).toEqual({ topics: ['git', 'continuous integration', 'devops'] });
+  expect(server.requests).toHaveLength(0);
+  const [{ body }] = server.topicRequests;
+  expect(body).toMatchObject({ model: 'deepseek-flash', stream: false, temperature: 0, max_tokens: 40, thinking: { type: 'disabled' } });
+  expect(body.messages[1]).toEqual({ role: 'user', content: 'Some long text' });
+});
+
+test('the topic message returns no tags without a key or on an API error', async ({ page, server, setSettings }) => {
+  await setSettings({ apiKey: '' });
+  expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
+  await setSettings({ apiKey: 'bad' });
+  expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
+  expect(server.topicRequests).toHaveLength(1);
+});
+
 test('accepts a base URL with a trailing slash', async ({ page, server, setSettings }) => {
   await setSettings({ baseUrl: `${server.url}/` });
   expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');

@@ -75,6 +75,32 @@
     }
     .tool:hover { opacity: 1; border-color: currentColor; }
     .close { font-size: 15px; }
+    .topics {
+      display: none;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      margin-right: auto;
+      font: 12px/18px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      opacity: 0.7;
+    }
+    .popup.has-topics .topics { display: flex; }
+    .topic-list { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    /* A round clear button, like the one in a macOS search field. */
+    .drop-topics {
+      flex: none;
+      width: 14px;
+      height: 14px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: #8c959f;
+      color: #ffffff;
+      font: bold 11px/14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      cursor: pointer;
+    }
+    .drop-topics:hover { background: #57606a; }
     .copy { visibility: hidden; }
     .popup.has-text .copy { visibility: visible; }
     .action {
@@ -114,6 +140,8 @@
       .popup { border-color: #30363d; background: #161b22; color: #e6edf3; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); }
       .bar { border-color: #30363d; background: #0d1117; }
       .popup.is-error .text { color: #ff7b72; }
+      .drop-topics { background: #6e7681; color: #0d1117; }
+      .drop-topics:hover { background: #8b949e; }
     }
   `;
 
@@ -121,7 +149,8 @@
 
   // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
-  function createPopup({ onOpenSettings, onRetry, onClose }) {
+  // The bar also shows the page topic the translation used, with a button to forget it.
+  function createPopup({ onOpenSettings, onRetry, onClose, onDropTopics }) {
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
@@ -145,7 +174,15 @@
     const copyButton = button('tool copy', 'Copy', () => copy());
     const closeButton = button('tool close', '×', () => onClose());
     closeButton.setAttribute('aria-label', 'Close');
-    bar.append(copyButton, closeButton);
+    const topicsEl = document.createElement('span');
+    topicsEl.className = 'topics';
+    const topicList = document.createElement('span');
+    topicList.className = 'topic-list';
+    const dropButton = button('drop-topics', '×', () => onDropTopics());
+    dropButton.setAttribute('aria-label', 'Forget the page topic');
+    dropButton.title = 'Forget the page topic';
+    topicsEl.append(topicList, dropButton);
+    bar.append(topicsEl, copyButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
@@ -349,6 +386,13 @@
       },
       setError(message, { action = null } = {}) {
         render(message, { error: true, action });
+        schedulePosition();
+      },
+      // The page topic tags this translation was made with; none hides them.
+      setTopics(topics) {
+        topicList.textContent = topics.join(' · ');
+        topicList.title = topics.length > 0 ? `Page topic used for this translation: ${topics.join(', ')}` : '';
+        popupEl.classList.toggle('has-topics', topics.length > 0);
         schedulePosition();
       },
       // Keep the popup glued to its block when something scrolls (the window or an inner container).

@@ -1,9 +1,12 @@
 import { buildMessages } from './lib/prompt.js';
+import { buildTopicMessages, cleanTopics, parseTopics } from './lib/topics.js';
 import { createSseParser, deltaFromPayload } from './lib/sse.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
 import { LANGUAGES, loadSettings } from './lib/settings.js';
 
 const IDLE_TIMEOUT_MS = 30_000;
+const TOPIC_TIMEOUT_MS = 15_000;
+const MAX_CONTEXT = 1000;
 const MODES = new Set(['text', 'dictionary']);
 const CACHE_PREFIX = 'cache:';
 const TEMPERATURE = 1.3; // DeepSeek's recommended temperature for translation
@@ -16,27 +19,65 @@ chrome.runtime.onConnect.addListener((port) => {
     connected = false;
     controller.abort();
   });
-  port.onMessage.addListener(({ text, mode }) => {
-    translate(text, MODES.has(mode) ? mode : 'text', controller.signal, (message) => {
+  port.onMessage.addListener(({ text, mode, context, topics }) => {
+    const request = {
+      text,
+      mode: MODES.has(mode) ? mode : 'text',
+      context: typeof context === 'string' ? context.slice(0, MAX_CONTEXT) : '',
+      topics: cleanTopics(topics),
+    };
+    translate(request, controller.signal, (message) => {
       if (connected) port.postMessage(message);
     });
   });
 });
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'open-options') chrome.runtime.openOptionsPage();
+  if (message?.type === 'topics') {
+    findTopics(String(message.text ?? '')).then((topics) => sendResponse({ topics }));
+    return true; // the answer comes later
+  }
 });
 
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 
-async function translate(text, mode, signal, send) {
+function post(settings, body, signal) {
+  return fetch(`${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
+    // Thinking is on by default: slower, and the reasoning is billed.
+    body: JSON.stringify({ model: settings.model, ...body, thinking: { type: 'disabled' } }),
+    signal,
+  });
+}
+
+// Tags for the page topic; none when anything goes wrong, since the topic is only a hint.
+async function findTopics(text) {
+  const settings = await loadSettings();
+  if (!settings.apiKey || !text) return [];
+  try {
+    const response = await post(
+      settings,
+      { messages: buildTopicMessages(text), stream: false, temperature: 0, max_tokens: 40 },
+      AbortSignal.timeout(TOPIC_TIMEOUT_MS),
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return parseTopics(data?.choices?.[0]?.message?.content);
+  } catch {
+    return [];
+  }
+}
+
+async function translate(request, signal, send) {
   const settings = await loadSettings();
   if (!settings.apiKey) {
     send({ type: 'error', ...makeError('no_key') });
     return;
   }
 
-  const key = await cacheKey(settings, mode, text);
+  const key = await cacheKey(settings, request);
   const cached = (await chrome.storage.session.get(key))[key];
   if (cached !== undefined) {
     send({ type: 'chunk', text: cached });
@@ -53,18 +94,15 @@ async function translate(text, mode, signal, send) {
 
   try {
     touch();
-    const response = await fetch(`${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
-      body: JSON.stringify({
-        model: settings.model,
-        messages: buildMessages(text, LANGUAGES[settings.targetLang], mode),
+    const response = await post(
+      settings,
+      {
+        messages: buildMessages(request.text, LANGUAGES[settings.targetLang], request),
         stream: true,
         temperature: TEMPERATURE,
-        thinking: { type: 'disabled' }, // on by default: slower, and the reasoning is billed
-      }),
-      signal: AbortSignal.any([signal, idle.signal]),
-    });
+      },
+      AbortSignal.any([signal, idle.signal]),
+    );
     if (!response.ok) {
       send({ type: 'error', ...errorFromStatus(response.status, await response.text()) });
       return;
@@ -89,8 +127,9 @@ async function translate(text, mode, signal, send) {
 }
 
 // Translations are shared by all tabs for the browser session (chrome.storage.session).
-async function cacheKey(settings, mode, text) {
-  const data = new TextEncoder().encode(JSON.stringify([settings.baseUrl, settings.model, settings.targetLang, mode, text]));
+async function cacheKey(settings, { mode, text, context, topics }) {
+  const { baseUrl, model, targetLang } = settings;
+  const data = new TextEncoder().encode(JSON.stringify([baseUrl, model, targetLang, mode, text, context, topics]));
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
   return CACHE_PREFIX + Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }

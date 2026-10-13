@@ -22,7 +22,7 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 - Translating inside iframes, input fields, contenteditable.
 - Transcription, usage examples, full dictionary articles (short selections get a brief entry only).
 - Translating the whole page.
-- Sending page context (title, neighbouring paragraphs) to the model.
+- Sending the page title or whole neighbouring paragraphs to the model (only the words around a selected phrase and the page topic tags are sent, see "Context for the model").
 - A configurable hotkey (Alt only).
 - Firefox, Safari.
 
@@ -38,13 +38,14 @@ hover-translate/
     manifest.json
     background.js       ES module: 'translate' port, API request, opening the settings
     lib/
-      prompt.js         buildMessages(text, languageName, mode)
+      prompt.js         buildMessages(text, languageName, { mode, context, topics })
+      topics.js         buildTopicMessages(text), parseTopics(reply), cleanTopics(list)
       sse.js            createSseParser(), deltaFromPayload(payload)
       errors.js         errorFromStatus(status, bodyText), makeError(code)
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), loadSettings()
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
-      selection.js      selectionAt(x, y), isShortPhrase(text)
+      selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), contextOf(range)
       language.js       isAlreadyIn(results, lang), alreadyInLanguage(text, lang)
       popup.js          createPopup({ onOpenSettings, onRetry, onClose })
       highlight.js      createHighlight()
@@ -55,7 +56,7 @@ hover-translate/
     unit/               node --test
     e2e/                Playwright
     mock-server.js      mock OpenAI-compatible API + test pages
-    fixtures/           page.html, hostile.html, shadow.html, scroller.html
+    fixtures/           page.html, hostile.html, shadow.html, scroller.html, topics.html
   package.json          dev only: test / test:e2e scripts, devDependency @playwright/test
   playwright.config.js
   README.md
@@ -137,6 +138,20 @@ The element under the cursor is looked up inside open Shadow DOM trees (web comp
 
 Text to translate: `innerText`, trimmed, with three or more consecutive line breaks collapsed to two.
 
+## Context for the model
+
+Two small hints make translations fit the page without sending whole neighbouring paragraphs.
+
+**Words around a phrase.** In dictionary mode, `contextOf(range)` takes the text of the selection's block, finds the sentence the selection is in (`Intl.Segmenter`, sentence granularity) and keeps at most 8 words on each side of the selection within that sentence. The result, with whitespace collapsed, is sent as `context`. It is empty when there are no other words around the selection. The dictionary prompt then puts first the translation that fits this context.
+
+**Page topic.** The first time a text of at least 400 characters is translated on a page in plain mode, content asks background for the page topic (`chrome.runtime.sendMessage({ type: 'topics', text })`), in parallel with the translation. Background sends a separate small request: not streamed, the first 1500 characters of the text, `temperature: 0`, `max_tokens: 40`, thinking off. It asks for 3 to 5 short English tags and answers `{ topics }`. Any failure (no key, an API error, a 15 s timeout, an unreadable reply) answers an empty list, and the next long text asks again.
+
+- Every later translation on the page, plain or dictionary, carries these tags as `topics`. The system prompt says to use them only to choose the meaning of ambiguous words. The text that asked for the topic is translated without it.
+- The popup title bar shows the tags its own translation used, on the left (`git · ci · devops`, cut with an ellipsis when they do not fit), followed by a small round grey "×" button in the style of the macOS search field clear button ("Forget the page topic"). Clicking it forgets the tags and translates the popup's text again without them. After that the page asks for no new tags until it reloads or its address changes.
+- The tags live only in the content script's memory; nothing is written to disk. They are forgotten when the page reloads, when its address changes (origin, path and query, not the hash; single-page apps such as Jira change it without a reload) and when the settings change.
+
+Cost: the topic request is about 250 input and 15 output tokens, once per page; the tags add about 20 input tokens to every later request, and the words around a phrase about 25.
+
 ## Popup
 
 - Host: `<div id="hover-translate-root">` in `document.documentElement` with an open Shadow DOM inside. Host styles are inline with `!important` (`all: initial`, `position: absolute`, `display: block`, `z-index: 2147483647`) so site rules like `div { display: none !important }` do not touch it. Content styles go through `adoptedStyleSheets` (site CSP does not block them); the popup DOM is built with `createElement`, no `innerHTML`.
@@ -152,7 +167,7 @@ Text to translate: `innerText`, trimmed, with three or more consecutive line bre
   - The popup always stays inside the window: its vertical position is clamped to [8 px; window height - 8 px - popup height]. This covers paragraphs taller than the screen (top scrolled past the edge): the popup then overlaps part of the paragraph but stays visible.
   - Above the paragraph, the popup's bottom edge sticks to the paragraph: while the text streams in, the position is recalculated (via `requestAnimationFrame`) and the popup grows upward.
 - States: loading (animated "…"), text (`white-space: pre-wrap`, selectable and copyable), error. Errors get one action button: "Open settings" for the missing key, "Retry" for everything else (it re-sends the same text and mode in the same popup). "The extension was updated" has no button.
-- **Title bar:** a minimal 24 px bar across the top (light grey, darker in the dark theme, a thin line under it), in the style of macOS and Windows windows. On its right: "Copy" (shown once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (always there, closes the popup). Only the text area under the bar scrolls; the bar stays on top.
+- **Title bar:** a minimal 24 px bar across the top (light grey, darker in the dark theme, a thin line under it), in the style of macOS and Windows windows. On its right: "Copy" (shown once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (always there, closes the popup). On its left: the page topic tags used for this translation and the button that forgets them (see "Context for the model"). Only the text area under the bar scrolls; the bar stays on top.
 - **Pinning:** any `mousedown` inside the popup pins it (blue border). A pinned popup ignores the mouse leaving and clicks outside; it closes with Esc, its "×", a window resize or the next translation.
 - **Dragging:** pressing the bar (outside its buttons) and moving drags the popup (pointer events with pointer capture; the cursor is a grabbing hand). Dragging pins the popup and detaches it from the block: it switches to `position: fixed`, so it stays at the same place on screen while the page or an inner container scrolls, and it may use the whole window height. It cannot be dragged past the window edges (8 px margin), and on a window resize it is moved back inside the window instead of closing. Esc, "×" and the next translation close it as usual; the next popup opens attached to its block again.
 - **Resizing:** every edge and corner of the popup is a resize handle (invisible 5 px strips and 10 px corners with resize cursors; the bottom-right corner shows a small diagonal grip, as on macOS). Resizing pins and detaches the popup exactly like dragging, then gives it an explicit width and height: the text re-wraps and scrolls inside if it does not fit. The popup cannot get smaller than 240 x 120 px or reach past the window edges (8 px margin); on a window resize it shrinks to fit. The size is not remembered: the next popup sizes itself to its block again.
@@ -171,19 +186,19 @@ On close, the port to background is disconnected and any unfinished API request 
 
 ## Cache
 
-In `content/main.js`: a `Map` from `{mode}:{text}` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (`chrome.storage.onChanged`).
+In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (`chrome.storage.onChanged`).
 
-In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[baseUrl, model, targetLang, mode, text]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
+In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[baseUrl, model, targetLang, mode, text, context, topics]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
 
 ## Talking to background
 
-Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text, mode }` (`mode` is `'text'` or `'dictionary'`; anything else is treated as `'text'`). Background replies with:
+Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text, mode, context, topics }`: `mode` is `'text'` or `'dictionary'` (anything else is treated as `'text'`), `context` is the words around a dictionary phrase (`''` otherwise; at most 1000 characters are used), `topics` is the page topic tags (`[]` when there are none; cleaned by `cleanTopics`). Background replies with:
 
 - `{ type: 'chunk', text }`: the next piece of the translation;
 - `{ type: 'done' }`: the translation is finished;
 - `{ type: 'error', code, message }`: an error with a readable `message`.
 
-A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings.
+A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, and `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model").
 
 ## DeepSeek request (background.js)
 
@@ -201,7 +216,14 @@ Prompt (`buildMessages`):
 
 - system: `You are a professional translator. Translate the user's text into {languageName}. Output only the translation, with no explanations, notes, or quotes. Preserve the meaning, tone, and line breaks. Leave code, URLs, and names that are normally not translated as they are. If the text is already in {languageName}, return it unchanged.`
 - user: the text itself.
-- dictionary mode, system: `You are a bilingual dictionary. The user's text is a word or a short phrase. Reply in {languageName}, in plain text only: on the first line give the most common translation; then add up to three lines, one per sense, each as "part of speech: meanings", most common first. Add nothing else.`
+- dictionary mode, system: `You are a bilingual dictionary. The user's text is a word or a short phrase. Reply in {languageName}, in plain text only: on the first line give the most common translation; then add up to three lines, one per sense, each as "part of speech: meanings", most common first. Add nothing else.` With a `context`, the first line asks for `the translation that fits the context below` instead, and the prompt ends with a line `Context: "{context}"`.
+- with `topics`, a line `Page topic: {tags joined with ", "}. Use it only to choose the meaning of ambiguous words.` goes after the instructions and before the context line. The parts that change least come first, so DeepSeek's prefix cache can reuse them.
+- The user message is always exactly the text to translate.
+
+Topic request (`topics.js`):
+
+- system: `Name the topic of the user's text as 3 to 5 short tags: the subject area and the kind of text. Reply with the tags only, in English, lowercase, separated by commas.`; user: the first 1500 characters of the text.
+- `parseTopics(reply)` splits the reply on commas and line breaks, strips `#`, quotes, bullets and dots around each tag, lowercases, drops duplicates, empty tags and tags longer than 30 characters, and keeps at most 5. `cleanTopics(list)` applies the same rules to a list.
 
 Stream parsing (`sse.js`):
 
@@ -235,13 +257,15 @@ Page-side (content) errors:
 Unit tests (`node --test`, no dependencies):
 
 - `sse.js`: a line split between chunks; several events in one chunk; `\r\n`; keep-alive comments; `[DONE]`; invalid JSON.
-- `prompt.js`: the language goes into system, the text into user unchanged.
+- `prompt.js`: the language goes into system, the text into user unchanged; the topic and context lines.
+- `topics.js`: the topic request and parsing the tags.
+- `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `settings.js`: `withDefaults` fills missing fields and keeps the given ones.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
-- `mock-server.js` on a random port serves the test pages and `POST /chat/completions` (CORS headers, `OPTIONS` handling). The API key selects the behavior: `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. Every request is recorded (header, body, whether the client aborted it).
+- `mock-server.js` on a random port serves the test pages and `POST /chat/completions` (CORS headers, `OPTIONS` handling). The API key selects the behavior: `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (header, body, whether the client aborted it), topic requests apart from translations.
 - Settings are set through the extension's service worker (`chrome.storage.local.set`), with `baseUrl` pointing at the mock.
 - Scenarios:
   1. Alt + hover → popup with `[RU] …` from the mock.
@@ -293,5 +317,11 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   47. Dragging the left edge moves the left side and keeps the right side.
   48. The popup cannot be resized below 240 x 120 px or past the window edges.
   49. After resizing, scrolling the page leaves the popup at the same place and size on screen.
+  50. The first long paragraph asks for the page topic once; that paragraph is translated without it, the next translations send it and show the tags on the title bar.
+  51. The button next to the tags forgets them, translates the text again without them, and no new tags are asked for on that page.
+  52. A new address (`history.pushState`) starts without tags and asks again.
+  53. A selected word is sent with at most 8 words around it from its own sentence.
+  54. The same word in another sentence is translated again, not taken from the cache.
+  55. The topic message returns tags from the API and an empty list without a key or on an API error.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

@@ -4,6 +4,9 @@
   const SHORT_CHARS = 40;
   const SHORT_WORDS = 3;
   const LETTER = /\p{L}/u;
+  const CONTEXT_WORDS = 8;
+  const sentenceSegmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' });
+  const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
 
   const inside = (rect, x, y) =>
     x >= rect.left - TOLERANCE && x <= rect.right + TOLERANCE && y >= rect.top - TOLERANCE && y <= rect.bottom + TOLERANCE;
@@ -28,5 +31,39 @@
     return text.length <= SHORT_CHARS && text.split(/\s+/).length <= SHORT_WORDS;
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { selectionAt, isShortPhrase });
+  // The phrase at [start, end) of `text` with at most CONTEXT_WORDS words on each side from its own sentence,
+  // on one line; '' when there are no other words around it.
+  function wordsAround(source, start, end) {
+    // Line breaks in a block's text come from the HTML source, not from the author: they end no sentence.
+    const text = source.replace(/\s/g, ' ');
+    const sentences = [...sentenceSegmenter.segment(text)];
+    const first = sentences.findLast((sentence) => sentence.index <= start);
+    const last = sentences.findLast((sentence) => sentence.index < end);
+    if (!first || !last) return '';
+    const from = first.index;
+    const words = [...wordSegmenter.segment(text.slice(from, last.index + last.segment.length))]
+      .filter((word) => word.isWordLike)
+      .map((word) => ({ start: from + word.index, end: from + word.index + word.segment.length }));
+    const before = words.filter((word) => word.end <= start).slice(-CONTEXT_WORDS);
+    const after = words.filter((word) => word.start >= end).slice(0, CONTEXT_WORDS);
+    if (before.length === 0 && after.length === 0) return '';
+    return text
+      .slice(before[0]?.start ?? start, after.at(-1)?.end ?? end)
+      .replace(/ +/g, ' ')
+      .trim();
+  }
+
+  // The words around a selected phrase, from the text of its block.
+  function contextOf(range) {
+    const block = globalThis.hoverTranslate.inspectBlock(range.startContainer)?.target;
+    if (!(block instanceof Element) || !block.contains(range.endContainer)) return '';
+    const head = document.createRange();
+    head.selectNodeContents(block);
+    const text = head.toString();
+    head.setEnd(range.startContainer, range.startOffset);
+    const start = head.toString().length;
+    return wordsAround(text, start, start + range.toString().length);
+  }
+
+  Object.assign((globalThis.hoverTranslate ??= {}), { selectionAt, isShortPhrase, wordsAround, contextOf });
 })();

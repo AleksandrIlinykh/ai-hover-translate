@@ -10,11 +10,14 @@ const sseData = (content) => `data: ${JSON.stringify({ choices: [{ index: 0, del
 // slow → one chunk per second, split → a four-byte emoji cut between writes,
 // flaky → 500 on the first request and normal answers after it,
 // anything else → "[RU] <text>" in three chunks.
+// Requests that are not streamed ask for the page topic: bad → 401, anything else → three tags.
+// They are recorded in `topicRequests`, apart from the translations in `requests`.
 export async function startMockServer() {
   const requests = [];
+  const topicRequests = [];
   const state = { flakyFailed: false };
   const server = http.createServer((req, res) => {
-    handle(req, res, requests, state).catch((error) => {
+    handle(req, res, { requests, topicRequests }, state).catch((error) => {
       console.error(error);
       res.destroy();
     });
@@ -23,6 +26,7 @@ export async function startMockServer() {
   return {
     url: `http://127.0.0.1:${server.address().port}`,
     requests,
+    topicRequests,
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();
@@ -31,7 +35,7 @@ export async function startMockServer() {
   };
 }
 
-async function handle(req, res, requests, state) {
+async function handle(req, res, records, state) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -41,13 +45,13 @@ async function handle(req, res, requests, state) {
     const html = await readFile(new URL(req.url.slice(1), FIXTURES));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html);
   } else if (req.method === 'POST' && req.url === '/chat/completions') {
-    await completions(req, res, requests, state);
+    await completions(req, res, records, state);
   } else {
     res.writeHead(404).end();
   }
 }
 
-async function completions(req, res, requests, state) {
+async function completions(req, res, { requests, topicRequests }, state) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const record = {
@@ -55,6 +59,12 @@ async function completions(req, res, requests, state) {
     body: JSON.parse(Buffer.concat(chunks).toString('utf8')),
     aborted: false,
   };
+  const key = record.authorization?.replace(/^Bearer /, '');
+  if (record.body.stream !== true) {
+    topicRequests.push(record);
+    answerTopics(res, key);
+    return;
+  }
   requests.push(record);
 
   let finished = false;
@@ -66,7 +76,6 @@ async function completions(req, res, requests, state) {
     res.end(data);
   };
 
-  const key = record.authorization?.replace(/^Bearer /, '');
   if (key === 'flaky' && !state.flakyFailed) {
     state.flakyFailed = true;
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -108,4 +117,14 @@ async function completions(req, res, requests, state) {
     res.write(sseData(translation.slice(i, i + size)));
   }
   finish('data: [DONE]\n\n');
+}
+
+function answerTopics(res, key) {
+  res.writeHead(key === 'bad' ? 401 : 200, { 'Content-Type': 'application/json' });
+  if (key === 'bad') {
+    res.end(JSON.stringify({ error: { message: 'Authentication Fails', type: 'invalid_request_error' } }));
+    return;
+  }
+  const message = { role: 'assistant', content: 'Git, Continuous Integration, DevOps' };
+  res.end(JSON.stringify({ choices: [{ index: 0, message, finish_reason: 'stop' }] }));
 }

@@ -1,11 +1,21 @@
 (() => {
-  const { elementAt, inspectBlock, isOverText, selectionAt, isShortPhrase, alreadyInLanguage, createPopup, createHighlight } =
-    globalThis.hoverTranslate;
+  const {
+    elementAt,
+    inspectBlock,
+    isOverText,
+    selectionAt,
+    isShortPhrase,
+    contextOf,
+    alreadyInLanguage,
+    createPopup,
+    createHighlight,
+  } = globalThis.hoverTranslate;
 
   const TRIGGER_DELAY_MS = 200;
   const LEAVE_GRACE_MS = 300;
   const CACHE_LIMIT = 100;
   const DETECT_TIMEOUT_MS = 300;
+  const TOPIC_MIN_CHARS = 400;
   const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
   const HINTS = {
     editable: 'Input fields are not translated.',
@@ -14,12 +24,13 @@
   };
   const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
 
-  const cache = new Map(); // `${mode}:${text}` -> translation, for this page
+  const cache = new Map(); // [mode, text, context, topics] -> translation, for this page
   const sameLanguage = new Map(); // text -> whether it is already in the target language
   const popup = createPopup({
     onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
     onRetry: () => retry(),
     onClose: () => closePopup(),
+    onDropTopics: () => dropTopics(),
   });
   const highlight = createHighlight();
 
@@ -33,8 +44,11 @@
   let previewFrame = 0;
   let triggerTicket = 0;
   let port = null;
-  let shown = null; // { text, mode } of the open popup
+  let shown = null; // { text, mode, context, topics } of the open popup: what was sent to background
   let targetLang = DEFAULT_LANG;
+  let topics = []; // tags of the page topic from DeepSeek, sent with every translation on this page
+  let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
+  let pageAddress = currentAddress();
 
   chrome.storage.local
     .get('settings')
@@ -122,21 +136,77 @@
 
   function show(picked) {
     closePopup();
+    syncAddress();
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
-    shown = { text: picked.text, mode };
+    shown = { text: picked.text, mode, context: mode === 'dictionary' ? contextOf(picked.target) : '' };
     popup.open(picked.target);
-    const cached = cache.get(`${mode}:${picked.text}`);
-    if (cached === undefined) translate(picked.text, mode);
+    load();
+    if (mode === 'text') askForTopics(picked.text);
+  }
+
+  // Shows the translation of the open popup's text with the current page topic: cached or from the API.
+  function load() {
+    shown.topics = topics;
+    popup.setTopics(topics);
+    const cached = cache.get(cacheKey(shown));
+    if (cached === undefined) translate(shown);
     else popup.setText(cached);
   }
 
   function retry() {
     if (!shown || !popup.isOpen()) return;
     popup.setLoading();
-    translate(shown.text, shown.mode);
+    translate(shown);
   }
 
-  function translate(text, mode) {
+  // Where the page is, without the hash: single-page apps change it without reloading.
+  function currentAddress() {
+    return location.origin + location.pathname + location.search;
+  }
+
+  function forgetTopics(state = 'unknown') {
+    topics = [];
+    topicState = state;
+  }
+
+  // Another page of a single-page app gets its own topic.
+  function syncAddress() {
+    const address = currentAddress();
+    if (address === pageAddress) return;
+    pageAddress = address;
+    forgetTopics();
+  }
+
+  // Asks DeepSeek once per page for the topic of its first long text; the translations after it carry the topic.
+  async function askForTopics(text) {
+    if (topicState !== 'unknown' || text.length < TOPIC_MIN_CHARS) return;
+    topicState = 'asking';
+    const address = pageAddress;
+    let reply = null;
+    try {
+      reply = await chrome.runtime.sendMessage({ type: 'topics', text });
+    } catch {
+      // e.g. the extension was updated; the next long text asks again
+    }
+    if (address !== pageAddress || topicState !== 'asking') return;
+    topics = Array.isArray(reply?.topics) ? reply.topics : [];
+    topicState = topics.length > 0 ? 'known' : 'unknown';
+  }
+
+  // The user says the tags are wrong: translate again without them and ask for none until the page changes.
+  function dropTopics() {
+    forgetTopics('dropped');
+    if (!shown || !popup.isOpen()) return;
+    disconnect();
+    popup.setLoading();
+    load();
+  }
+
+  function cacheKey({ mode, text, context, topics: tags }) {
+    return JSON.stringify([mode, text, context, tags]);
+  }
+
+  function translate(request) {
     let current;
     try {
       current = chrome.runtime.connect({ name: 'translate' });
@@ -152,7 +222,7 @@
         result += message.text;
         popup.setText(result);
       } else if (message.type === 'done') {
-        remember(cache, `${mode}:${text}`, result);
+        remember(cache, cacheKey(request), result);
         disconnect();
       } else if (message.type === 'error') {
         popup.setError(message.message, { action: message.code === 'no_key' ? 'settings' : 'retry' });
@@ -164,7 +234,7 @@
       port = null;
       popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
     });
-    current.postMessage({ text, mode });
+    current.postMessage(request);
   }
 
   function disconnect() {
@@ -295,6 +365,7 @@
     if (area !== 'local' || !changes.settings) return;
     cache.clear();
     sameLanguage.clear();
+    forgetTopics();
     targetLang = changes.settings.newValue?.targetLang || DEFAULT_LANG;
   });
 })();
