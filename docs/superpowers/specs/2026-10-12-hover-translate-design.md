@@ -88,6 +88,8 @@ Values are trimmed (keys are often pasted with a space or a line break); an empt
 
 `baseUrl` exists for tests (local mock) and for switching providers. A provider outside `host_permissions` only works if its API sends CORS headers; otherwise its domain has to be added to `host_permissions`.
 
+The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language: `{ type: 'page-settings' }` is answered with `{ targetLang }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang }` to every tab.
+
 `LANGUAGES` maps a code to its English name, used both in the prompt and in the settings page: ru, en, de, fr, es, it, pt, pl, uk, tr, zh (Chinese (Simplified)), ja, ko.
 
 Settings page: key field (`type=password`), language picker, model, API URL, a "Save" button with a "Saved" confirmation, a link to https://platform.deepseek.com/api_keys.
@@ -186,7 +188,7 @@ On close, the port to background is disconnected and any unfinished API request 
 
 ## Cache
 
-In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (`chrome.storage.onChanged`).
+In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (the `settings-changed` message from background).
 
 In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[baseUrl, model, targetLang, mode, text, context, topics]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
 
@@ -198,7 +200,7 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 - `{ type: 'done' }`: the translation is finished;
 - `{ type: 'error', code, message }`: an error with a readable `message`.
 
-A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, and `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model").
+A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang }` (see "Settings").
 
 ## DeepSeek request (background.js)
 
@@ -325,5 +327,6 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   55. The topic message returns tags from the API and an empty list without a key or on an API error.
   56. A paragraph inside a contenteditable editor with several paragraphs is translated on its own; a one-block contenteditable is translated whole.
   57. A selection inside an editor is translated; a selection inside a form field is not.
+  58. A content script cannot read `chrome.storage.local`: run in the extension's isolated world over CDP, the read is refused and the stored key does not show up.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

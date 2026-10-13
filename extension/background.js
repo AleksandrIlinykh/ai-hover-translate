@@ -11,6 +11,20 @@ const MODES = new Set(['text', 'dictionary']);
 const CACHE_PREFIX = 'cache:';
 const TEMPERATURE = 1.3; // DeepSeek's recommended temperature for translation
 
+// The settings hold API keys: only extension pages and this worker may read them, never content scripts.
+chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
+
+// Pages get the public part of the settings: the target language.
+const pageSettings = (settings) => ({ targetLang: settings.targetLang });
+
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local' || !changes.settings) return;
+  const message = { type: 'settings-changed', ...pageSettings(await loadSettings()) };
+  for (const tab of await chrome.tabs.query({})) {
+    chrome.tabs.sendMessage(tab.id, message).catch(() => {}); // tabs without our content script
+  }
+});
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'translate') return;
   const controller = new AbortController();
@@ -34,6 +48,10 @@ chrome.runtime.onConnect.addListener((port) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'open-options') chrome.runtime.openOptionsPage();
+  if (message?.type === 'page-settings') {
+    loadSettings().then((settings) => sendResponse(pageSettings(settings)));
+    return true;
+  }
   if (message?.type === 'topics') {
     findTopics(String(message.text ?? '')).then((topics) => sendResponse({ topics }));
     return true; // the answer comes later

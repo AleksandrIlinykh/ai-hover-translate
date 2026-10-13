@@ -50,10 +50,11 @@
   let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
   let pageAddress = currentAddress();
 
-  chrome.storage.local
-    .get('settings')
-    .then(({ settings }) => {
-      targetLang = settings?.targetLang || DEFAULT_LANG;
+  // The settings hold API keys, so pages get only the target language, from background.
+  chrome.runtime
+    .sendMessage({ type: 'page-settings' })
+    .then((answer) => {
+      targetLang = answer?.targetLang || DEFAULT_LANG;
     })
     .catch(() => {});
 
@@ -361,11 +362,11 @@
     true,
   );
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !changes.settings) return;
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type !== 'settings-changed') return;
     cache.clear();
     sameLanguage.clear();
     forgetTopics();
-    targetLang = changes.settings.newValue?.targetLang || DEFAULT_LANG;
+    targetLang = message.targetLang || DEFAULT_LANG;
   });
 })();
