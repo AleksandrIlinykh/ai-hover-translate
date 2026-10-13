@@ -16,9 +16,6 @@
     const selection = getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
     const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer;
-    const element = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
-    if (element?.isContentEditable) return null;
     const text = selection.toString().trim().replace(/\n{3,}/g, '\n\n');
     if (!LETTER.test(text)) return null;
     if (![...range.getClientRects()].some((rect) => inside(rect, x, y))) return null;

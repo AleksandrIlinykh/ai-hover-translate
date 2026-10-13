@@ -16,7 +16,8 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its DeepSeek 
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).
 - The first long paragraph you translate on a page also tells the extension what the page is about: DeepSeek names the topic in a few tags, and later translations on that page use them to pick the right meaning of ambiguous words. The tags show on the popup's title bar. If they are wrong, click the round "×" next to them: the text is translated again without them, and the page gets no new tags until you reload it.
-- A grey outline with a hint means there is nothing to send: an input field, too much text (select the part you need) or text already in your language.
+- Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not.
+- A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
 - Drag the popup by its title bar to put it where you like, and resize it by any edge or corner: it then stays at that place on screen while you scroll, handy for reading a long paragraph.
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.

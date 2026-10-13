@@ -43,6 +43,21 @@ test('a selection of one to three words gets a dictionary entry', async ({ page,
   expect(server.requests[0].body.messages[0].content).toContain('bilingual dictionary');
 });
 
+test('a selection inside an editor is translated', async ({ page, server }) => {
+  await page.locator('#editor-p1').scrollIntoViewIfNeeded();
+  await altOver(page, await select(page, '#editor-p1', 6, 15));
+  await expect(popupText(page)).toHaveText('[RU] paragraph');
+  expect(server.requests[0].body.messages[1].content).toBe('paragraph');
+});
+
+test('a selection inside a form field is not translated', async ({ page, server }) => {
+  await page.locator('#input').selectText();
+  await altOver(page, await page.locator('#input').boundingBox());
+  await page.waitForTimeout(500);
+  await expect(popupText(page)).toHaveCount(0);
+  expect(server.requests).toHaveLength(0);
+});
+
 test('the outline traces the selection, not the paragraph', async ({ page }) => {
   const rect = await select(page, '#p1', 4, 25);
   await altOver(page, rect);

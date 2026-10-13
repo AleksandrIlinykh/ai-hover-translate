@@ -59,6 +59,8 @@ for (const [selector, text] of [
   ['#p2-span', P2],
   ['#li1', 'List item text'],
   ['#card-text', 'Text in a div without paragraphs'],
+  ['#editable', 'Editable text'],
+  ['#editor-p2', 'Second paragraph in the editor.'],
 ]) {
   test(`hovering ${selector} translates its block`, async ({ page, server }) => {
     await altHover(page, selector);
@@ -67,7 +69,7 @@ for (const [selector, text] of [
   });
 }
 
-for (const selector of ['#digits', '#input', '#editable', '#huge']) {
+for (const selector of ['#digits', '#input', '#huge']) {
   test(`hovering ${selector} does not translate`, async ({ page, server }) => {
     await altHover(page, selector);
     await expectNothingAfterAWhile(page, server);

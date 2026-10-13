@@ -19,7 +19,7 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 ## Out of scope
 
 - Publishing to the Chrome Web Store, syncing settings across devices.
-- Translating inside iframes, input fields, contenteditable.
+- Translating inside iframes and form fields (`input`, `textarea`, `select`).
 - Transcription, usage examples, full dictionary articles (short selections get a brief entry only).
 - Translating the whole page.
 - Sending the page title or whole neighbouring paragraphs to the model (only the words around a selected phrase and the page topic tags are sent, see "Context for the model").
@@ -113,7 +113,7 @@ While Alt is held (and it is not a combo), the block that would be translated is
 - It is a separate `<div id="hover-translate-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
 - Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Empty space (no text under the mouse) means no outline.
 - **Muted outline with a hint** where Alt + hover would not translate: a grey (`#8c959f`) dashed border, `rgba(140, 149, 159, 0.12)` fill and a small label above the box (inside its top-left corner when the box touches the top of the window). The label also has `pointer-events: none`, so it can never be picked as text itself. Hints:
-  - input field or editable area: "Input fields are not translated."
+  - form field (`input`, `textarea`, `select`): "Input fields are not translated."
   - block longer than `MAX_CHARS`: "Too much text. Select the part you need."
   - selection longer than `MAX_CHARS`: "Too much text. Select a shorter part."
   - text already in the target language: "Already in {language}." (English language name from `Intl.DisplayNames`).
@@ -123,9 +123,9 @@ While Alt is held (and it is not a combo), the block that would be translated is
 
 `main.js` picks one target under the mouse, in this order (our own popup is skipped first):
 
-1. **The user's selection**, when the mouse is over one of its lines (`selectionAt(x, y)`, 2 px tolerance). The target is a copy of the selection `Range`; the popup and the outline position themselves against its rectangle. Only the selected text is sent. Selections inside editable areas are ignored. A selection longer than `MAX_CHARS` gets the muted outline instead.
+1. **The user's selection**, when the mouse is over one of its lines (`selectionAt(x, y)`, 2 px tolerance). The target is a copy of the selection `Range`; the popup and the outline position themselves against its rectangle. Only the selected text is sent. Selections inside rich text editors count like any other. A selection longer than `MAX_CHARS` gets the muted outline instead.
 2. **The block under the mouse** (`inspectBlock(element)`):
-   1. The element is inside `input`, `textarea`, `select` or an editable area (`isContentEditable`): not translated, reason `editable`.
+   1. The element is inside `input`, `textarea` or `select`: not translated, reason `editable`. Rich text editors (`contenteditable`, e.g. Confluence in edit mode, where the whole page is one) are not special: the paragraph under the mouse inside them is translated like any other, and the editor content is never changed.
    2. Walk up from the element (stopping before `body`/`html`). The first element whose `display` is one of `block`, `list-item`, `table-cell`, `table-caption`, `flex`, `grid`, `flow-root` and whose `innerText` has at least one letter (`\p{L}`) is the candidate.
    3. If the candidate's text is longer than `MAX_CHARS = 3000`: not translated, reason `too-long` (it is a page wrapper, not a paragraph); the hint suggests selecting a part. This only applies when the mouse is over a line of text (`isOverText`, via `caretRangeFromPoint`), so moving across the margins between paragraphs shows nothing.
    4. Otherwise the candidate.
@@ -323,5 +323,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   53. A selected word is sent with at most 8 words around it from its own sentence.
   54. The same word in another sentence is translated again, not taken from the cache.
   55. The topic message returns tags from the API and an empty list without a key or on an API error.
+  56. A paragraph inside a contenteditable editor with several paragraphs is translated on its own; a one-block contenteditable is translated whole.
+  57. A selection inside an editor is translated; a selection inside a form field is not.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

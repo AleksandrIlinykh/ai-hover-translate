@@ -20,14 +20,14 @@
   }
 
   // What Alt + hover over an element would translate: the element itself or its nearest block-level
-  // ancestor with readable text, as { target, text }. When that block can't be translated the result
-  // is { target, reason } with reason 'editable' or 'too-long'; null means there is nothing to read.
+  // ancestor with readable text, as { target, text }. Paragraphs of rich text editors (contenteditable,
+  // e.g. Confluence in edit mode) count too. When the block can't be translated the result is
+  // { target, reason } with reason 'editable' (a form field) or 'too-long'; null means there is nothing to read.
   function inspectBlock(start) {
     let node = start?.nodeType === Node.TEXT_NODE ? start.parentElement : start;
     if (!(node instanceof Element)) return null;
     const field = node.closest('input, textarea, select');
     if (field) return { target: field, reason: 'editable' };
-    if (node.isContentEditable) return { target: node.closest('[contenteditable]') ?? node, reason: 'editable' };
     for (; node && node !== document.body && node !== document.documentElement; node = parentOf(node)) {
       if (!(node instanceof HTMLElement)) continue;
       if (!BLOCK_DISPLAYS.has(getComputedStyle(node).display)) continue;
