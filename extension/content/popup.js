@@ -9,6 +9,9 @@
   const MIN_HEIGHT = 80;
   const TALL_BLOCK = 240;
   const COPIED_MS = 1200;
+  const MIN_RESIZE_WIDTH = 240;
+  const MIN_RESIZE_HEIGHT = 120;
+  const EDGES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
   // Inline !important beats any page rule, including `div { display: none !important }`.
   const HOST_STYLE = ['all: initial', 'position: absolute', 'top: 0', 'left: 0', 'display: block', 'z-index: 2147483647']
@@ -17,6 +20,7 @@
 
   const POPUP_CSS = `
     .popup {
+      position: relative;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -39,7 +43,7 @@
       justify-content: flex-end;
       gap: 2px;
       height: 24px;
-      padding: 0 4px;
+      padding: 0 10px 0 6px;
       border-bottom: 1px solid #d8dee4;
       background: #f6f8fa;
       cursor: grab;
@@ -48,6 +52,7 @@
     }
     .popup.is-dragging .bar { cursor: grabbing; }
     .body {
+      flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
       padding: 8px 12px 10px;
@@ -84,6 +89,26 @@
       cursor: pointer;
     }
     .popup.has-settings .settings, .popup.has-retry .retry { display: block; }
+    .resize { position: absolute; z-index: 1; touch-action: none; }
+    .resize.n, .resize.s { left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+    .resize.e, .resize.w { top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+    .resize.n { top: 0; }
+    .resize.s { bottom: 0; }
+    .resize.e { right: 0; }
+    .resize.w { left: 0; }
+    .resize.ne, .resize.nw, .resize.sw { width: 10px; height: 10px; }
+    .resize.ne { top: 0; right: 0; cursor: nesw-resize; }
+    .resize.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+    .resize.nw { top: 0; left: 0; cursor: nwse-resize; }
+    .resize.se {
+      right: 0;
+      bottom: 0;
+      width: 14px;
+      height: 14px;
+      cursor: nwse-resize;
+      opacity: 0.4;
+      background: linear-gradient(135deg, transparent 0 50%, currentColor 50% 58%, transparent 58% 68%, currentColor 68% 76%, transparent 76%);
+    }
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .popup { border-color: #30363d; background: #161b22; color: #e6edf3; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); }
@@ -94,8 +119,8 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
-  // Translation popup with a small title bar. Clicking it pins it; dragging the bar pins it and
-  // detaches it from the block, so it stays put on screen while the page scrolls.
+  // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
+  // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   function createPopup({ onOpenSettings, onRetry, onClose }) {
     const host = document.createElement('div');
     host.id = ROOT_ID;
@@ -131,6 +156,12 @@
       button('action retry', 'Retry', () => onRetry()),
     );
     popupEl.append(bar, bodyEl);
+    for (const edge of EDGES) {
+      const handle = document.createElement('div');
+      handle.className = `resize ${edge}`;
+      handle.addEventListener('pointerdown', (event) => startResize(event, edge));
+      popupEl.append(handle);
+    }
     popupEl.addEventListener('mousedown', () => popupEl.classList.add('is-pinned'));
     bar.addEventListener('pointerdown', startDrag);
     shadow.append(popupEl);
@@ -139,7 +170,8 @@
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
-    let detached = false; // dragged: fixed on screen instead of attached to the block
+    let detached = false; // dragged or resized: fixed on screen instead of attached to the block
+    let sized = false; // resized: explicit width and height instead of fitting the text
 
     // action: 'settings' or 'retry' adds that button under an error.
     function render(text, { loading = false, error = false, action = null } = {}) {
@@ -214,7 +246,8 @@
     function placeFixed(left, top) {
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      popupEl.style.maxWidth = `${Math.min(parseFloat(popupEl.style.maxWidth) || MAX_WIDTH, viewportWidth - 2 * MARGIN)}px`;
+      const widthLimit = sized ? Infinity : parseFloat(popupEl.style.maxWidth) || MAX_WIDTH;
+      popupEl.style.maxWidth = `${Math.min(widthLimit, viewportWidth - 2 * MARGIN)}px`;
       popupEl.style.maxHeight = `${viewportHeight - 2 * MARGIN}px`;
       const { width, height } = popupEl.getBoundingClientRect();
       host.style.setProperty('left', `${clamp(left, MARGIN, viewportWidth - MARGIN - width)}px`, 'important');
@@ -226,29 +259,59 @@
       placeFixed(rect.left, rect.top);
     }
 
+    function detach() {
+      if (detached) return;
+      const rect = popupEl.getBoundingClientRect();
+      detached = true;
+      host.style.setProperty('position', 'fixed', 'important');
+      placeFixed(rect.left, rect.top);
+    }
+
+    // Follows the pointer from pointerdown to pointerup on `target`, calling onMove with the distance moved.
+    function track(event, target, onMove) {
+      const origin = { x: event.clientX, y: event.clientY };
+      target.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => onMove(moveEvent.clientX - origin.x, moveEvent.clientY - origin.y);
+      const stop = () => {
+        popupEl.classList.remove('is-dragging');
+        target.removeEventListener('pointermove', move);
+        target.removeEventListener('pointerup', stop);
+        target.removeEventListener('pointercancel', stop);
+      };
+      target.addEventListener('pointermove', move);
+      target.addEventListener('pointerup', stop);
+      target.addEventListener('pointercancel', stop);
+    }
+
     function startDrag(event) {
       if (event.button !== 0 || event.target.closest('button')) return;
       event.preventDefault(); // no text selection, no mousedown: pin explicitly
       popupEl.classList.add('is-pinned', 'is-dragging');
-      if (!detached) {
-        const rect = popupEl.getBoundingClientRect();
-        detached = true;
-        host.style.setProperty('position', 'fixed', 'important');
-        placeFixed(rect.left, rect.top);
-      }
+      detach();
       const start = popupEl.getBoundingClientRect();
-      const origin = { x: event.clientX, y: event.clientY };
-      bar.setPointerCapture(event.pointerId);
-      const move = (moveEvent) => placeFixed(start.left + moveEvent.clientX - origin.x, start.top + moveEvent.clientY - origin.y);
-      const stop = () => {
-        popupEl.classList.remove('is-dragging');
-        bar.removeEventListener('pointermove', move);
-        bar.removeEventListener('pointerup', stop);
-        bar.removeEventListener('pointercancel', stop);
-      };
-      bar.addEventListener('pointermove', move);
-      bar.addEventListener('pointerup', stop);
-      bar.addEventListener('pointercancel', stop);
+      track(event, bar, (dx, dy) => placeFixed(start.left + dx, start.top + dy));
+    }
+
+    // Moves the dragged edges (n, s, e, w or a corner) within the window, keeping the minimum size.
+    function startResize(event, edge) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      popupEl.classList.add('is-pinned');
+      detach();
+      const start = popupEl.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      track(event, event.currentTarget, (dx, dy) => {
+        let { left, top, right, bottom } = start;
+        if (edge.includes('e')) right = clamp(start.right + dx, start.left + MIN_RESIZE_WIDTH, viewportWidth - MARGIN);
+        if (edge.includes('w')) left = clamp(start.left + dx, MARGIN, start.right - MIN_RESIZE_WIDTH);
+        if (edge.includes('s')) bottom = clamp(start.bottom + dy, start.top + MIN_RESIZE_HEIGHT, viewportHeight - MARGIN);
+        if (edge.includes('n')) top = clamp(start.top + dy, MARGIN, start.bottom - MIN_RESIZE_HEIGHT);
+        sized = true;
+        popupEl.style.width = `${right - left}px`;
+        popupEl.style.height = `${bottom - top}px`;
+        placeFixed(left, top);
+      });
     }
 
     function schedulePosition() {
@@ -265,6 +328,9 @@
       open(target) {
         block = target;
         detached = false;
+        sized = false;
+        popupEl.style.width = '';
+        popupEl.style.height = '';
         host.style.setProperty('position', 'absolute', 'important');
         side = chooseSide(block.getBoundingClientRect());
         popupEl.classList.remove('is-pinned', 'is-dragging');

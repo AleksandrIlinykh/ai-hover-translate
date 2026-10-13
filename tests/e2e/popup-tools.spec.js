@@ -18,6 +18,17 @@ async function dragBar(page, dx, dy) {
   await page.mouse.up();
 }
 
+async function dragHandle(page, edge, dx, dy) {
+  const box = await popupRoot(page).locator(`.resize.${edge}`).boundingBox();
+  const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + dx, start.y + dy, { steps: 5 });
+  await page.mouse.up();
+}
+
+const round = (value) => Math.round(value);
+
 async function pin(page) {
   const box = await popupBox(page).boundingBox();
   await page.mouse.click(box.x + 20, box.y + box.height - 8);
@@ -89,6 +100,57 @@ test.describe('with a working key', () => {
     const box = await popupBox(page).boundingBox();
     expect(box.x + box.width).toBeLessThanOrEqual(900 - 8 + 1);
     expect(box.y + box.height).toBeLessThanOrEqual(500 - 8 + 1);
+  });
+
+  test('dragging the bottom-right corner resizes the popup and pins it', async ({ page }) => {
+    await expect(popupRoot(page).locator('.resize.se')).toBeVisible();
+    const before = await popupBox(page).boundingBox();
+    await dragHandle(page, 'se', 120, 90);
+    const after = await popupBox(page).boundingBox();
+    expect({
+      x: round(after.x - before.x),
+      y: round(after.y - before.y),
+      width: round(after.width - before.width),
+      height: round(after.height - before.height),
+    }).toEqual({ x: 0, y: 0, width: 120, height: 90 });
+    await expect(popupBox(page)).toHaveClass(/is-pinned/);
+  });
+
+  test('dragging the left edge moves the left side and keeps the right side', async ({ page }) => {
+    const before = await popupBox(page).boundingBox();
+    await dragHandle(page, 'w', -100, 0);
+    const after = await popupBox(page).boundingBox();
+    expect({
+      left: round(after.x - before.x),
+      right: round(after.x + after.width - (before.x + before.width)),
+    }).toEqual({ left: -100, right: 0 });
+  });
+
+  test('the popup cannot be resized below 240 x 120 or past the window', async ({ page }) => {
+    await dragHandle(page, 'se', -2000, -2000);
+    let box = await popupBox(page).boundingBox();
+    expect({ width: round(box.width), height: round(box.height) }).toEqual({ width: 240, height: 120 });
+    await dragHandle(page, 'se', 3000, 3000);
+    box = await popupBox(page).boundingBox();
+    const [viewportWidth, viewportHeight] = await page.evaluate(() => [document.documentElement.clientWidth, innerHeight]);
+    expect({ right: round(box.x + box.width), bottom: round(box.y + box.height) }).toEqual({
+      right: viewportWidth - 8,
+      bottom: viewportHeight - 8,
+    });
+  });
+
+  test('a resized popup stays in place on screen while the page scrolls', async ({ page }) => {
+    await dragHandle(page, 'se', 100, 100);
+    const before = await popupBox(page).boundingBox();
+    const paragraphBefore = await page.locator('#p1').boundingBox();
+    await page.evaluate(() => window.scrollBy(0, 300));
+    await expect.poll(async () => round((await page.locator('#p1').boundingBox()).y)).toBe(round(paragraphBefore.y - 300));
+    const after = await popupBox(page).boundingBox();
+    expect({ x: round(after.x), y: round(after.y), height: round(after.height) }).toEqual({
+      x: round(before.x),
+      y: round(before.y),
+      height: round(before.height),
+    });
   });
 
   test('Esc closes a pinned popup', async ({ page }) => {

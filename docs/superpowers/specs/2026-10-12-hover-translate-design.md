@@ -155,6 +155,7 @@ Text to translate: `innerText`, trimmed, with three or more consecutive line bre
 - **Title bar:** a minimal 24 px bar across the top (light grey, darker in the dark theme, a thin line under it), in the style of macOS and Windows windows. On its right: "Copy" (shown once a translation is there; copies the translation, says "Copied" for 1.2 s; falls back to `execCommand('copy')` where the async clipboard is unavailable) and "×" (always there, closes the popup). Only the text area under the bar scrolls; the bar stays on top.
 - **Pinning:** any `mousedown` inside the popup pins it (blue border). A pinned popup ignores the mouse leaving and clicks outside; it closes with Esc, its "×", a window resize or the next translation.
 - **Dragging:** pressing the bar (outside its buttons) and moving drags the popup (pointer events with pointer capture; the cursor is a grabbing hand). Dragging pins the popup and detaches it from the block: it switches to `position: fixed`, so it stays at the same place on screen while the page or an inner container scrolls, and it may use the whole window height. It cannot be dragged past the window edges (8 px margin), and on a window resize it is moved back inside the window instead of closing. Esc, "×" and the next translation close it as usual; the next popup opens attached to its block again.
+- **Resizing:** every edge and corner of the popup is a resize handle (invisible 5 px strips and 10 px corners with resize cursors; the bottom-right corner shows a small diagonal grip, as on macOS). Resizing pins and detaches the popup exactly like dragging, then gives it an explicit width and height: the text re-wraps and scrolls inside if it does not fit. The popup cannot get smaller than 240 x 120 px or reach past the window edges (8 px margin); on a window resize it shrinks to fit. The size is not remembered: the next popup sizes itself to its block again.
 - Look: system font 14px/1.5, 10×12 px padding, 8 px radius, shadow; light and dark theme via `prefers-color-scheme`.
 - Only one popup is open at a time.
 
@@ -288,5 +289,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   43. After dragging, scrolling the page leaves the popup at the same place on screen.
   44. A popup dragged far past the top-left corner stops 8 px from the window edges.
   45. A dragged popup survives a window resize and stays inside the smaller window.
+  46. Dragging the bottom-right corner grows the popup by exactly the mouse distance, keeps its top-left corner and pins it.
+  47. Dragging the left edge moves the left side and keeps the right side.
+  48. The popup cannot be resized below 240 x 120 px or past the window edges.
+  49. After resizing, scrolling the page leaves the popup at the same place and size on screen.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.
