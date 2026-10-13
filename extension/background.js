@@ -61,6 +61,7 @@ async function translate(text, mode, signal, send) {
         messages: buildMessages(text, LANGUAGES[settings.targetLang], mode),
         stream: true,
         temperature: TEMPERATURE,
+        thinking: { type: 'disabled' }, // on by default: slower, and the reasoning is billed
       }),
       signal: AbortSignal.any([signal, idle.signal]),
     });

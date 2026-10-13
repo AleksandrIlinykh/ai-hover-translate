@@ -80,10 +80,10 @@ Stored in `chrome.storage.local` under the `settings` key:
 |---|---|---|
 | `apiKey` | `""` | DeepSeek key |
 | `targetLang` | `"ru"` | target language code |
-| `model` | `"deepseek-chat"` | model |
+| `model` | `"deepseek-flash"` | model |
 | `baseUrl` | `"https://api.deepseek.com"` | OpenAI-compatible API URL |
 
-Values are trimmed (keys are often pasted with a space or a line break); an empty value falls back to the default; an unknown language code falls back to `ru`.
+Values are trimmed (keys are often pasted with a space or a line break); an empty value falls back to the default; an unknown language code falls back to `ru`; the retired model names `deepseek-chat` and `deepseek-reasoner` fall back to `deepseek-flash`.
 
 `baseUrl` exists for tests (local mock) and for switching providers. A provider outside `host_permissions` only works if its API sends CORS headers; otherwise its domain has to be added to `host_permissions`.
 
@@ -189,7 +189,7 @@ A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes 
 
 - No key → `no_key` error, nothing is sent.
 - `POST {baseUrl without trailing /}/chat/completions`, headers `Content-Type: application/json`, `Authorization: Bearer {apiKey}`.
-- Body: `{ model, messages: buildMessages(text, languageName), stream: true, temperature: 1.3 }` (1.3 is DeepSeek's recommendation for translation).
+- Body: `{ model, messages: buildMessages(text, languageName), stream: true, temperature: 1.3, thinking: { type: 'disabled' } }` (1.3 is DeepSeek's recommendation for translation; thinking is on by default, which is slower and bills the reasoning).
 - Response not `ok` → read the body, `errorFromStatus(status, bodyText)` → error.
 - The stream is read through `response.body.getReader()` and `TextDecoder` and parsed by `createSseParser()`; each `data:` line → `deltaFromPayload()` → `chunk` or end.
 - End of stream: if no text chunk arrived, an `empty` error; otherwise `done`.

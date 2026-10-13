@@ -1,7 +1,7 @@
 export const DEFAULTS = Object.freeze({
   apiKey: '',
   targetLang: 'ru',
-  model: 'deepseek-chat',
+  model: 'deepseek-flash',
   baseUrl: 'https://api.deepseek.com',
 });
 
@@ -21,7 +21,10 @@ export const LANGUAGES = Object.freeze({
   ko: 'Korean',
 });
 
-// Trimmed stored values over the defaults; blanks, non-strings and unknown languages fall back.
+// Names DeepSeek has retired; settings saved with them move to the default model.
+const RETIRED_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner']);
+
+// Trimmed stored values over the defaults; blanks, non-strings, unknown languages and retired models fall back.
 export function withDefaults(stored) {
   const settings = { ...DEFAULTS };
   for (const key of Object.keys(DEFAULTS)) {
@@ -29,6 +32,7 @@ export function withDefaults(stored) {
     if (typeof value === 'string' && value.trim() !== '') settings[key] = value.trim();
   }
   if (!Object.hasOwn(LANGUAGES, settings.targetLang)) settings.targetLang = DEFAULTS.targetLang;
+  if (RETIRED_MODELS.has(settings.model)) settings.model = DEFAULTS.model;
   return settings;
 }
 

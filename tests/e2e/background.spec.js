@@ -33,15 +33,21 @@ test('streams the translation in chunks and finishes with done', async ({ page, 
   expect(messages.at(-1)).toEqual({ type: 'done' });
 });
 
-test('sends the key, model, prompt, stream flag and temperature', async ({ page, server, setSettings }) => {
+test('sends the key, model, prompt, stream flag and temperature, with thinking off', async ({ page, server, setSettings }) => {
   await setSettings({ targetLang: 'de', model: 'my-model' });
   await translateViaPort(page, 'Hello');
   expect(server.requests).toHaveLength(1);
   const [{ authorization, body }] = server.requests;
   expect(authorization).toBe('Bearer test-key');
-  expect(body).toMatchObject({ model: 'my-model', stream: true, temperature: 1.3 });
+  expect(body).toMatchObject({ model: 'my-model', stream: true, temperature: 1.3, thinking: { type: 'disabled' } });
   expect(body.messages[0].content).toContain("Translate the user's text into German.");
   expect(body.messages[1]).toEqual({ role: 'user', content: 'Hello' });
+});
+
+test('sends a retired model name as deepseek-flash', async ({ page, server, setSettings }) => {
+  await setSettings({ model: 'deepseek-chat' });
+  await translateViaPort(page, 'Hello');
+  expect(server.requests[0].body.model).toBe('deepseek-flash');
 });
 
 test('accepts a base URL with a trailing slash', async ({ page, server, setSettings }) => {

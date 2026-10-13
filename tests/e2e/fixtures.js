@@ -28,7 +28,7 @@ export const test = base.extend({
   },
   setSettings: async ({ serviceWorker, server }, use) => {
     await use(async (overrides = {}) => {
-      const settings = { apiKey: 'test-key', targetLang: 'ru', model: 'deepseek-chat', baseUrl: server.url, ...overrides };
+      const settings = { apiKey: 'test-key', targetLang: 'ru', model: 'deepseek-flash', baseUrl: server.url, ...overrides };
       await serviceWorker.evaluate((value) => chrome.storage.local.set({ settings: value }), settings);
     });
   },

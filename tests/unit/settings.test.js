@@ -7,12 +7,18 @@ test('withDefaults returns the defaults when nothing is stored', () => {
 });
 
 test('withDefaults keeps stored values', () => {
-  const stored = { apiKey: 'sk-1', targetLang: 'de', model: 'deepseek-reasoner', baseUrl: 'https://example.com/v1' };
+  const stored = { apiKey: 'sk-1', targetLang: 'de', model: 'deepseek-v4-pro', baseUrl: 'https://example.com/v1' };
   assert.deepEqual(withDefaults(stored), stored);
 });
 
 test('withDefaults trims values and replaces blanks with defaults', () => {
   assert.deepEqual(withDefaults({ apiKey: '  sk-1\n', model: '   ', baseUrl: '' }), { ...DEFAULTS, apiKey: 'sk-1' });
+});
+
+test('withDefaults replaces retired model names with deepseek-flash', () => {
+  assert.equal(DEFAULTS.model, 'deepseek-flash');
+  assert.equal(withDefaults({ model: 'deepseek-chat' }).model, 'deepseek-flash');
+  assert.equal(withDefaults({ model: ' deepseek-reasoner ' }).model, 'deepseek-flash');
 });
 
 test('withDefaults falls back to the default language for unknown codes', () => {

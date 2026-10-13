@@ -6,7 +6,7 @@ test('shows the defaults when nothing is saved', async ({ page, extensionId }) =
   await page.goto(optionsUrl(extensionId));
   await expect(page.locator('#apiKey')).toHaveValue('');
   await expect(page.locator('#targetLang')).toHaveValue('ru');
-  await expect(page.locator('#model')).toHaveValue('deepseek-chat');
+  await expect(page.locator('#model')).toHaveValue('deepseek-flash');
   await expect(page.locator('#baseUrl')).toHaveValue('https://api.deepseek.com');
   await expect(page.locator('#targetLang option')).toHaveCount(13);
 });
@@ -18,9 +18,9 @@ test('saves trimmed values and restores blanks to defaults', async ({ page, exte
   await page.locator('#model').fill('');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.locator('#status')).toHaveText('Saved');
-  await expect(page.locator('#model')).toHaveValue('deepseek-chat');
+  await expect(page.locator('#model')).toHaveValue('deepseek-flash');
   const { settings } = await serviceWorker.evaluate(() => chrome.storage.local.get('settings'));
-  expect(settings).toEqual({ apiKey: 'sk-test', targetLang: 'de', model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' });
+  expect(settings).toEqual({ apiKey: 'sk-test', targetLang: 'de', model: 'deepseek-flash', baseUrl: 'https://api.deepseek.com' });
 });
 
 test('shows saved values when opened again', async ({ page, extensionId, server, setSettings }) => {
