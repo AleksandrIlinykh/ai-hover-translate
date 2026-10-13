@@ -47,9 +47,9 @@ hover-translate/
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), activeProvider(settings), loadSettings()
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
-      selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), contextOf(range)
+      selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), blockTextOf(range), contextOf(range)
       language.js       isAlreadyIn(results, lang), detectLanguage(text), alreadyInLanguage(text, lang)
-      translator.js     sourceLanguage(results), translateInBrowser(text, lang, options), describeProblem(result, lang)
+      translator.js     languageCode(tag), sourceLanguage(results), translateInBrowser(text, lang, options), prepareInBrowser(source, lang), describeProblem(result, lang)
       popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics })
       highlight.js      createHighlight()
       main.js           trigger, what to translate, talking to background, closing, page cache
@@ -221,8 +221,12 @@ On close, the port to background is disconnected and any unfinished API request 
 
 With the `chrome` provider the page translates by itself with Chrome's on-device Translator API (Chrome 138+ on desktop; also in Edge). It is not available in the service worker, so content runs it; nothing is sent to background or anywhere else.
 
-- The source language comes from Chrome's language detector (`detectLanguage`, shared with the "Already in" hint): its top guess, when it is not `und` and has a confidence of at least 0.3, as a base code (`pt-BR` → `pt`; `zh-Hant` is kept). Text already in the target language comes back unchanged.
-- One translator per language pair is kept for the page. `Translator.availability()`: `unavailable` → a problem; `available` → `create()` and translate; anything else means a model to download, which Chrome allows only right after a user gesture. Alt is not one (checked in Chromium: modifier keys give no user activation), so without `navigator.userActivation.isActive` the popup says "Chrome needs to download its {source} to {target} model once." with a "Download" button; its click translates again, and `create()` downloads the model, reporting "Downloading the translation model: {n}%" in the popup. Chrome keeps the model, so this happens once per pair. "Test" in the settings does it for English.
+- The source language comes from Chrome's language detector (`detectLanguage`, shared with the "Already in" hint), run on a sample: the text itself, or for a selection the whole paragraph it is in (`blockTextOf`), since a few words tell too little. Its top guess counts when it is not `und` and has a confidence of at least 0.3. When it does not, the page's `<html lang>` is used. `languageCode` turns a tag into a code the Translator accepts: the base language (`pt-BR` → `pt`), but `zh-Hant` for traditional Chinese (`zh-TW`, `zh-HK`, `zh-MO`, `zh-Hant-*`). Text already in the target language comes back unchanged.
+- One translator per language pair is kept for the page; while it is being made, every translation of that pair waits for the same one. `Translator.availability()`: `unavailable` → a problem; `available` → `create()` and translate; anything else means a model to download, which Chrome allows only right after a user gesture. Alt is not one (checked in Chromium: modifier keys give no user activation). Chrome keeps a downloaded model, so each pair is downloaded once.
+- Models are got ready ahead of time, so the first translation is usually instant:
+  - "Save" in the settings with the free translator chosen downloads the model from English (from German when the target is English): "Saved. Downloading the translation model: {n}%", then "Saved. The English to Russian model is ready." or "Saved. {problem}".
+  - On a page, the first trusted click (`pointerdown`) or key press that gives Chrome a user gesture (checked right after the event) gets the model for the page's language ready, with nothing shown: the language from `<html lang>`, or else detected on the first 1000 characters of the page text. Nothing happens on a page in the target language. This is done once per page, and again after the settings change.
+- If Alt comes while that download runs, the popup shows "Downloading the translation model: {n}%" (the last share at once, then each new one) and the translation when it is done. Only when there was no gesture at all on the page does the popup say "Chrome needs to download its {source} to {target} model once." with a "Download" button; its click translates again and downloads the model the same way.
 - The whole text is translated at once (`translate()`, not streamed): on the device it is quick.
 - No page topic is asked for and no dictionary prompt exists: a short selection is translated as plain text. The page cache works as for the other providers; the background session cache is not used.
 - An on-page translation in progress is dropped when the popup closes or another translation starts.
@@ -323,14 +327,14 @@ Unit tests (`node --test`, no dependencies):
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
-- `translator.js`: the source language from the detector's guesses; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); the problem texts.
+- `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
 - `providers.js`: the list of providers and that the manifest covers their hosts; the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
 - `mock-server.js` on a random port serves the test pages, `POST /chat/completions`, `POST /messages` (Anthropic's format) and `GET /models` (two chat models, an embedding model and one with a `models/` prefix), with CORS headers and `OPTIONS` handling. The API key selects the behavior: `strict` → 400 for a request that carries a reasoning switch; `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (path, key headers, `Origin`, body, whether the client aborted it), topic requests apart from translations.
 - Settings are set through the extension's service worker (`chrome.storage.local.set`): one provider (DeepSeek unless a test picks another) with `baseUrl` pointing at the mock.
-- The test Chromium has no on-device Translator or LanguageDetector in content scripts. Stand-ins are put into the extension's isolated world over CDP (not a user gesture, unlike `page.evaluate`). Playwright's own actions count as user gestures in Chrome, so the stand-in reports activation only within 5 s of a real click.
+- Whether the test Chromium has the on-device Translator and LanguageDetector depends on its build and the page (on `http://127.0.0.1` it may, and then its downloads never finish), so tests do not rely on them. Stand-ins are put into the extension's isolated world over CDP (not a user gesture, unlike `page.evaluate`), and the test for a browser without them deletes the real ones there. Playwright's own actions count as user gestures in Chrome, so the stand-in reports activation only within 5 s of a real click.
 - Scenarios:
   1. Alt + hover → popup with `[RU] …` from the mock.
   2. Hover without Alt → no popup after 500 ms, 0 requests.
@@ -405,5 +409,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   71. Switching from the free translator to an API provider takes effect on an open page.
   72. Background tells pages the engine, and answers a port request during the free translator with `engine_changed`; no topics.
   73. Settings page: opens on the free translator with the API fields hidden; "Test" downloads the model from English and translates the sample, from German into English, and says when the browser has no translator.
+  74. A click on a page in another language gets its model ready with nothing shown; Alt after it translates at once, with one translator made.
+  75. Alt during that download shows its progress, then the translation; a page in the target language gets nothing ready.
+  76. A selected word is translated from the language of its paragraph; text whose language cannot be told, from the page's `<html lang>`.
+  77. "Save" with the free translator gets the model from English ready and says so.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

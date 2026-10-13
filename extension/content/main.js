@@ -6,8 +6,13 @@
     selectionAt,
     isShortPhrase,
     contextOf,
+    blockTextOf,
     alreadyInLanguage,
+    detectLanguage,
+    languageCode,
+    sourceLanguage,
     translateInBrowser,
+    prepareInBrowser,
     describeProblem,
     createPopup,
     createHighlight,
@@ -18,6 +23,7 @@
   const CACHE_LIMIT = 100;
   const DETECT_TIMEOUT_MS = 300;
   const TOPIC_MIN_CHARS = 400;
+  const PAGE_SAMPLE_CHARS = 1000;
   const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
   const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js: fixed in the settings
   const HINTS = {
@@ -49,9 +55,11 @@
   let triggerTicket = 0;
   let port = null;
   let shown = null; // { text, mode, context, topics } of the open popup: what was sent to background
+  let sample = ''; // text to tell the language of the open popup's text by, for Chrome's translator
   let targetLang = DEFAULT_LANG;
   let engine = 'api'; // 'api' (background calls an AI provider) or 'browser' (Chrome's translator, on this page)
   let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
+  let modelAsked = false; // whether this page has asked Chrome to get its translation model ready
   let topics = []; // tags of the page topic from DeepSeek, sent with every translation on this page
   let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
   let pageAddress = currentAddress();
@@ -147,6 +155,8 @@
     syncAddress();
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
     shown = { text: picked.text, mode, context: mode === 'dictionary' ? contextOf(picked.target) : '' };
+    // Chrome's translator needs the source language: a few selected words tell too little, their paragraph more.
+    sample = (picked.selection && blockTextOf(picked.target)) || picked.text;
     popup.open(picked.target);
     load();
     if (mode === 'text') askForTopics(picked.text);
@@ -247,7 +257,8 @@
       port = null;
       popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
     });
-    current.postMessage(request);
+    const { text, mode, context, topics: tags } = request;
+    current.postMessage({ text, mode, context, topics: tags });
   }
 
   // The free engine: Chrome's translator runs right here, and nothing leaves the page.
@@ -256,7 +267,11 @@
     const showProgress = (share) => {
       if (ticket === localTicket) popup.setLoading(`Downloading the translation model: ${Math.round(share * 100)}%`);
     };
-    const result = await translateInBrowser(request.text, targetLang, { onProgress: showProgress });
+    const result = await translateInBrowser(request.text, targetLang, {
+      sample,
+      fallbackLang: document.documentElement.lang,
+      onProgress: showProgress,
+    });
     if (ticket !== localTicket) return;
     localTicket++;
     if (result.text === undefined) {
@@ -266,6 +281,28 @@
     }
     popup.setText(result.text);
     remember(cache, cacheKey(request), result.text);
+  }
+
+  // With the free translator, the first click or key press on a page in another language gets its model ready,
+  // since Chrome downloads a model only right after one (Alt does not count). By the time Alt is held it usually is.
+  function prepareModel(event) {
+    if (modelAsked || engine !== 'browser' || !event.isTrusted) return;
+    setTimeout(async () => {
+      if (modelAsked || !navigator.userActivation?.isActive) return;
+      modelAsked = true;
+      try {
+        await prepareInBrowser(await pageLanguage(), targetLang);
+      } catch {
+        // the popup reports problems when Alt is held
+      }
+    });
+  }
+
+  // The page's language: what its <html lang> says, or else what Chrome detects in the start of its text.
+  async function pageLanguage() {
+    const declared = languageCode(document.documentElement.lang);
+    if (declared) return declared;
+    return sourceLanguage(await detectLanguage(document.body?.innerText.slice(0, PAGE_SAMPLE_CHARS) ?? ''));
   }
 
   function disconnect() {
@@ -385,6 +422,9 @@
     else closePopup();
   });
 
+  addEventListener('pointerdown', prepareModel, true);
+  addEventListener('keydown', prepareModel, true);
+
   addEventListener(
     'mousedown',
     (event) => {
@@ -400,5 +440,6 @@
     forgetTopics();
     targetLang = message.targetLang || DEFAULT_LANG;
     engine = message.engine || 'api';
+    modelAsked = false;
   });
 })();

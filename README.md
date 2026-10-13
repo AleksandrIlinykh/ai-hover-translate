@@ -7,7 +7,7 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its translati
 1. Open `chrome://extensions` and turn on "Developer mode".
 2. Click "Load unpacked" and pick the `extension/` folder.
 3. Click the extension icon and choose the language to translate into.
-4. Click "Test". Out of the box the extension uses Chrome's built-in translator: free, and nothing leaves your computer. The click lets Chrome download its model for English once.
+4. Click "Save". Out of the box the extension uses Chrome's built-in translator: free, and nothing leaves your computer. The click lets Chrome download its model for English once.
 5. For translations that fit the context (page topic, dictionary entries), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), click "Test", then "Save".
 
 ## Providers
@@ -35,7 +35,7 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its translati
 
 ## Free built-in translator
 
-Chrome 138 and later (and Edge) can translate on the computer itself. The extension uses that by default: free, offline, nothing sent anywhere. Chrome downloads a model once for each pair of languages, and only after a click: the first time you translate from a new language, the popup asks you to click "Download". It is ordinary machine translation: no page topic and no dictionary entries, which need an AI provider.
+Chrome 138 and later (and Edge) can translate on the computer itself. The extension uses that by default: free, offline, nothing sent anywhere. Chrome downloads a model once for each pair of languages, and only right after a click or a key press (holding Alt does not count), so the extension gets models ready ahead of time: the English one when you save the settings, and the one for a page's language on your first click on that page. Translations are then usually instant. If you hold Alt before ever clicking on a page in a new language, the popup asks you to click "Download". The language of a selected word is told from its whole paragraph, or else from the page. It is ordinary machine translation: no page topic and no dictionary entries, which need an AI provider.
 
 ## Where your text goes
 

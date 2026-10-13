@@ -68,12 +68,12 @@ export async function inContentScript(page, expression) {
 }
 
 // Stand-ins for Chrome's on-device LanguageDetector and Translator, which the test browser lacks. The detector
-// always says `language`; the translator answers "[ru on device] <text>" and logs every translator it makes in
+// says `language`, or `shortTextLanguage` for texts under 20 characters; the translator answers "[ru on device] <text>" and logs every translator it makes in
 // globalThis.fakeAI.creates (with whether there was a user gesture). A pair that is not 'available' is downloaded
 // on create(), with a progress event at 50% and a pause of `downloadMs`.
 // Chrome takes no user gesture from Alt (checked), but Playwright's own actions count as one, so here only a click
 // in the last 5 seconds does.
-export function fakeBuiltInAI({ availability = 'available', language = 'en', downloadMs = 0 } = {}) {
+export function fakeBuiltInAI({ availability = 'available', language = 'en', shortTextLanguage = language, downloadMs = 0 } = {}) {
   return `(() => {
     const log = (globalThis.fakeAI = { creates: [], availability: ${JSON.stringify(availability)} });
     let clickedAt = -Infinity;
@@ -84,7 +84,11 @@ export function fakeBuiltInAI({ availability = 'available', language = 'en', dow
     });
     globalThis.LanguageDetector = {
       availability: async () => 'available',
-      create: async () => ({ detect: async () => [{ detectedLanguage: ${JSON.stringify(language)}, confidence: 0.95 }] }),
+      create: async () => ({
+        detect: async (text) => [
+          { detectedLanguage: text.length < 20 ? ${JSON.stringify(shortTextLanguage)} : ${JSON.stringify(language)}, confidence: 0.95 },
+        ],
+      }),
     };
     globalThis.Translator = {
       availability: async () => log.availability,

@@ -146,16 +146,34 @@ element('loadModels').addEventListener('click', async () => {
   }
 });
 
+// The sample for the free translator: English, or German when translating into English.
+const browserSample = (targetLang) => (targetLang === 'en' ? [TEST_TEXT_DE, 'de'] : [TEST_TEXT, 'en']);
+const modelProgress = (share) => `Downloading the translation model: ${Math.round(share * 100)}%`;
+
+// Saving the free provider gets the model from English ready, so the first translation on a page is instant.
+// The Save click lets Chrome download it.
+async function prepareBrowserModel(targetLang) {
+  const { prepareInBrowser, describeProblem } = globalThis.hoverTranslate;
+  const [, sourceLang] = browserSample(targetLang);
+  const problem = await prepareInBrowser(sourceLang, targetLang, { onProgress: (share) => report(`Saved. ${modelProgress(share)}`) });
+  if (problem) {
+    report(`Saved. ${describeProblem({ problem, source: sourceLang }, targetLang).message}`, true);
+    return;
+  }
+  const names = new Intl.DisplayNames(['en'], { type: 'language' });
+  report(`Saved. The ${names.of(sourceLang)} to ${names.of(targetLang)} model is ready.`);
+}
+
 // The free provider: Chrome's translator, right here. The click lets Chrome download the model.
 async function testInBrowser() {
   const targetLang = form.elements.targetLang.value;
-  const [text, sourceLang] = targetLang === 'en' ? [TEST_TEXT_DE, 'de'] : [TEST_TEXT, 'en'];
+  const [text, sourceLang] = browserSample(targetLang);
   const { translateInBrowser, describeProblem } = globalThis.hoverTranslate;
   report('Testing...');
   const started = performance.now();
   const result = await translateInBrowser(text, targetLang, {
     sourceLang,
-    onProgress: (share) => report(`Downloading the translation model: ${Math.round(share * 100)}%`),
+    onProgress: (share) => report(modelProgress(share)),
   });
   if (result.text === undefined) {
     report(describeProblem(result, targetLang).message, true);
@@ -214,6 +232,7 @@ form.addEventListener('submit', async (event) => {
   await chrome.storage.local.set({ settings });
   show(settings);
   report((await allowed) ? 'Saved' : `Saved, but ${notAllowed(provider)}, so requests to it will fail.`);
+  if (provider.api === 'browser') await prepareBrowserModel(settings.targetLang);
 });
 
 show(await loadSettings());

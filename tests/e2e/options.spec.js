@@ -62,6 +62,14 @@ test('Test on the free translator into English starts from German', async ({ pag
   await expect(page.locator('#status')).toContainText('[en on device] Der schnelle braune Fuchs');
 });
 
+test('Save with the free translator gets the model from English ready', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await fakeTranslatorHere(page, 'downloadable');
+  await save(page);
+  await expect(page.locator('#status')).toHaveText('Saved. The English to Russian model is ready.');
+  expect(await page.evaluate(() => window.fakeAI.creates)).toEqual(['en>ru']);
+});
+
 test('Test without the built-in translator says so', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
   await page.evaluate(() => delete globalThis.Translator);
