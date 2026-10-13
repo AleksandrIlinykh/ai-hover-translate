@@ -24,6 +24,8 @@ export function createSseParser() {
   };
 }
 
+// The text of one streamed event, OpenAI style (choices[0].delta.content, a string or a list of parts)
+// or Anthropic style (text_delta events, then message_stop). Reasoning deltas carry no text.
 export function deltaFromPayload(payload) {
   if (payload === '[DONE]') return { done: true };
   let data;
@@ -32,6 +34,14 @@ export function deltaFromPayload(payload) {
   } catch {
     return null;
   }
-  const content = data?.choices?.[0]?.delta?.content;
-  return typeof content === 'string' && content !== '' ? { text: content } : null;
+  if (data?.type === 'message_stop') return { done: true };
+  const content =
+    data?.type === 'content_block_delta' ? data.delta?.type === 'text_delta' && data.delta.text : data?.choices?.[0]?.delta?.content;
+  const text = Array.isArray(content)
+    ? content
+        .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+        .map((part) => part.text)
+        .join('')
+    : content;
+  return typeof text === 'string' && text !== '' ? { text } : null;
 }

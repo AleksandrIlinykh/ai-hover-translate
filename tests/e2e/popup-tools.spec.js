@@ -188,6 +188,15 @@ test.describe('errors', () => {
     await expect(tool(page, 'retry')).toBeHidden();
   });
 
+  test('a provider without a chosen model offers the settings, not a retry', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'custom', model: '' });
+    await page.goto(`${server.url}/page.html`);
+    await openOn(page, '#p1');
+    await expect(popupText(page)).toHaveText('Choose a model for Other OpenAI-compatible API in the settings.');
+    await expect(tool(page, 'settings')).toBeVisible();
+    await expect(tool(page, 'retry')).toBeHidden();
+  });
+
   test('copy is not offered for an error', async ({ page, server, setSettings }) => {
     await setSettings({ apiKey: 'bad' });
     await page.goto(`${server.url}/page.html`);

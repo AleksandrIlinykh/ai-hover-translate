@@ -1,13 +1,39 @@
 # Hover Translate
 
-A Chrome extension: hold **Alt** and hover over a paragraph to see its DeepSeek translation above it.
+A Chrome extension: hold **Alt** and hover over a paragraph to see its translation above it, from the AI model you choose.
 
 ## Install
 
 1. Open `chrome://extensions` and turn on "Developer mode".
 2. Click "Load unpacked" and pick the `extension/` folder.
-3. Click the extension icon and paste your DeepSeek API key (https://platform.deepseek.com/api_keys).
-4. Choose the target language and click "Save".
+3. Click the extension icon, choose the language to translate into and an AI provider, and paste its API key ("Get a key" links to the provider's page).
+4. Click "Test" to translate a sample sentence, then "Save".
+
+## Providers
+
+| Provider | Default model | Key |
+|---|---|---|
+| DeepSeek | deepseek-flash | https://platform.deepseek.com/api_keys |
+| OpenAI | gpt-6-luna | https://platform.openai.com/api-keys |
+| Anthropic Claude | claude-haiku-5-5 | https://platform.claude.com/settings/keys |
+| Google Gemini | gemini-3.5-flash-lite | https://aistudio.google.com/apikey |
+| OpenRouter | you choose | https://openrouter.ai/settings/keys |
+| Groq | openai/gpt-oss-120b | https://console.groq.com/keys |
+| Mistral | mistral-small-latest | https://console.mistral.ai/api-keys |
+| xAI Grok | grok-4.20-0309-non-reasoning | https://console.x.ai |
+| Alibaba Qwen | qwen-flash | Alibaba Cloud Model Studio |
+| Ollama, LM Studio | you choose | none: the model runs on your computer |
+| Any OpenAI-compatible API | you choose | depends on the API |
+
+- Each provider keeps its own key, model and URL, so you can switch back and forth.
+- "Load models" fetches the provider's list of models. You can also type any model name.
+- Reasoning ("thinking") is turned off where the API allows it: a translation does not need it, and it is slower and billed.
+- Ollama works as installed: the extension's requests to `localhost` carry a local origin, so there is no need to set `OLLAMA_ORIGINS`. In LM Studio, start the server on the Developer tab.
+- For an API outside the list, Chrome asks once for access to its host when you save or test it.
+
+## Where your text goes
+
+Only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and the first long paragraph on a page is also sent once to name the page topic. The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
 
 ## Usage
 
@@ -15,7 +41,7 @@ A Chrome extension: hold **Alt** and hover over a paragraph to see its DeepSeek 
 - Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is about as wide as the paragraph, between 320 and 720 px.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).
-- The first long paragraph you translate on a page also tells the extension what the page is about: DeepSeek names the topic in a few tags, and later translations on that page use them to pick the right meaning of ambiguous words. The tags show on the popup's title bar. If they are wrong, click the round "×" next to them: the text is translated again without them, and the page gets no new tags until you reload it.
+- The first long paragraph you translate on a page also tells the extension what the page is about: the model names the topic in a few tags, and later translations on that page use them to pick the right meaning of ambiguous words. The tags show on the popup's title bar. If they are wrong, click the round "×" next to them: the text is translated again without them, and the page gets no new tags until you reload it.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not.
 - A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.

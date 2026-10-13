@@ -56,3 +56,22 @@ test('deltaFromPayload returns null for payloads without text', () => {
   assert.equal(deltaFromPayload('{"choices":[]}'), null);
   assert.equal(deltaFromPayload('{'), null);
 });
+
+test('deltaFromPayload skips reasoning deltas', () => {
+  assert.equal(deltaFromPayload('{"choices":[{"delta":{"reasoning_content":"Hmm"}}]}'), null);
+  assert.equal(deltaFromPayload('{"choices":[{"delta":{"reasoning":"Hmm","content":""}}]}'), null);
+});
+
+test('deltaFromPayload joins the text parts of content given as a list', () => {
+  const payload = JSON.stringify({ choices: [{ delta: { content: [{ type: 'thinking', thinking: 'x' }, { type: 'text', text: 'Hi' }] } }] });
+  assert.deepEqual(deltaFromPayload(payload), { text: 'Hi' });
+});
+
+test('deltaFromPayload reads Anthropic text deltas and the end of the message', () => {
+  const delta = (inner) => JSON.stringify({ type: 'content_block_delta', index: 0, delta: inner });
+  assert.deepEqual(deltaFromPayload(delta({ type: 'text_delta', text: 'Hello' })), { text: 'Hello' });
+  assert.equal(deltaFromPayload(delta({ type: 'thinking_delta', thinking: 'Hmm' })), null);
+  assert.equal(deltaFromPayload('{"type":"ping"}'), null);
+  assert.equal(deltaFromPayload('{"type":"message_start","message":{}}'), null);
+  assert.deepEqual(deltaFromPayload('{"type":"message_stop"}'), { done: true });
+});

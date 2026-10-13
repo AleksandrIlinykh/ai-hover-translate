@@ -2,9 +2,22 @@
   "manifest_version": 3,
   "name": "Hover Translate",
   "version": "0.1.0",
-  "description": "Hold Alt and hover over a paragraph to see its DeepSeek translation above it.",
-  "permissions": ["storage"],
-  "host_permissions": ["https://api.deepseek.com/*"],
+  "description": "Hold Alt and hover over a paragraph to see its translation above it, from the AI model you choose.",
+  "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": [
+    "https://api.deepseek.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://openrouter.ai/*",
+    "https://api.groq.com/*",
+    "https://api.mistral.ai/*",
+    "https://api.x.ai/*",
+    "https://*.aliyuncs.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "content_scripts": [
     {

@@ -1,8 +1,8 @@
+import { PROVIDERS } from './providers.js';
+
 export const DEFAULTS = Object.freeze({
-  apiKey: '',
+  provider: 'deepseek',
   targetLang: 'ru',
-  model: 'deepseek-flash',
-  baseUrl: 'https://api.deepseek.com',
 });
 
 export const LANGUAGES = Object.freeze({
@@ -21,19 +21,53 @@ export const LANGUAGES = Object.freeze({
   ko: 'Korean',
 });
 
+// What is remembered for each provider; blank model and URL mean the provider's own defaults.
+const PROVIDER_FIELDS = ['apiKey', 'model', 'baseUrl'];
+
 // Names DeepSeek has retired; settings saved with them move to the default model.
 const RETIRED_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner']);
 
-// Trimmed stored values over the defaults; blanks, non-strings, unknown languages and retired models fall back.
+const trimmed = (value) => (typeof value === 'string' ? value.trim() : '');
+
+function providerEntry(id, stored) {
+  const entry = Object.fromEntries(PROVIDER_FIELDS.map((field) => [field, trimmed(stored?.[field])]));
+  if (id === 'deepseek' && RETIRED_MODELS.has(entry.model)) entry.model = '';
+  return entry;
+}
+
+// Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } } }.
+// Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry.
 export function withDefaults(stored) {
-  const settings = { ...DEFAULTS };
-  for (const key of Object.keys(DEFAULTS)) {
-    const value = stored?.[key];
-    if (typeof value === 'string' && value.trim() !== '') settings[key] = value.trim();
+  const provider = trimmed(stored?.provider);
+  const targetLang = trimmed(stored?.targetLang);
+  const entries =
+    stored?.providers && typeof stored.providers === 'object'
+      ? stored.providers
+      : PROVIDER_FIELDS.some((field) => trimmed(stored?.[field]))
+        ? { deepseek: stored }
+        : {};
+  const providers = {};
+  for (const [id, entry] of Object.entries(entries)) {
+    if (Object.hasOwn(PROVIDERS, id)) providers[id] = providerEntry(id, entry);
   }
-  if (!Object.hasOwn(LANGUAGES, settings.targetLang)) settings.targetLang = DEFAULTS.targetLang;
-  if (RETIRED_MODELS.has(settings.model)) settings.model = DEFAULTS.model;
-  return settings;
+  return {
+    provider: Object.hasOwn(PROVIDERS, provider) ? provider : DEFAULTS.provider,
+    targetLang: Object.hasOwn(LANGUAGES, targetLang) ? targetLang : DEFAULTS.targetLang,
+    providers,
+  };
+}
+
+// The provider in use, with its key and the model and URL to call.
+export function activeProvider(settings) {
+  const id = settings.provider;
+  const entry = settings.providers[id] ?? providerEntry(id);
+  return {
+    id,
+    ...PROVIDERS[id],
+    apiKey: entry.apiKey,
+    model: entry.model || PROVIDERS[id].model,
+    baseUrl: (entry.baseUrl || PROVIDERS[id].baseUrl).replace(/\/+$/, ''),
+  };
 }
 
 export async function loadSettings() {

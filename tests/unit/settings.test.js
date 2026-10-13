@@ -1,32 +1,75 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, LANGUAGES, withDefaults } from '../../extension/lib/settings.js';
+import { DEFAULTS, LANGUAGES, activeProvider, withDefaults } from '../../extension/lib/settings.js';
+import { PROVIDERS } from '../../extension/lib/providers.js';
 
-test('withDefaults returns the defaults when nothing is stored', () => {
-  assert.deepEqual(withDefaults(undefined), { ...DEFAULTS });
+test('withDefaults returns DeepSeek, Russian and no provider entries when nothing is stored', () => {
+  assert.deepEqual(withDefaults(undefined), { provider: 'deepseek', targetLang: 'ru', providers: {} });
+  assert.deepEqual(DEFAULTS, { provider: 'deepseek', targetLang: 'ru' });
 });
 
-test('withDefaults keeps stored values', () => {
-  const stored = { apiKey: 'sk-1', targetLang: 'de', model: 'deepseek-v4-pro', baseUrl: 'https://example.com/v1' };
-  assert.deepEqual(withDefaults(stored), stored);
+test('withDefaults keeps the chosen provider and every provider entry, trimmed', () => {
+  const stored = {
+    provider: 'openai',
+    targetLang: 'de',
+    providers: {
+      openai: { apiKey: ' sk-o\n', model: ' gpt-x ', baseUrl: '' },
+      deepseek: { apiKey: 'sk-d', model: '', baseUrl: 'https://example.com/v1' },
+    },
+  };
+  assert.deepEqual(withDefaults(stored), {
+    provider: 'openai',
+    targetLang: 'de',
+    providers: {
+      openai: { apiKey: 'sk-o', model: 'gpt-x', baseUrl: '' },
+      deepseek: { apiKey: 'sk-d', model: '', baseUrl: 'https://example.com/v1' },
+    },
+  });
 });
 
-test('withDefaults trims values and replaces blanks with defaults', () => {
-  assert.deepEqual(withDefaults({ apiKey: '  sk-1\n', model: '   ', baseUrl: '' }), { ...DEFAULTS, apiKey: 'sk-1' });
-});
-
-test('withDefaults replaces retired model names with deepseek-flash', () => {
-  assert.equal(DEFAULTS.model, 'deepseek-flash');
-  assert.equal(withDefaults({ model: 'deepseek-chat' }).model, 'deepseek-flash');
-  assert.equal(withDefaults({ model: ' deepseek-reasoner ' }).model, 'deepseek-flash');
+test('withDefaults drops unknown providers, unknown fields and non-string values', () => {
+  const stored = { provider: 'nope', providers: { nope: { apiKey: 'x' }, openai: { apiKey: 42, extra: 'y' } } };
+  assert.deepEqual(withDefaults(stored), {
+    provider: 'deepseek',
+    targetLang: 'ru',
+    providers: { openai: { apiKey: '', model: '', baseUrl: '' } },
+  });
 });
 
 test('withDefaults falls back to the default language for unknown codes', () => {
   assert.equal(withDefaults({ targetLang: 'xx' }).targetLang, 'ru');
 });
 
-test('withDefaults ignores unknown keys and non-string values', () => {
-  assert.deepEqual(withDefaults({ extra: 'x', apiKey: 42 }), { ...DEFAULTS });
+test('settings saved before providers existed become the DeepSeek entry', () => {
+  const old = { apiKey: ' sk-1 ', targetLang: 'de', model: 'deepseek-v4-pro', baseUrl: 'https://example.com' };
+  assert.deepEqual(withDefaults(old), {
+    provider: 'deepseek',
+    targetLang: 'de',
+    providers: { deepseek: { apiKey: 'sk-1', model: 'deepseek-v4-pro', baseUrl: 'https://example.com' } },
+  });
+});
+
+test('retired DeepSeek model names fall back to the default model', () => {
+  assert.equal(withDefaults({ apiKey: 'sk', model: 'deepseek-chat' }).providers.deepseek.model, '');
+  const stored = { providers: { deepseek: { model: ' deepseek-reasoner ' } } };
+  assert.equal(withDefaults(stored).providers.deepseek.model, '');
+});
+
+test('activeProvider fills a blank model and URL with the provider defaults', () => {
+  const active = activeProvider(withDefaults({ provider: 'deepseek', providers: { deepseek: { apiKey: 'sk' } } }));
+  assert.equal(active.id, 'deepseek');
+  assert.equal(active.name, 'DeepSeek');
+  assert.equal(active.apiKey, 'sk');
+  assert.equal(active.model, PROVIDERS.deepseek.model);
+  assert.equal(active.baseUrl, PROVIDERS.deepseek.baseUrl);
+});
+
+test('activeProvider keeps a chosen model and URL, without trailing slashes', () => {
+  const stored = { provider: 'openai', providers: { openai: { model: 'gpt-x', baseUrl: 'https://proxy.example/v1//' } } };
+  const active = activeProvider(withDefaults(stored));
+  assert.equal(active.model, 'gpt-x');
+  assert.equal(active.baseUrl, 'https://proxy.example/v1');
+  assert.equal(active.apiKey, '');
 });
 
 test('every language has a two-letter code and an English name', () => {

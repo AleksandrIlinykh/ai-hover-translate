@@ -17,6 +17,7 @@
   const DETECT_TIMEOUT_MS = 300;
   const TOPIC_MIN_CHARS = 400;
   const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
+  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js: fixed in the settings
   const HINTS = {
     editable: 'Input fields are not translated.',
     'too-long': 'Too much text. Select the part you need.',
@@ -226,7 +227,7 @@
         remember(cache, cacheKey(request), result);
         disconnect();
       } else if (message.type === 'error') {
-        popup.setError(message.message, { action: message.code === 'no_key' ? 'settings' : 'retry' });
+        popup.setError(message.message, { action: SETUP_CODES.has(message.code) ? 'settings' : 'retry' });
         disconnect();
       }
     });

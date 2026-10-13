@@ -1,39 +1,180 @@
 import { test, expect } from './fixtures.js';
 
 const optionsUrl = (extensionId) => `chrome-extension://${extensionId}/options.html`;
+const stored = async (serviceWorker) => (await serviceWorker.evaluate(() => chrome.storage.local.get('settings'))).settings;
+const save = (page) => page.getByRole('button', { name: 'Save' }).click();
 
-test('shows the defaults when nothing is saved', async ({ page, extensionId }) => {
+// Replaces Chrome's permission prompt: records what is asked and answers `granted`.
+async function stubPermissionPrompt(page, granted) {
+  await page.evaluate((answer) => {
+    window.asked = [];
+    chrome.permissions.request = async (permissions) => {
+      window.asked.push(permissions);
+      return answer;
+    };
+  }, granted);
+}
+
+test('opens on DeepSeek with its defaults, a key link and every provider to choose from', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
+  await expect(page.locator('#provider')).toHaveValue('deepseek');
+  await expect(page.locator('#provider option')).toHaveCount(12);
+  await expect(page.locator('#provider optgroup')).toHaveCount(3);
   await expect(page.locator('#apiKey')).toHaveValue('');
-  await expect(page.locator('#targetLang')).toHaveValue('ru');
   await expect(page.locator('#model')).toHaveValue('deepseek-flash');
+  await expect(page.locator('#modelList option')).toHaveCount(2);
   await expect(page.locator('#baseUrl')).toHaveValue('https://api.deepseek.com');
+  await expect(page.locator('#keyLink')).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
+  await expect(page.locator('#targetLang')).toHaveValue('ru');
   await expect(page.locator('#targetLang option')).toHaveCount(13);
 });
 
-test('saves trimmed values and restores blanks to defaults', async ({ page, extensionId, serviceWorker }) => {
+test('each provider keeps its own key, model and URL while switching, and all are saved', async ({ page, extensionId, serviceWorker }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#apiKey').fill('sk-deep');
+  await page.locator('#provider').selectOption('openai');
+  await expect(page.locator('#apiKey')).toHaveValue('');
+  await expect(page.locator('#model')).toHaveValue('gpt-6-luna');
+  await expect(page.locator('#keyLink')).toHaveAttribute('href', 'https://platform.openai.com/api-keys');
+  await page.locator('#apiKey').fill('sk-open');
+  await page.locator('#provider').selectOption('deepseek');
+  await expect(page.locator('#apiKey')).toHaveValue('sk-deep');
+  await page.locator('#provider').selectOption('openai');
+  await save(page);
+  await expect(page.locator('#status')).toHaveText('Saved');
+  expect(await stored(serviceWorker)).toEqual({
+    provider: 'openai',
+    targetLang: 'ru',
+    providers: {
+      deepseek: { apiKey: 'sk-deep', model: '', baseUrl: '' },
+      openai: { apiKey: 'sk-open', model: '', baseUrl: '' },
+    },
+  });
+});
+
+test('saves trimmed values, and a blank model or URL means the default', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
   await page.locator('#apiKey').fill('  sk-test  ');
   await page.locator('#targetLang').selectOption('de');
   await page.locator('#model').fill('');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.locator('#baseUrl').fill('');
+  await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   await expect(page.locator('#model')).toHaveValue('deepseek-flash');
-  const { settings } = await serviceWorker.evaluate(() => chrome.storage.local.get('settings'));
-  expect(settings).toEqual({ apiKey: 'sk-test', targetLang: 'de', model: 'deepseek-flash', baseUrl: 'https://api.deepseek.com' });
+  await expect(page.locator('#baseUrl')).toHaveValue('https://api.deepseek.com');
+  expect(await stored(serviceWorker)).toEqual({
+    provider: 'deepseek',
+    targetLang: 'de',
+    providers: { deepseek: { apiKey: 'sk-test', model: '', baseUrl: '' } },
+  });
 });
 
 test('shows saved values when opened again', async ({ page, extensionId, server, setSettings }) => {
-  await setSettings({ apiKey: 'sk-saved', targetLang: 'ja' });
+  await setSettings({ apiKey: 'sk-saved', targetLang: 'ja', model: 'deepseek-v4-pro' });
   await page.goto(optionsUrl(extensionId));
   await expect(page.locator('#apiKey')).toHaveValue('sk-saved');
   await expect(page.locator('#targetLang')).toHaveValue('ja');
+  await expect(page.locator('#model')).toHaveValue('deepseek-v4-pro');
   await expect(page.locator('#baseUrl')).toHaveValue(server.url);
 });
 
-test('the saved status disappears when a field changes', async ({ page, extensionId }) => {
+test('settings saved before providers existed show up under DeepSeek', async ({ page, extensionId, serviceWorker }) => {
+  await serviceWorker.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: 'sk-old', targetLang: 'de', model: 'deepseek-v4-pro', baseUrl: '' } }),
+  );
   await page.goto(optionsUrl(extensionId));
-  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('#provider')).toHaveValue('deepseek');
+  await expect(page.locator('#apiKey')).toHaveValue('sk-old');
+  await expect(page.locator('#model')).toHaveValue('deepseek-v4-pro');
+});
+
+test('a local server needs no key, and its model is left to choose', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('ollama');
+  await expect(page.locator('label[for="apiKey"]')).toHaveText('API key (optional)');
+  await expect(page.locator('#keyLink')).toBeHidden();
+  await expect(page.locator('#model')).toHaveValue('');
+  await expect(page.locator('#model')).toHaveAttribute('placeholder', 'Choose or type a model');
+  await expect(page.locator('#baseUrl')).toHaveValue('http://localhost:11434/v1');
+  await expect(page.locator('#providerHint')).toContainText('Start Ollama');
+});
+
+test('Show reveals the key and Hide masks it again', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#apiKey').fill('sk-visible');
+  await page.getByRole('button', { name: 'Show' }).click();
+  await expect(page.locator('#apiKey')).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Hide' }).click();
+  await expect(page.locator('#apiKey')).toHaveAttribute('type', 'password');
+});
+
+test('Load models adds the chat models from the API to the suggestions', async ({ page, extensionId, setSettings }) => {
+  await setSettings();
+  await page.goto(optionsUrl(extensionId));
+  await page.getByRole('button', { name: 'Load models' }).click();
+  await expect(page.locator('#modelHint')).toHaveText('Loaded 3 models.');
+  const suggestions = await page.locator('#modelList option').evaluateAll((options) => options.map((option) => option.value));
+  expect(suggestions).toEqual(['deepseek-flash', 'deepseek-v4-pro', 'mock-gemini', 'mock-large', 'mock-small']);
+});
+
+test('Load models explains an API error', async ({ page, extensionId, setSettings }) => {
+  await setSettings({ apiKey: 'bad' });
+  await page.goto(optionsUrl(extensionId));
+  await page.getByRole('button', { name: 'Load models' }).click();
+  await expect(page.locator('#modelHint')).toHaveText('Invalid API key. Check it in the settings.');
+});
+
+test('Test translates a sentence with what is in the form, before it is saved', async ({ page, extensionId, server, setSettings, serviceWorker }) => {
+  await setSettings({ apiKey: 'bad' });
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#apiKey').fill('test-key');
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toContainText('Works');
+  await expect(page.locator('#status')).toContainText('[RU] The quick brown fox jumps over the lazy dog.');
+  expect(server.requests.at(-1).body.messages[0].content).toContain("Translate the user's text into Russian.");
+  expect((await stored(serviceWorker)).providers.deepseek.apiKey).toBe('bad');
+});
+
+test('Test says what is wrong', async ({ page, extensionId, setSettings }) => {
+  await setSettings({ apiKey: '' });
+  await page.goto(optionsUrl(extensionId));
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toHaveText('DeepSeek API key is not set.');
+  await page.locator('#apiKey').fill('bad');
+  await page.getByRole('button', { name: 'Test' }).click();
+  await expect(page.locator('#status')).toHaveText('Invalid API key. Check it in the settings.');
+});
+
+test('saving a custom API URL asks Chrome for access to its host', async ({ page, extensionId, serviceWorker }) => {
+  await page.goto(optionsUrl(extensionId));
+  await stubPermissionPrompt(page, true);
+  await page.locator('#provider').selectOption('custom');
+  await page.locator('#baseUrl').fill('https://llm.example.com/v1');
+  await page.locator('#model').fill('my-model');
+  await save(page);
+  await expect(page.locator('#status')).toHaveText('Saved');
+  expect(await page.evaluate(() => window.asked)).toEqual([{ origins: ['https://llm.example.com/*'] }]);
+  expect((await stored(serviceWorker)).providers.custom).toEqual({
+    apiKey: '',
+    model: 'my-model',
+    baseUrl: 'https://llm.example.com/v1',
+  });
+});
+
+test('when Chrome is not allowed to reach the host, the settings are saved with a warning', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await stubPermissionPrompt(page, false);
+  await page.locator('#provider').selectOption('custom');
+  await page.locator('#baseUrl').fill('https://llm.example.com/v1');
+  await save(page);
+  await expect(page.locator('#status')).toHaveText(
+    'Saved, but Chrome was not allowed to reach llm.example.com, so requests to it will fail.',
+  );
+});
+
+test('the status disappears when a field changes', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   await page.locator('#apiKey').fill('sk-other');
   await expect(page.locator('#status')).toHaveText('');

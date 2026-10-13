@@ -4,11 +4,11 @@ Date: 2026-10-12
 
 ## Goal
 
-A Chrome extension for reading sites in a foreign language: hold Alt, hover over a paragraph, and a natural translation into the chosen language pops up above it. DeepSeek does the translation. For personal use: installed as an unpacked extension with your own API key.
+A Chrome extension for reading sites in a foreign language: hold Alt, hover over a paragraph, and a natural translation into the chosen language pops up above it. An AI model of the user's choice does the translation: a cloud API with the user's own key (DeepSeek by default) or a model running on the same computer. Installed as an unpacked extension.
 
 ## Success criteria
 
-- Alt + hover over a paragraph → a popup where the translation streams in (the first words show as soon as DeepSeek starts answering).
+- Alt + hover over a paragraph → a popup where the translation streams in (the first words show as soon as the model starts answering).
 - Without Alt nothing happens and no requests are sent.
 - Translating the same paragraph again on the same page is instant, with no request.
 - The same text is sent to the API at most once per browser session, whichever tab it is in.
@@ -40,9 +40,11 @@ hover-translate/
     lib/
       prompt.js         buildMessages(text, languageName, { mode, context, topics })
       topics.js         buildTopicMessages(text), parseTopics(reply), cleanTopics(list)
+      providers.js      PROVIDERS, chatRequest(), modelsRequest(), parseModels(), answerText(), setupProblem(), hostPattern()
+      chat.js           sendChat(provider, payload, signal), readTextStream(body, onText, touch)
       sse.js            createSseParser(), deltaFromPayload(payload)
-      errors.js         errorFromStatus(status, bodyText), makeError(code)
-      settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), loadSettings()
+      errors.js         errorFromStatus(status, bodyText, provider), makeError(code, provider)
+      settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), activeProvider(settings), loadSettings()
     content/            classic scripts (not modules) sharing globalThis.hoverTranslate
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), contextOf(range)
@@ -55,7 +57,7 @@ hover-translate/
   tests/
     unit/               node --test
     e2e/                Playwright
-    mock-server.js      mock OpenAI-compatible API + test pages
+    mock-server.js      mock OpenAI-compatible and Anthropic APIs + test pages
     fixtures/           page.html, hostile.html, shadow.html, scroller.html, topics.html
   package.json          dev only: test / test:e2e scripts, devDependency @playwright/test
   playwright.config.js
@@ -67,7 +69,9 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 ## Manifest
 
 - `manifest_version: 3`, `name: "Hover Translate"`, `version: "0.1.0"`.
-- `permissions: ["storage"]`, `host_permissions: ["https://api.deepseek.com/*"]`.
+- `permissions: ["storage", "declarativeNetRequestWithHostAccess"]`.
+- `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
+- `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
 - `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
@@ -79,20 +83,45 @@ Stored in `chrome.storage.local` under the `settings` key:
 
 | Field | Default | Purpose |
 |---|---|---|
-| `apiKey` | `""` | DeepSeek key |
+| `provider` | `"deepseek"` | the provider in use |
 | `targetLang` | `"ru"` | target language code |
-| `model` | `"deepseek-flash"` | model |
-| `baseUrl` | `"https://api.deepseek.com"` | OpenAI-compatible API URL |
+| `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
 
-Values are trimmed (keys are often pasted with a space or a line break); an empty value falls back to the default; an unknown language code falls back to `ru`; the retired model names `deepseek-chat` and `deepseek-reasoner` fall back to `deepseek-flash`.
+A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `deepseek`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
 
-`baseUrl` exists for tests (local mock) and for switching providers. A provider outside `host_permissions` only works if its API sends CORS headers; otherwise its domain has to be added to `host_permissions`.
+Providers (`lib/providers.js`):
+
+| id | Name | API | Default URL | Default model | Reasoning off |
+|---|---|---|---|---|---|
+| `deepseek` | DeepSeek | OpenAI | `https://api.deepseek.com` | `deepseek-flash` | `thinking: { type: 'disabled' }` |
+| `openai` | OpenAI | OpenAI | `https://api.openai.com/v1` | `gpt-6-luna` | `reasoning_effort: 'none'` |
+| `anthropic` | Anthropic Claude | Anthropic | `https://api.anthropic.com/v1` | `claude-haiku-5-5` | `thinking: { type: 'disabled' }` |
+| `gemini` | Google Gemini | OpenAI | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-3.5-flash-lite` | `reasoning_effort: 'minimal'` (Gemini 3 cannot stop reasoning) |
+| `openrouter` | OpenRouter | OpenAI | `https://openrouter.ai/api/v1` | none, chosen by the user | `reasoning: { effort: 'none' }` |
+| `groq` | Groq | OpenAI | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` | `reasoning_effort: 'low'` (the lowest gpt-oss accepts) |
+| `mistral` | Mistral | OpenAI | `https://api.mistral.ai/v1` | `mistral-small-latest` | `reasoning_effort: 'none'` |
+| `xai` | xAI Grok | OpenAI | `https://api.x.ai/v1` | `grok-4.20-0309-non-reasoning` | nothing to send |
+| `qwen` | Alibaba Qwen | OpenAI | `https://dashscope-us.aliyuncs.com/compatible-mode/v1` | `qwen-flash` | `enable_thinking: false` |
+| `ollama` | Ollama | OpenAI | `http://localhost:11434/v1` | none | `reasoning_effort: 'none'` |
+| `lmstudio` | LM Studio | OpenAI | `http://localhost:1234/v1` | none | nothing to send |
+| `custom` | Other OpenAI-compatible API | OpenAI | none | none | nothing to send |
+
+Each preset also has a group (`cloud`, `local`, `other`), whether a key is required (cloud ones only), the page where keys are made, 0 to 3 suggested models and an optional one-line hint (for Qwen: keys work only in their own region). Model names come from the providers' docs as of October 2026; the model field is free text, so a stale suggestion never blocks anyone.
 
 The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language: `{ type: 'page-settings' }` is answered with `{ targetLang }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang }` to every tab.
 
 `LANGUAGES` maps a code to its English name, used both in the prompt and in the settings page: ru, en, de, fr, es, it, pt, pl, uk, tr, zh (Chinese (Simplified)), ja, ko.
 
-Settings page: key field (`type=password`), language picker, model, API URL, a "Save" button with a "Saved" confirmation, a link to https://platform.deepseek.com/api_keys.
+Settings page (`options.html`), top to bottom:
+
+- "Translate into": the language picker.
+- "AI provider": a select grouped into "Cloud APIs", "On this computer" and "Other", with the preset's hint under it.
+- "API key" (`type=password`, "API key (optional)" for local and custom ones) with a "Show"/"Hide" button and a "Get a key" link to the provider's key page (hidden when there is none).
+- "Model": free text with suggestions (a `datalist` of the preset's models) and a "Load models" button that asks the API for its `/models` list, keeps chat models only and adds them to the suggestions ("Loaded N models." or the error under the field). Blank with "Choose or type a model" when the provider has no default.
+- "API URL": the address up to `/v1`; clearing it brings back the provider's own.
+- "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red.
+
+Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
 ## Trigger (content/main.js)
 
@@ -190,7 +219,7 @@ On close, the port to background is disconnected and any unfinished API request 
 
 In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (the `settings-changed` message from background).
 
-In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[baseUrl, model, targetLang, mode, text, context, topics]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
+In `background.js`: every finished translation is also stored in `chrome.storage.session` under `cache:` + SHA-256 of `[provider, baseUrl, model, targetLang, mode, text, context, topics]`, so it survives the service worker being unloaded and is shared by all tabs until the browser closes. A hit is answered as one `chunk` plus `done`, without an API request. Errors are never stored. When the session quota is full, the cache is cleared and starts over.
 
 ## Talking to background
 
@@ -202,24 +231,27 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 
 A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang }` (see "Settings").
 
-## DeepSeek request (background.js)
+## API request (background.js, lib/chat.js, lib/providers.js)
 
-- No key → `no_key` error, nothing is sent.
-- `POST {baseUrl without trailing /}/chat/completions`, headers `Content-Type: application/json`, `Authorization: Bearer {apiKey}`.
-- Body: `{ model, messages: buildMessages(text, languageName), stream: true, temperature: 1.3, thinking: { type: 'disabled' } }` (1.3 is DeepSeek's recommendation for translation; thinking is on by default, which is slower and bills the reasoning).
-- Response not `ok` → read the body, `errorFromStatus(status, bodyText)` → error.
-- The stream is read through `response.body.getReader()` and `TextDecoder` and parsed by `createSseParser()`; each `data:` line → `deltaFromPayload()` → `chunk` or end.
+- Before anything is sent, `setupProblem(provider)` checks the setup: no valid http(s) URL → `no_url`, no key where one is required → `no_key`, no model → `no_model`. These errors offer "Open settings" in the popup instead of "Retry".
+- OpenAI-compatible APIs: `POST {baseUrl}/chat/completions` with `Authorization: Bearer {apiKey}` (left out when there is no key) and the preset's extra headers (OpenRouter: `HTTP-Referer` with the repository URL and `X-Title: Hover Translate`). Body: `{ model, messages, stream: true, ...reasoning off }`; DeepSeek also gets `temperature: 1.3`, its advice for translation. Other providers get no temperature: several reasoning models reject one.
+- Anthropic: `POST {baseUrl}/messages` with `x-api-key`, `anthropic-version: 2023-06-01` and `anthropic-dangerous-direct-browser-access: true` (Anthropic refuses browser origins without it). Body: `{ model, system, messages: [user], max_tokens: 8192, stream: true, thinking: { type: 'disabled' } }`.
+- Reasoning is turned off with the preset's parameters (see "Settings"): it is slower and billed, and a translation does not need it. Some models reject these parameters, so a request that carries them and comes back as 400 or 422 is sent once more without them (`sendChat`).
+- Requests from the extension to `localhost` and `127.0.0.1` carry `Origin: http://127.0.0.1` instead of the extension's origin: a dynamic `declarativeNetRequest` rule set on every start of the service worker, limited to requests the extension itself starts (`initiatorDomains: [extension id]`). Ollama refuses other origins unless `OLLAMA_ORIGINS` is set; this way it works as installed. Pages and other extensions are not affected.
+- Response not `ok` → read the body, `errorFromStatus(status, bodyText, provider)` → error.
+- The stream is read by `readTextStream` through `response.body.getReader()` and `TextDecoder` and parsed by `createSseParser()`; each `data:` line → `deltaFromPayload()` → `chunk` or end.
 - End of stream: if no text chunk arrived, an `empty` error; otherwise `done`.
 - Idle timeout of 30 s (no bytes from the server) → cancel, `timeout` error.
 - Port disconnected → cancel via `AbortController`, send nothing.
 - Network error (`TypeError` from `fetch`) → `network` error.
+- The topic request (`purpose: 'topics'`) is not streamed and is limited to 200 tokens (`max_tokens`; `max_completion_tokens` for OpenAI; DeepSeek also gets `temperature: 0`). The answer is read by `answerText()` from either API's format.
 
 Prompt (`buildMessages`):
 
 - system: `You are a professional translator. Translate the user's text into {languageName}. Output only the translation, with no explanations, notes, or quotes. Preserve the meaning, tone, and line breaks. Leave code, URLs, and names that are normally not translated as they are. If the text is already in {languageName}, return it unchanged.`
 - user: the text itself.
 - dictionary mode, system: `You are a bilingual dictionary. The user's text is a word or a short phrase. Reply in {languageName}, in plain text only: on the first line give the most common translation; then add up to three lines, one per sense, each as "part of speech: meanings", most common first. Add nothing else.` With a `context`, the first line asks for `the translation that fits the context below` instead, and the prompt ends with a line `Context: "{context}"`.
-- with `topics`, a line `Page topic: {tags joined with ", "}. Use it only to choose the meaning of ambiguous words.` goes after the instructions and before the context line. The parts that change least come first, so DeepSeek's prefix cache can reuse them.
+- with `topics`, a line `Page topic: {tags joined with ", "}. Use it only to choose the meaning of ambiguous words.` goes after the instructions and before the context line. The parts that change least come first, so the providers' prefix caches can reuse them.
 - The user message is always exactly the text to translate.
 
 Topic request (`topics.js`):
@@ -230,18 +262,22 @@ Topic request (`topics.js`):
 Stream parsing (`sse.js`):
 
 - `createSseParser().push(chunk)` buffers input, splits on `\n` / `\r\n`, keeps an unfinished line until the next chunk and returns the payloads of `data:` lines. Comment lines (`: keep-alive`) and other fields are ignored.
-- `deltaFromPayload(payload)`: `[DONE]` → `{ done: true }`; JSON with `choices[0].delta.content` → `{ text }`; empty `content`, missing `content` or invalid JSON → `null`.
+- `deltaFromPayload(payload)`: `[DONE]` or Anthropic's `message_stop` → `{ done: true }`; `choices[0].delta.content` → `{ text }` (when it is a list of parts, as Mistral sends with reasoning on, the `text` parts are joined); Anthropic's `content_block_delta` with a `text_delta` → `{ text }`; reasoning deltas (`reasoning_content`, `reasoning`, `thinking_delta`), pings, empty content and invalid JSON → `null`.
 
-Errors (`errors.js`); `apiMessage` is `error.message` from the JSON body when present:
+Errors (`errors.js`); `apiMessage` is the error text from the JSON body when present: `error.message` (OpenAI, Anthropic), the same inside a list (Gemini), `error` as a string (Ollama) or `message`. `{name}` is the provider's name.
 
 | Code | When | Text |
 |---|---|---|
-| `no_key` | key not set | DeepSeek API key is not set. |
+| `no_key` | key required and not set | {name} API key is not set. |
+| `no_model` | no model | Choose a model for {name} in the settings. |
+| `no_url` | no valid http(s) URL | Set the API URL for {name} in the settings. |
 | `auth` | 401 | Invalid API key. Check it in the settings. |
-| `balance` | 402 | Your DeepSeek balance has run out. |
+| `balance` | 402 | Your {name} balance has run out. |
+| `denied` | 403 | Access denied (403): {apiMessage} |
+| `not_found` | 404 | Not found (404). Check the model and the API URL: {apiMessage} |
 | `rate_limit` | 429 | Too many requests. Please wait a moment. |
 | `bad_request` | 400, 422 | Invalid API request: {apiMessage} |
-| `server` | 500, 503 | The API server is unavailable ({status}). Try again later. |
+| `server` | 500, 502, 503, 504, 529 | The API server is unavailable ({status}). Try again later. |
 | `http` | other statuses | API error {status}: {apiMessage} |
 | `network` | `fetch` failed | Cannot connect to the API. |
 | `timeout` | 30 s without data | The API did not respond within 30 seconds. |
@@ -263,12 +299,13 @@ Unit tests (`node --test`, no dependencies):
 - `topics.js`: the topic request and parsing the tags.
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
-- `settings.js`: `withDefaults` fills missing fields and keeps the given ones.
+- `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
+- `providers.js`: the list of providers and that the manifest covers their hosts; the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
-- `mock-server.js` on a random port serves the test pages and `POST /chat/completions` (CORS headers, `OPTIONS` handling). The API key selects the behavior: `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (header, body, whether the client aborted it), topic requests apart from translations.
-- Settings are set through the extension's service worker (`chrome.storage.local.set`), with `baseUrl` pointing at the mock.
+- `mock-server.js` on a random port serves the test pages, `POST /chat/completions`, `POST /messages` (Anthropic's format) and `GET /models` (two chat models, an embedding model and one with a `models/` prefix), with CORS headers and `OPTIONS` handling. The API key selects the behavior: `strict` → 400 for a request that carries a reasoning switch; `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (path, key headers, `Origin`, body, whether the client aborted it), topic requests apart from translations.
+- Settings are set through the extension's service worker (`chrome.storage.local.set`): one provider (DeepSeek unless a test picks another) with `baseUrl` pointing at the mock.
 - Scenarios:
   1. Alt + hover → popup with `[RU] …` from the mock.
   2. Hover without Alt → no popup after 500 ms, 0 requests.
@@ -328,5 +365,14 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   56. A paragraph inside a contenteditable editor with several paragraphs is translated on its own; a one-block contenteditable is translated whole.
   57. A selection inside an editor is translated; a selection inside a form field is not.
   58. A content script cannot read `chrome.storage.local`: run in the extension's isolated world over CDP, the read is refused and the stored key does not show up.
+  59. Anthropic gets a Messages API request with its headers, `system` apart and `max_tokens`; its text deltas are streamed; it answers the topic request too.
+  60. A local server gets no `Authorization` header and `Origin: http://127.0.0.1`.
+  61. A model that rejects the reasoning switch (`strict`) is asked again without it, and the translation arrives.
+  62. OpenRouter gets its attribution headers; a provider without a model reports `no_model`, sends nothing, and the popup offers "Open settings".
+  63. The session cache is per provider.
+  64. Settings page: opens on DeepSeek with its defaults and 12 providers in 3 groups; each provider keeps its own key, model and URL while switching, and all are saved; defaults are stored as blanks; old settings show up under DeepSeek; a local server needs no key and leaves the model to choose; "Show" reveals the key.
+  65. "Load models" adds the API's chat models to the suggestions, or shows the API error.
+  66. "Test" translates a sentence with the fields as they are, without saving them, or says what is wrong.
+  67. Saving a URL outside the manifest asks Chrome for its host; when Chrome refuses, the settings are saved with a warning.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

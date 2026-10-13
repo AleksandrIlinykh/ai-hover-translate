@@ -57,7 +57,7 @@ test('the topic message returns the tags from a small request that is not stream
   expect(await askTopics(page, 'Some long text')).toEqual({ topics: ['git', 'continuous integration', 'devops'] });
   expect(server.requests).toHaveLength(0);
   const [{ body }] = server.topicRequests;
-  expect(body).toMatchObject({ model: 'deepseek-flash', stream: false, temperature: 0, max_tokens: 40, thinking: { type: 'disabled' } });
+  expect(body).toMatchObject({ model: 'deepseek-flash', stream: false, temperature: 0, max_tokens: 200, thinking: { type: 'disabled' } });
   expect(body.messages[1]).toEqual({ role: 'user', content: 'Some long text' });
 });
 
@@ -169,4 +169,70 @@ test('errors are not cached', async ({ page, server, setSettings }) => {
   expect((await translateViaPort(page, 'Hi')).at(-1).code).toBe('server');
   expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
   expect(server.requests).toHaveLength(2);
+});
+
+test('the session cache is per provider', async ({ page, server, setSettings }) => {
+  await setSettings();
+  await translateViaPort(page, 'Hi');
+  await setSettings({ provider: 'openai' });
+  await translateViaPort(page, 'Hi');
+  expect(server.requests).toHaveLength(2);
+});
+
+test.describe('other providers', () => {
+  test('Anthropic gets a Messages API request and its text deltas are streamed', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'anthropic' });
+    const messages = await translateViaPort(page, 'Hello');
+    expect(joined(messages)).toBe('[RU] Hello');
+    expect(messages.at(-1)).toEqual({ type: 'done' });
+    const [{ path, authorization, headers, body }] = server.requests;
+    expect(path).toBe('/messages');
+    expect(authorization).toBeUndefined();
+    expect(headers).toMatchObject({ 'x-api-key': 'test-key', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
+    expect(body).toMatchObject({ model: 'claude-haiku-5-5', max_tokens: 8192, stream: true, thinking: { type: 'disabled' } });
+    expect(body.system).toContain("Translate the user's text into Russian.");
+    expect(body.messages).toEqual([{ role: 'user', content: 'Hello' }]);
+  });
+
+  test('Anthropic answers the topic request too', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'anthropic' });
+    expect(await askTopics(page, 'Some long text')).toEqual({ topics: ['git', 'continuous integration', 'devops'] });
+    expect(server.topicRequests[0].body).toMatchObject({ stream: false, max_tokens: 200 });
+  });
+
+  test('a local server gets no key and a local Origin instead of the extension one', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'ollama', apiKey: '', model: 'llama3' });
+    expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
+    const [{ authorization, headers, body }] = server.requests;
+    expect(authorization).toBeUndefined();
+    expect(headers.origin).toBe('http://127.0.0.1');
+    expect(body).toMatchObject({ model: 'llama3', reasoning_effort: 'none' });
+  });
+
+  test('a model that rejects the reasoning switch is asked again without it', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'openai', apiKey: 'strict' });
+    expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
+    expect(server.requests).toHaveLength(2);
+    expect(server.requests[0].body.reasoning_effort).toBe('none');
+    expect(server.requests[1].body).not.toHaveProperty('reasoning_effort');
+  });
+
+  test('OpenRouter is sent its attribution headers', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'openrouter', model: 'vendor/model' });
+    await translateViaPort(page, 'Hi');
+    expect(server.requests[0].headers).toMatchObject({
+      'http-referer': 'https://github.com/AleksandrIlinykh/ai-hover-translate',
+      'x-title': 'Hover Translate',
+    });
+  });
+
+  test('a provider without a model asks to finish the setup and sends nothing', async ({ page, server, setSettings }) => {
+    await setSettings({ provider: 'openrouter', model: '' });
+    expect(await translateViaPort(page, 'Hi')).toEqual([
+      { type: 'error', code: 'no_model', message: 'Choose a model for OpenRouter in the settings.' },
+    ]);
+    expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
+    expect(server.requests).toHaveLength(0);
+    expect(server.topicRequests).toHaveLength(0);
+  });
 });
