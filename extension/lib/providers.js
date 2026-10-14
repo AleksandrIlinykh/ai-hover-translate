@@ -232,6 +232,24 @@ export function setupProblem(provider) {
   return null;
 }
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// One line for the settings page: where the text goes with this provider.
+export function dataNote(provider) {
+  if (provider.api === 'browser') {
+    return 'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.';
+  }
+  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over will go to the API URL you enter.';
+  const { host, hostname } = new URL(provider.baseUrl);
+  if (LOCAL_HOSTS.has(hostname)) {
+    return `The text you hold Alt over goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
+  }
+  return (
+    `The text you hold Alt over, with a few words around a selection, is sent to ${provider.name} at ${host} ` +
+    'with your key; their privacy policy applies. Nothing else leaves your browser.'
+  );
+}
+
 // The host permission an API URL needs, such as https://api.example.com/*; null for anything but http(s).
 export function hostPattern(baseUrl) {
   try {

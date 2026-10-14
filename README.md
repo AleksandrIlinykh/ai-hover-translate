@@ -41,7 +41,7 @@ Chrome 138 and later (and Edge) can translate on the computer itself. The extens
 
 ## Where your text goes
 
-With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and the first long paragraph on a page is also sent once to name the page topic. The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
+The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and the first long paragraph on a page is also sent once to name the page topic. The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
 
 ## Usage
 

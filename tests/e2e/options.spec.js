@@ -36,6 +36,13 @@ async function fakeTranslatorHere(page, availability) {
 test('opens on the free translator with nothing to fill in', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
   await expect(page.locator('#provider')).toHaveValue('chrome');
+  await expect(page.locator('#dataNote')).toHaveText(
+    'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.',
+  );
+  await expect(page.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
+    'href',
+    'https://github.com/AleksandrIlinykh/paragloss/blob/main/PRIVACY.md',
+  );
   await expect(page.locator('#provider option')).toHaveCount(13);
   await expect(page.locator('#provider optgroup')).toHaveCount(4);
   await expect(page.locator('#providerHint')).toContainText('Chrome translates on this computer');
@@ -243,4 +250,14 @@ test('the status disappears when a field changes', async ({ page, extensionId })
   await expect(page.locator('#status')).toHaveText('Saved');
   await page.locator('#apiKey').fill('sk-other');
   await expect(page.locator('#status')).toHaveText('');
+});
+
+test('the note under the provider says where the text goes, and follows the API URL', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('anthropic');
+  await expect(page.locator('#dataNote')).toContainText('is sent to Anthropic Claude at api.anthropic.com with your key');
+  await page.locator('#provider').selectOption('custom');
+  await expect(page.locator('#dataNote')).toHaveText('The text you hold Alt over will go to the API URL you enter.');
+  await page.locator('#baseUrl').fill('https://llm.example.com/v1');
+  await expect(page.locator('#dataNote')).toContainText('is sent to Other OpenAI-compatible API at llm.example.com');
 });

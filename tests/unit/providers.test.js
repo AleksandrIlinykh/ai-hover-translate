@@ -5,6 +5,7 @@ import {
   PROVIDERS,
   answerText,
   chatRequest,
+  dataNote,
   hostPattern,
   modelsRequest,
   parseModels,
@@ -196,4 +197,26 @@ test('hostPattern turns an API URL into the host permission it needs', () => {
   assert.equal(hostPattern('http://10.0.0.5:8080/v1'), 'http://10.0.0.5:8080/*');
   assert.equal(hostPattern('ftp://files.example.com'), null);
   assert.equal(hostPattern('nonsense'), null);
+});
+
+test('dataNote says where the text goes for each kind of provider', () => {
+  assert.equal(
+    dataNote({ id: 'chrome', ...PROVIDERS.chrome, baseUrl: '' }),
+    'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.',
+  );
+  assert.equal(
+    dataNote(provider('deepseek')),
+    'The text you hold Alt over, with a few words around a selection, is sent to DeepSeek at api.deepseek.com ' +
+      'with your key; their privacy policy applies. Nothing else leaves your browser.',
+  );
+  assert.equal(
+    dataNote(provider('ollama')),
+    'The text you hold Alt over goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
+  );
+  assert.equal(
+    dataNote(provider('custom', { baseUrl: 'http://127.0.0.1:8080/v1' })),
+    'The text you hold Alt over goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
+      'Nothing else leaves your browser.',
+  );
+  assert.equal(dataNote(provider('custom', { baseUrl: '' })), 'The text you hold Alt over will go to the API URL you enter.');
 });

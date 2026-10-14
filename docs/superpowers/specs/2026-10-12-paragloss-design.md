@@ -120,10 +120,13 @@ Settings page (`options.html`), top to bottom:
 
 - "Translate into": the language picker.
 - "Translate with": a select grouped into "Free, on this computer", "Cloud APIs", "Local AI models" and "Other", with the preset's hint under it. For the free translator the key, model and URL fields are hidden (`#apiFields`).
+- Under it, `dataNote(provider)` says where the text goes, and follows the API URL as it is typed: nothing leaves the computer (free translator); "goes to {name} on this computer ({host})" for `localhost`, `127.0.0.1` and `[::1]`; "is sent to {name} at {host} with your key; their privacy policy applies" otherwise; "will go to the API URL you enter" without a valid URL. Chrome Web Store asks for this disclosure in the product itself.
 - "API key" (`type=password`, "API key (optional)" for local and custom ones) with a "Show"/"Hide" button and a "Get a key" link to the provider's key page (hidden when there is none).
 - "Model": free text with suggestions (a `datalist` of the preset's models) and a "Load models" button that asks the API for its `/models` list, keeps chat models only and adds them to the suggestions ("Loaded N models." or the error under the field). Blank with "Choose or type a model" when the provider has no default.
 - "API URL": the address up to `/v1`; clearing it brings back the provider's own.
 - "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red. With the free translator it runs Chrome's translator right in the settings page, from English (from German when the target is English); the click lets Chrome download that model, with "Downloading the translation model: {n}%" meanwhile.
+
+At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the store listing points to.
 
 Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
@@ -330,7 +333,7 @@ Unit tests (`node --test`, no dependencies):
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
-- `providers.js`: the list of providers and that the manifest covers their hosts; the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
+- `providers.js`: the list of providers and that the manifest covers their hosts; where the text goes (`dataNote`); the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
@@ -415,5 +418,6 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   75. Alt during that download shows its progress, then the translation; a page in the target language gets nothing ready.
   76. A selected word is translated from the language of its paragraph; text whose language cannot be told, from the page's `<html lang>`.
   77. "Save" with the free translator gets the model from English ready and says so.
+  78. The settings say under the provider where the text goes, following the API URL, and link to the privacy policy.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

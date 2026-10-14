@@ -1,5 +1,5 @@
 import { LANGUAGES, activeProvider, loadSettings, withDefaults } from './lib/settings.js';
-import { PROVIDERS, hostPattern, modelsRequest, parseModels, setupProblem } from './lib/providers.js';
+import { PROVIDERS, dataNote, hostPattern, modelsRequest, parseModels, setupProblem } from './lib/providers.js';
 import { readTextStream, sendChat } from './lib/chat.js';
 import { buildMessages } from './lib/prompt.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
@@ -61,6 +61,12 @@ function showProvider(id) {
   element('providerHint').textContent = preset.hint ?? '';
   element('modelHint').textContent = '';
   showModelList();
+  showDataNote();
+}
+
+// Where the text goes with the provider on screen; it follows the API URL as it is typed.
+function showDataNote() {
+  element('dataNote').textContent = dataNote(providerInForm());
 }
 
 function showModelList() {
@@ -107,6 +113,7 @@ form.elements.provider.addEventListener('change', () => {
 
 form.addEventListener('input', (event) => {
   if (FIELDS.includes(event.target.name)) drafts[current][event.target.name] = event.target.value;
+  if (event.target.name === 'baseUrl') showDataNote();
   report('');
 });
 
