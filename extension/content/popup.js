@@ -1,5 +1,5 @@
 (() => {
-  const ROOT_ID = 'hover-translate-root';
+  const ROOT_ID = 'paragloss-root';
   const GAP = 6;
   const MARGIN = 8;
   const SHIFT_X = 32;
@@ -420,5 +420,5 @@
     };
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { createPopup });
+  Object.assign((globalThis.paragloss ??= {}), { createPopup });
 })();

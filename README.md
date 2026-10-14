@@ -1,6 +1,8 @@
-# Hover Translate
+# Paragloss
 
-A Chrome extension: hold **Alt** and hover over a paragraph to see its translation above it, from the AI model you choose.
+A gloss for the paragraph you're stuck on. Hold **Alt** and hover over a paragraph to see its translation above it: free with Chrome's built-in translator, or from the AI model you choose.
+
+In medieval manuscripts a gloss was a translation written above the line. Paragloss does the same for any paragraph on the web, and leaves the page as it was.
 
 ## Install
 
@@ -65,10 +67,10 @@ After changing the extension files, click "Reload" on its card in `chrome://exte
     npm test           # unit tests
     npm run test:e2e   # e2e: real Chromium with the extension and a mock API
 
-Design: `docs/superpowers/specs/2026-10-12-hover-translate-design.md`.
+Design: `docs/superpowers/specs/2026-10-12-paragloss-design.md`.
 
 ## License
 
 Copyright (C) 2026 Aleksandr Ilinykh
 
-Hover Translate is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
+Paragloss is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.

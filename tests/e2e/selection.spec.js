@@ -1,7 +1,7 @@
 import { test, expect, moveTo, popupText } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
-const outline = (page) => page.locator('#hover-translate-highlight');
+const outline = (page) => page.locator('#paragloss-highlight');
 
 // Selects characters [start, end) of the first text node of `selector` and returns the selection's rect.
 function select(page, selector, start, end) {

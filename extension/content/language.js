@@ -34,5 +34,5 @@
     return isAlreadyIn(await detectLanguage(text), targetLang);
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { isAlreadyIn, detectLanguage, alreadyInLanguage });
+  Object.assign((globalThis.paragloss ??= {}), { isAlreadyIn, detectLanguage, alreadyInLanguage });
 })();

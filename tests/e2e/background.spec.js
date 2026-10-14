@@ -222,7 +222,7 @@ test.describe('other providers', () => {
     await translateViaPort(page, 'Hi');
     expect(server.requests[0].headers).toMatchObject({
       'http-referer': 'https://github.com/AleksandrIlinykh/ai-hover-translate',
-      'x-title': 'Hover Translate',
+      'x-title': 'Paragloss',
     });
   });
 

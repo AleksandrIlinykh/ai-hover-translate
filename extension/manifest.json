@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Hover Translate",
+  "name": "Paragloss",
   "version": "0.1.0",
-  "description": "Hold Alt and hover over a paragraph to see its translation above it, from the AI model you choose.",
+  "description": "Hold Alt over the paragraph you're stuck on to see its translation above it: free in Chrome, or from the AI you choose.",
   "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
   "host_permissions": [
     "https://api.deepseek.com/*",
@@ -35,5 +35,5 @@
     }
   ],
   "options_ui": { "page": "options.html", "open_in_tab": true },
-  "action": { "default_title": "Hover Translate settings" }
+  "action": { "default_title": "Paragloss settings" }
 }

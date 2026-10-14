@@ -51,5 +51,5 @@
     return block.innerText.trim().replace(/\n{3,}/g, '\n\n');
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), { elementAt, inspectBlock, isOverText });
+  Object.assign((globalThis.paragloss ??= {}), { elementAt, inspectBlock, isOverText });
 })();

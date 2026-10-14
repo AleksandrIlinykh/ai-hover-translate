@@ -66,7 +66,7 @@
     if (!globalThis.Translator) return { problem: 'unsupported' };
     let source = sourceLang;
     if (!source) {
-      const results = await globalThis.hoverTranslate.detectLanguage?.(sample);
+      const results = await globalThis.paragloss.detectLanguage?.(sample);
       if (!results && !fallbackLang) return { problem: 'unsupported' };
       source = sourceLanguage(results) ?? languageCode(fallbackLang);
       if (!source) return { problem: 'unknown_language' };
@@ -117,7 +117,7 @@
     pairs.clear();
   }
 
-  Object.assign((globalThis.hoverTranslate ??= {}), {
+  Object.assign((globalThis.paragloss ??= {}), {
     languageCode,
     sourceLanguage,
     translateInBrowser,

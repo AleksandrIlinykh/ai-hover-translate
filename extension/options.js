@@ -153,7 +153,7 @@ const modelProgress = (share) => `Downloading the translation model: ${Math.roun
 // Saving the free provider gets the model from English ready, so the first translation on a page is instant.
 // The Save click lets Chrome download it.
 async function prepareBrowserModel(targetLang) {
-  const { prepareInBrowser, describeProblem } = globalThis.hoverTranslate;
+  const { prepareInBrowser, describeProblem } = globalThis.paragloss;
   const [, sourceLang] = browserSample(targetLang);
   const problem = await prepareInBrowser(sourceLang, targetLang, { onProgress: (share) => report(`Saved. ${modelProgress(share)}`) });
   if (problem) {
@@ -168,7 +168,7 @@ async function prepareBrowserModel(targetLang) {
 async function testInBrowser() {
   const targetLang = form.elements.targetLang.value;
   const [text, sourceLang] = browserSample(targetLang);
-  const { translateInBrowser, describeProblem } = globalThis.hoverTranslate;
+  const { translateInBrowser, describeProblem } = globalThis.paragloss;
   report('Testing...');
   const started = performance.now();
   const result = await translateInBrowser(text, targetLang, {

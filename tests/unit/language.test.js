@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../extension/content/language.js';
 
-const { isAlreadyIn, alreadyInLanguage } = globalThis.hoverTranslate;
+const { isAlreadyIn, alreadyInLanguage } = globalThis.paragloss;
 
 test('isAlreadyIn trusts a confident match of the primary language', () => {
   assert.equal(isAlreadyIn([{ detectedLanguage: 'en', confidence: 0.95 }], 'en'), true);

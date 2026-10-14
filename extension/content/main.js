@@ -16,7 +16,7 @@
     describeProblem,
     createPopup,
     createHighlight,
-  } = globalThis.hoverTranslate;
+  } = globalThis.paragloss;
 
   const TRIGGER_DELAY_MS = 200;
   const LEAVE_GRACE_MS = 300;

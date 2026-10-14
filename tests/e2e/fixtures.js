@@ -38,7 +38,7 @@ export const test = base.extend({
 
 export { expect };
 
-export const popupRoot = (page) => page.locator('#hover-translate-root');
+export const popupRoot = (page) => page.locator('#paragloss-root');
 export const popupText = (page) => popupRoot(page).locator('.text');
 export const popupBox = (page) => popupRoot(page).locator('.popup');
 
@@ -61,7 +61,7 @@ export async function inContentScript(page, expression) {
   const worlds = [];
   client.on('Runtime.executionContextCreated', ({ context }) => worlds.push(context));
   await client.send('Runtime.enable');
-  const world = worlds.find((context) => context.auxData?.type === 'isolated' && context.name === 'Hover Translate');
+  const world = worlds.find((context) => context.auxData?.type === 'isolated' && context.name === 'Paragloss');
   const { result } = await client.send('Runtime.evaluate', { expression, contextId: world.id, awaitPromise: true, returnByValue: true });
   await client.detach();
   return result.value;

@@ -1,4 +1,6 @@
-# Hover Translate: design
+# Paragloss: design
+
+The project was called Hover Translate until the name turned out to be taken.
 
 Date: 2026-10-12
 
@@ -33,7 +35,7 @@ A plain Manifest V3 extension with no build step: regular JS files that Chrome l
 ## Structure
 
 ```
-hover-translate/
+paragloss/
   extension/            ← this folder is loaded into Chrome
     manifest.json
     background.js       ES module: 'translate' port, API request, opening the settings
@@ -45,7 +47,7 @@ hover-translate/
       sse.js            createSseParser(), deltaFromPayload(payload)
       errors.js         errorFromStatus(status, bodyText, provider), makeError(code, provider)
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), activeProvider(settings), loadSettings()
-    content/            classic scripts (not modules) sharing globalThis.hoverTranslate
+    content/            classic scripts (not modules) sharing globalThis.paragloss
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), blockTextOf(range), contextOf(range)
       language.js       isAlreadyIn(results, lang), detectLanguage(text), alreadyInLanguage(text, lang)
@@ -69,14 +71,14 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 
 ## Manifest
 
-- `manifest_version: 3`, `name: "Hover Translate"`, `version: "0.1.0"`.
+- `manifest_version: 3`, `name: "Paragloss"`, `version: "0.1.0"`.
 - `permissions: ["storage", "declarativeNetRequestWithHostAccess"]`.
 - `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
 - `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
-- `action: { default_title: "Hover Translate settings" }`; clicking the icon opens the settings.
+- `action: { default_title: "Paragloss settings" }`; clicking the icon opens the settings.
 
 ## Settings
 
@@ -143,7 +145,7 @@ So when the mouse crosses several paragraphs with Alt held, the one where it sto
 While Alt is held (and it is not a combo), the block that would be translated is outlined right away, without waiting for `TRIGGER_DELAY_MS`, so a wrong pick (another paragraph, a whole column) is visible before any request is sent.
 
 - Look: a 2 px dashed `#1f6feb` border, 3 px outside the block, 4 px radius, `rgba(31, 111, 235, 0.1)` fill; readable on light and dark pages.
-- It is a separate `<div id="hover-translate-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
+- It is a separate `<div id="paragloss-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
 - Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Empty space (no text under the mouse) means no outline.
 - **Muted outline with a hint** where Alt + hover would not translate: a grey (`#8c959f`) dashed border, `rgba(140, 149, 159, 0.12)` fill and a small label above the box (inside its top-left corner when the box touches the top of the window). The label also has `pointer-events: none`, so it can never be picked as text itself. Hints:
   - form field (`input`, `textarea`, `select`): "Input fields are not translated."
@@ -187,7 +189,7 @@ Cost: the topic request is about 250 input and 15 output tokens, once per page; 
 
 ## Popup
 
-- Host: `<div id="hover-translate-root">` in `document.documentElement` with an open Shadow DOM inside. Host styles are inline with `!important` (`all: initial`, `position: absolute`, `display: block`, `z-index: 2147483647`) so site rules like `div { display: none !important }` do not touch it. Content styles go through `adoptedStyleSheets` (site CSP does not block them); the popup DOM is built with `createElement`, no `innerHTML`.
+- Host: `<div id="paragloss-root">` in `document.documentElement` with an open Shadow DOM inside. Host styles are inline with `!important` (`all: initial`, `position: absolute`, `display: block`, `z-index: 2147483647`) so site rules like `div { display: none !important }` do not touch it. Content styles go through `adoptedStyleSheets` (site CSP does not block them); the popup DOM is built with `createElement`, no `innerHTML`.
 - Coordinates are document coordinates (block rectangle + scroll), so the popup scrolls with the page. When an inner container (`overflow: auto`) scrolls, the popup moves with its paragraph (a capture-phase `scroll` listener).
 - Width follows the content, at most as wide as the block within readable limits: `clamp(block width, 320, 720)` px, and no wider than the window minus 16 px. So a wide paragraph gets a 720 px popup (lines stay readable), a regular paragraph gets a popup of its own width (lines run in parallel with the source), and a narrow column gets 320 px (the translation ends up shorter than the source, not a tall ribbon).
 - **Horizontal:** left edge = paragraph's left edge + 32 px, adjusted so the popup does not leave the window (8 px from the edges).
@@ -261,7 +263,7 @@ A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes 
 ## API request (background.js, lib/chat.js, lib/providers.js)
 
 - Before anything is sent, `setupProblem(provider)` checks the setup: no valid http(s) URL → `no_url`, no key where one is required → `no_key`, no model → `no_model`. These errors offer "Open settings" in the popup instead of "Retry".
-- OpenAI-compatible APIs: `POST {baseUrl}/chat/completions` with `Authorization: Bearer {apiKey}` (left out when there is no key) and the preset's extra headers (OpenRouter: `HTTP-Referer` with the repository URL and `X-Title: Hover Translate`). Body: `{ model, messages, stream: true, ...reasoning off }`; DeepSeek also gets `temperature: 1.3`, its advice for translation. Other providers get no temperature: several reasoning models reject one.
+- OpenAI-compatible APIs: `POST {baseUrl}/chat/completions` with `Authorization: Bearer {apiKey}` (left out when there is no key) and the preset's extra headers (OpenRouter: `HTTP-Referer` with the repository URL and `X-Title: Paragloss`). Body: `{ model, messages, stream: true, ...reasoning off }`; DeepSeek also gets `temperature: 1.3`, its advice for translation. Other providers get no temperature: several reasoning models reject one.
 - Anthropic: `POST {baseUrl}/messages` with `x-api-key`, `anthropic-version: 2023-06-01` and `anthropic-dangerous-direct-browser-access: true` (Anthropic refuses browser origins without it). Body: `{ model, system, messages: [user], max_tokens: 8192, stream: true, thinking: { type: 'disabled' } }`.
 - Reasoning is turned off with the preset's parameters (see "Settings"): it is slower and billed, and a translation does not need it. Some models reject these parameters, so a request that carries them and comes back as 400 or 422 is sent once more without them (`sendChat`).
 - Requests from the extension to `localhost` and `127.0.0.1` carry `Origin: http://127.0.0.1` instead of the extension's origin: a dynamic `declarativeNetRequest` rule set on every start of the service worker, limited to requests the extension itself starts (`initiatorDomains: [extension id]`). Ollama refuses other origins unless `OLLAMA_ORIGINS` is set; this way it works as installed. Pages and other extensions are not affected.

@@ -2,7 +2,7 @@ import { test, expect, moveTo, altHover, popupRoot, popupText } from './fixtures
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 
-const outline = (page) => page.locator('#hover-translate-highlight');
+const outline = (page) => page.locator('#paragloss-highlight');
 const nextFrames = (page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
