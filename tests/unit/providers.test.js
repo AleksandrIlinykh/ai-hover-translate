@@ -142,7 +142,7 @@ test('a local server without a key gets no Authorization header', () => {
 
 test('OpenRouter is told which app is calling', () => {
   const { headers } = chatRequest(provider('openrouter'), { messages, stream: true }).init;
-  assert.equal(headers['HTTP-Referer'], 'https://github.com/AleksandrIlinykh/ai-hover-translate');
+  assert.equal(headers['HTTP-Referer'], 'https://github.com/AleksandrIlinykh/paragloss');
   assert.equal(headers['X-Title'], 'Paragloss');
 });
 

@@ -73,7 +73,7 @@ export const PROVIDERS = Object.freeze({
     keyRequired: true,
     keyUrl: 'https://openrouter.ai/settings/keys',
     extras: { reasoning: { effort: 'none' } },
-    headers: { 'HTTP-Referer': 'https://github.com/AleksandrIlinykh/ai-hover-translate', 'X-Title': 'Paragloss' },
+    headers: { 'HTTP-Referer': 'https://github.com/AleksandrIlinykh/paragloss', 'X-Title': 'Paragloss' },
     hint: 'Hundreds of models from many vendors under one key. Load the list and pick one.',
   },
   groq: {

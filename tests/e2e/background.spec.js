@@ -221,7 +221,7 @@ test.describe('other providers', () => {
     await setSettings({ provider: 'openrouter', model: 'vendor/model' });
     await translateViaPort(page, 'Hi');
     expect(server.requests[0].headers).toMatchObject({
-      'http-referer': 'https://github.com/AleksandrIlinykh/ai-hover-translate',
+      'http-referer': 'https://github.com/AleksandrIlinykh/paragloss',
       'x-title': 'Paragloss',
     });
   });
