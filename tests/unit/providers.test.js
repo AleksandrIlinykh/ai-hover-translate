@@ -80,17 +80,17 @@ test('a DeepSeek translation streams with temperature 1.3 and thinking off', () 
   });
 });
 
-test('a topic request is small, and DeepSeek answers it at temperature 0', () => {
-  const body = bodyOf(chatRequest(provider('deepseek'), { messages, stream: false, purpose: 'topics' }));
+test('a notes update is short, and DeepSeek answers it at temperature 0', () => {
+  const body = bodyOf(chatRequest(provider('deepseek'), { messages, stream: false, purpose: 'notes' }));
   assert.equal(body.stream, false);
-  assert.equal(body.max_tokens, 200);
+  assert.equal(body.max_tokens, 400);
   assert.equal(body.temperature, 0);
 });
 
 test('OpenAI gets reasoning off, max_completion_tokens and no temperature', () => {
-  const body = bodyOf(chatRequest(provider('openai'), { messages, stream: false, purpose: 'topics' }));
+  const body = bodyOf(chatRequest(provider('openai'), { messages, stream: false, purpose: 'notes' }));
   assert.equal(body.reasoning_effort, 'none');
-  assert.equal(body.max_completion_tokens, 200);
+  assert.equal(body.max_completion_tokens, 400);
   assert.equal(body.max_tokens, undefined);
   assert.equal(body.temperature, undefined);
 });
@@ -131,8 +131,8 @@ test('Anthropic gets its Messages API: key header, system apart, max_tokens, thi
     stream: true,
     thinking: { type: 'disabled' },
   });
-  const topics = bodyOf(chatRequest(provider('anthropic'), { messages, stream: false, purpose: 'topics' }));
-  assert.equal(topics.max_tokens, 200);
+  const notes = bodyOf(chatRequest(provider('anthropic'), { messages, stream: false, purpose: 'notes' }));
+  assert.equal(notes.max_tokens, 400);
 });
 
 test('a local server without a key gets no Authorization header', () => {
@@ -206,8 +206,8 @@ test('dataNote says where the text goes for each kind of provider', () => {
   );
   assert.equal(
     dataNote(provider('deepseek')),
-    'The text you hold Alt over or write in Paragloss, with a few words around a selection, is sent to DeepSeek at api.deepseek.com ' +
-      'with your key; their privacy policy applies. Nothing else leaves your browser.',
+    'The text you hold Alt over or write in Paragloss, with a few words around a selection and the context Paragloss keeps for the site, ' +
+      'is sent to DeepSeek at api.deepseek.com with your key; their privacy policy applies. Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('ollama')),

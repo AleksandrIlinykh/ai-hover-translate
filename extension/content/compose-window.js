@@ -47,6 +47,7 @@
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
       frame.style.width = `${Math.min(WIDTH, viewportWidth - 2 * MARGIN)}px`;
+      host.style.setProperty('width', frame.style.width, 'important'); // the context panel under it is as wide
       const { width, height } = frame.getBoundingClientRect();
       const roomBelow = viewportHeight - rect.bottom - GAP - MARGIN;
       const roomAbove = rect.top - GAP - MARGIN;
@@ -115,6 +116,7 @@
         ...options,
         container: frame,
         styleRoot: shadow,
+        notesContainer: shadow,
         showClose: true,
         onCopied: giveFocusBack,
         onClose: giveFocusBack,

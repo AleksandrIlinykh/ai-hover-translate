@@ -1,6 +1,8 @@
-// The system prompt carries everything but the text: the instructions, then the page topic, then the words
+import { notesBlock } from './notes.js';
+
+// The system prompt carries everything but the text: the instructions, then the site notes, then the words
 // around a dictionary phrase. What changes least comes first, so DeepSeek's prefix cache can reuse it.
-export function buildMessages(text, languageName, { mode = 'text', context = '', topics = [] } = {}) {
+export function buildMessages(text, languageName, { mode = 'text', context = '', notes = '' } = {}) {
   const withContext = mode === 'dictionary' && Boolean(context);
   const lines = [
     mode === 'dictionary'
@@ -15,9 +17,7 @@ export function buildMessages(text, languageName, { mode = 'text', context = '',
         'Leave code, URLs, and names that are normally not translated as they are. ' +
         `If the text is already in ${languageName}, return it unchanged.`,
   ];
-  if (topics.length > 0) {
-    lines.push(`Page topic: ${topics.join(', ')}. Use it only to choose the meaning of ambiguous words.`);
-  }
+  if (notes) lines.push(notesBlock(notes, 'the site this text is from'));
   if (withContext) lines.push(`Context: "${context}"`);
   return [
     { role: 'system', content: lines.join('\n') },

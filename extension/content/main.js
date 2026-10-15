@@ -27,7 +27,6 @@
   const LEAVE_GRACE_MS = 300;
   const CACHE_LIMIT = 100;
   const DETECT_TIMEOUT_MS = 300;
-  const TOPIC_MIN_CHARS = 400;
   const PAGE_SAMPLE_CHARS = 1000;
   const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
   const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js: fixed in the settings
@@ -38,14 +37,13 @@
   };
   const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
 
-  const cache = new Map(); // [mode, text, context, topics] -> translation, for this page
+  const cache = new Map(); // [mode, text, context] -> translation, for this page
   const sameLanguage = new Map(); // text -> whether it is already in the target language
   const popup = createPopup({
     onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
     onRetry: () => retry(),
     onDownload: () => retry(), // the click lets Chrome download the model
     onClose: () => closePopup(),
-    onDropTopics: () => dropTopics(),
   });
   const highlight = createHighlight();
   const composeWindow = createComposeWindow();
@@ -61,15 +59,12 @@
   let previewFrame = 0;
   let triggerTicket = 0;
   let port = null;
-  let shown = null; // { text, mode, context, topics } of the open popup: what was sent to background
+  let shown = null; // { text, mode, context } of the open popup: what was sent to background
   let sample = ''; // text to tell the language of the open popup's text by, for Chrome's translator
   let targetLang = DEFAULT_LANG;
   let engine = 'api'; // 'api' (background calls an AI provider) or 'browser' (Chrome's translator, on this page)
   let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
   let modelAsked = false; // whether this page has asked Chrome to get its translation model ready
-  let topics = []; // tags of the page topic from DeepSeek, sent with every translation on this page
-  let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
-  let pageAddress = currentAddress();
   // The key held to read ('Alt' or 'Control') with its name on this platform, and the shortcut to write
   // (see lib/keys.js); background sends the ones in the settings.
   let keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
@@ -81,6 +76,7 @@
       targetLang = answer?.targetLang || DEFAULT_LANG;
       engine = answer?.engine || 'api';
       keys = answer?.keys ?? keys;
+      popup.setContext(engine === 'api', answer?.providerName);
     })
     .catch(() => {});
 
@@ -173,7 +169,6 @@
 
   function show(picked) {
     closePopup();
-    syncAddress();
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
     shown = { text: picked.text, mode, context: mode === 'dictionary' ? contextOf(picked.target) : '' };
     // Chrome's translator needs the source language: a few selected words tell too little, their paragraph more.
@@ -181,13 +176,10 @@
     popup.open(picked.target);
     hero.wake();
     load();
-    if (mode === 'text') askForTopics(picked.text);
   }
 
-  // Shows the translation of the open popup's text with the current page topic: cached or from the API.
+  // Shows the translation of the open popup's text: cached or from the API.
   function load() {
-    shown.topics = topics;
-    popup.setTopics(topics);
     const cached = cache.get(cacheKey(shown));
     if (cached === undefined) translate(shown);
     else popup.setText(cached);
@@ -199,51 +191,8 @@
     translate(shown);
   }
 
-  // Where the page is, without the hash: single-page apps change it without reloading.
-  function currentAddress() {
-    return location.origin + location.pathname + location.search;
-  }
-
-  function forgetTopics(state = 'unknown') {
-    topics = [];
-    topicState = state;
-  }
-
-  // Another page of a single-page app gets its own topic.
-  function syncAddress() {
-    const address = currentAddress();
-    if (address === pageAddress) return;
-    pageAddress = address;
-    forgetTopics();
-  }
-
-  // Asks DeepSeek once per page for the topic of its first long text; the translations after it carry the topic.
-  async function askForTopics(text) {
-    if (engine !== 'api' || topicState !== 'unknown' || text.length < TOPIC_MIN_CHARS) return;
-    topicState = 'asking';
-    const address = pageAddress;
-    let reply = null;
-    try {
-      reply = await chrome.runtime.sendMessage({ type: 'topics', text });
-    } catch {
-      // e.g. the extension was updated; the next long text asks again
-    }
-    if (address !== pageAddress || topicState !== 'asking') return;
-    topics = Array.isArray(reply?.topics) ? reply.topics : [];
-    topicState = topics.length > 0 ? 'known' : 'unknown';
-  }
-
-  // The user says the tags are wrong: translate again without them and ask for none until the page changes.
-  function dropTopics() {
-    forgetTopics('dropped');
-    if (!shown || !popup.isOpen()) return;
-    disconnect();
-    popup.setLoading();
-    load();
-  }
-
-  function cacheKey({ mode, text, context, topics: tags }) {
-    return JSON.stringify([mode, text, context, tags]);
+  function cacheKey({ mode, text, context }) {
+    return JSON.stringify([mode, text, context]);
   }
 
   function translate(request) {
@@ -279,10 +228,10 @@
       port = null;
       popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
     });
-    const { text, mode, context, topics: tags } = request;
+    const { text, mode, context } = request;
     // The passage's language, if the detector has looked at it, for the memory of what was read on the site.
     const lang = sourceLanguage(detectedBefore(text));
-    current.postMessage({ text, mode, context, topics: tags, lang });
+    current.postMessage({ text, mode, context, lang });
   }
 
   // The free engine: Chrome's translator runs right here, and nothing leaves the page.
@@ -305,17 +254,13 @@
     }
     popup.setText(result.text);
     remember(cache, cacheKey(request), result.text);
-    if (request.mode === 'text') {
-      chrome.runtime
-        .sendMessage({ type: 'remember-pair', source: request.text, translation: result.text, lang: result.source })
-        .catch(() => {});
-    }
+    // Only the language is counted, for the compose window; Chrome's translator builds no site context.
+    if (request.mode === 'text') chrome.runtime.sendMessage({ type: 'read-lang', lang: result.source }).catch(() => {});
   }
 
   // The compose window at a field or by the mouse (`anchor`, see createComposeWindow): what to write is translated into
   // the page's language, to copy.
   async function openCompose(anchor) {
-    syncAddress();
     let state = null;
     try {
       state = await chrome.runtime.sendMessage({ type: 'compose-open', pageLang: languageCode(document.documentElement.lang) });
@@ -325,7 +270,6 @@
     if (!state) return;
     composeWindow.open(anchor, {
       ...state,
-      topics: engine === 'api' ? topics : [],
       onTargetChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-target', lang }).catch(() => {}),
       onDraftChange: (draft) => chrome.runtime.sendMessage({ type: 'compose-draft', draft }).catch(() => {}),
       onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
@@ -549,17 +493,17 @@
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === 'compose-context') {
-      // The toolbar popup asks what this page knows: its topic and declared language.
-      sendResponse({ topics: engine === 'api' ? topics : [], pageLang: languageCode(document.documentElement.lang) });
+      // The toolbar popup asks for the page's declared language.
+      sendResponse({ pageLang: languageCode(document.documentElement.lang) });
       return;
     }
     if (message?.type !== 'settings-changed') return;
     cache.clear();
     sameLanguage.clear();
-    forgetTopics();
     targetLang = message.targetLang || DEFAULT_LANG;
     engine = message.engine || 'api';
     keys = message.keys ?? keys;
+    popup.setContext(engine === 'api', message.providerName);
     modelAsked = false;
   });
 })();

@@ -23,13 +23,6 @@
     .pair { font-weight: 600; white-space: nowrap; }
     .target { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid #d0d7de; border-radius: 6px; padding: 1px 4px; }
     .spacer { flex: 1; }
-    .context { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; opacity: 0.7; }
-    .context[hidden] { display: none; }
-    .context-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .drop-context {
-      flex: none; width: 14px; height: 14px; padding: 0; border: none; border-radius: 50%;
-      background: #8c959f; color: #ffffff; font: bold 11px/14px system-ui, sans-serif; text-align: center; cursor: pointer;
-    }
     .tool {
       flex: none; height: 22px; padding: 0 6px; border: 1px solid transparent; border-radius: 4px;
       background: transparent; color: inherit; font: 15px/20px system-ui, sans-serif; opacity: 0.7; cursor: pointer;
@@ -56,7 +49,9 @@
     }
     .button:disabled { opacity: 0.4; cursor: default; }
     .copy { border-color: #1f6feb; background: #1f6feb; color: #ffffff; }
-    .action[hidden] { display: none; }
+    .action[hidden], .context-toggle[hidden] { display: none; }
+    .context-toggle[aria-expanded="true"] { border-color: #1f6feb; }
+    .notes { margin-top: 4px; }
     .hint-keys { opacity: 0.7; font-size: 12px; }
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
@@ -64,7 +59,6 @@
       .target, .draft, .button { border-color: #30363d; }
       .result { background: #0d1117; }
       .composer.is-error .translation { color: #ff7b72; }
-      .drop-context { background: #6e7681; color: #0d1117; }
     }
   `;
 
@@ -77,7 +71,7 @@
 
   // Through background, which calls the AI provider, as a stream.
   // Resolves to { text }, { error: { message, action, code } }, or { aborted: true }.
-  function translateByApi({ text, from, to, purpose, topics, useMemory, site, onChunk, signal }) {
+  function translateByApi({ text, from, to, purpose, site, onChunk, signal }) {
     return new Promise((resolve) => {
       let port;
       try {
@@ -106,7 +100,7 @@
       port.onDisconnect.addListener(() => {
         resolve({ error: { message: 'The translation was interrupted. Try again.', action: 'retry' } });
       });
-      port.postMessage({ text, from, to, purpose, topics, useMemory, site });
+      port.postMessage({ text, from, to, purpose, site });
     });
   }
 
@@ -117,8 +111,9 @@
     return result.text === undefined ? { error: describeProblem(result, to) } : { text: result.text };
   }
 
-  // Builds the window into `container` (its styles go to `styleRoot`, a shadow root or the document).
-  // `from` is the user's own language and `to` the one to write in; `engine` is 'browser' or 'api'.
+  // Builds the window into `container` (its styles go to `styleRoot`, a shadow root or the document), and the site
+  // context panel after it, into `notesContainer`. `from` is the user's own language and `to` the one to write in;
+  // `engine` is 'browser' or 'api'. `site` is for the toolbar popup, which is not on the site.
   function createComposer({
     container,
     styleRoot,
@@ -127,10 +122,9 @@
     to,
     engine,
     providerName,
-    memorySize = 0,
-    topics = [],
     draft = '',
     site = null,
+    notesContainer = container,
     showSettings = false,
     showClose = false,
     onTargetChange = () => {},
@@ -139,9 +133,12 @@
     onClose = () => {},
     onOpenSettings = () => {},
   }) {
+    const { createNotesPanel, NOTES_CSS } = globalThis.paragloss;
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(COMPOSER_CSS);
-    styleRoot.adoptedStyleSheets = [...styleRoot.adoptedStyleSheets, sheet];
+    const notesSheet = new CSSStyleSheet();
+    notesSheet.replaceSync(NOTES_CSS);
+    styleRoot.adoptedStyleSheets = [...styleRoot.adoptedStyleSheets, notesSheet, sheet];
     const nameOf = (code) => languages[code] ?? code;
 
     const root = element('div', 'composer');
@@ -153,14 +150,7 @@
       if (code !== from) target.add(new Option(name, code));
     }
     target.value = to;
-    const context = element('span', 'context');
-    const contextText = element('span', 'context-text');
-    const dropContext = element('button', 'drop-context', '×');
-    dropContext.type = 'button';
-    dropContext.title = 'Translate without what Paragloss knows about this page';
-    dropContext.setAttribute('aria-label', dropContext.title);
-    context.append(contextText, dropContext);
-    head.append(pair, target, element('span', 'spacer'), context);
+    head.append(pair, target, element('span', 'spacer'));
     if (showSettings) {
       const settings = element('button', 'tool settings', '⚙');
       settings.type = 'button';
@@ -188,6 +178,11 @@
     result.append(translationEl, backEl);
 
     const foot = element('div', 'foot');
+    const contextButton = element('button', 'button context-toggle', 'Context');
+    contextButton.type = 'button';
+    contextButton.title = 'What Paragloss knows about this site';
+    contextButton.setAttribute('aria-expanded', 'false');
+    const notesPanel = createNotesPanel({ site, providerName });
     const engineEl = element('span', 'engine');
     const actionButton = element('button', 'button action');
     actionButton.type = 'button';
@@ -198,11 +193,11 @@
     const copyButton = element('button', 'button copy', 'Copy');
     copyButton.type = 'button';
     copyButton.title = 'Copy the translation (Ctrl+Enter)';
-    foot.append(engineEl, actionButton, checkButton, copyButton);
+    foot.append(contextButton, engineEl, actionButton, checkButton, copyButton);
     root.append(head, draftEl, result, foot);
     container.append(root);
+    notesContainer.append(notesPanel.element);
 
-    let useContext = true;
     let translation = ''; // the finished translation of the current draft
     let shown = ''; // the last finished translation, kept on screen while the next one is on its way
     let pending = null; // the translation in progress: { controller, done: Promise }
@@ -215,13 +210,15 @@
       engineEl.textContent = engine === 'browser' ? 'Chrome, on this computer' : providerName;
     }
 
+    // The site context belongs to AI providers only.
     function showContext() {
-      const parts = [];
-      if (memorySize > 0) parts.push(`${memorySize} passage${memorySize === 1 ? '' : 's'} read here`);
-      if (topics.length > 0) parts.push(topics.join(', '));
-      contextText.textContent = parts.join(' · ');
-      context.title = parts.length > 0 ? `Used for the translation: ${parts.join('; ')}` : '';
-      context.hidden = !useContext || engine === 'browser' || parts.length === 0;
+      contextButton.hidden = engine === 'browser';
+      if (engine === 'browser') setContextOpen(false);
+    }
+
+    function setContextOpen(open) {
+      contextButton.setAttribute('aria-expanded', String(open));
+      notesPanel.setOpen(open);
     }
 
     // A translation on its way (`loading`) shows as `text`, the one before, with a pulsing ellipsis after it.
@@ -259,8 +256,6 @@
         from: source,
         to: destination,
         purpose,
-        topics: useContext ? topics : [],
-        useMemory: useContext,
         site,
         onChunk,
         signal,
@@ -385,6 +380,7 @@
     function destroy() {
       cancel();
       clearTimeout(saveTimer);
+      notesPanel.destroy();
     }
 
     draftEl.addEventListener('input', () => {
@@ -415,11 +411,7 @@
       shown = ''; // it is in the language before
       translateNow();
     });
-    dropContext.addEventListener('click', () => {
-      useContext = false;
-      showContext();
-      translateNow();
-    });
+    contextButton.addEventListener('click', () => setContextOpen(!notesPanel.isOpen()));
     actionButton.addEventListener('click', () => {
       if (action === 'settings') onOpenSettings();
       else translateNow(); // a retry; for a download, this click lets Chrome fetch the model

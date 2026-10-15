@@ -27,6 +27,7 @@
         "content/selection.js",
         "content/language.js",
         "content/translator.js",
+        "content/notes-panel.js",
         "content/popup.js",
         "content/highlight.js",
         "content/composer.js",

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMessages } from '../../extension/lib/prompt.js';
+import { notesBlock } from '../../extension/lib/notes.js';
 
 test('buildMessages puts the language into the system prompt and the text into the user message', () => {
   const messages = buildMessages('Hello,\nworld', 'German');
@@ -43,14 +44,15 @@ test('buildMessages ignores the context of a plain translation', () => {
   assert.deepEqual(buildMessages('x', 'German', { context: 'a b x c d' }), buildMessages('x', 'German'));
 });
 
-test('buildMessages adds the page topic after the instructions and before the context', () => {
-  const topic = 'Page topic: git, continuous integration. Use it only to choose the meaning of ambiguous words.';
-  const [plain] = buildMessages('x', 'German', { topics: ['git', 'continuous integration'] });
-  assert.ok(plain.content.endsWith(`\n${topic}`));
-  const [dictionary] = buildMessages('pipeline', 'German', { mode: 'dictionary', context: 'the build pipeline failed', topics: ['git', 'continuous integration'] });
-  assert.ok(dictionary.content.endsWith(`\n${topic}\nContext: "the build pipeline failed"`));
+test('buildMessages adds the site notes after the instructions and before the context', () => {
+  const block = notesBlock('A site about CI.', 'the site this text is from');
+  const [plain] = buildMessages('x', 'German', { notes: 'A site about CI.' });
+  assert.ok(plain.content.endsWith(`\n${block}`));
+  const [dictionary] = buildMessages('pipeline', 'German', { mode: 'dictionary', context: 'the build pipeline failed', notes: 'A site about CI.' });
+  assert.ok(dictionary.content.endsWith(`\n${block}\nContext: "the build pipeline failed"`));
 });
 
-test('buildMessages adds no topic line without topics', () => {
-  assert.doesNotMatch(buildMessages('x', 'German', { topics: [] })[0].content, /Page topic/);
+test('buildMessages adds no notes without them, and never a topic line', () => {
+  const [system] = buildMessages('x', 'German', { notes: '' });
+  assert.doesNotMatch(system.content, /Notes on|<notes>|topic/i);
 });

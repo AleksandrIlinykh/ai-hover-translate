@@ -36,7 +36,7 @@
       cursor: auto;
     }
     .popup.is-pinned { border-color: #1f6feb; }
-    .bar {
+    .bar, .foot {
       flex: none;
       display: flex;
       align-items: center;
@@ -51,6 +51,10 @@
       touch-action: none;
     }
     .popup.is-dragging .bar { cursor: grabbing; }
+    .foot { justify-content: flex-start; border-top: 1px solid #d8dee4; border-bottom: none; cursor: auto; }
+    .foot[hidden] { display: none; }
+    .context-toggle[aria-expanded="true"] { opacity: 1; }
+    .notes-slot { position: absolute; top: calc(100% + 4px); left: 0; right: 0; }
     .body {
       flex: 1 1 auto;
       min-height: 0;
@@ -75,32 +79,6 @@
     }
     .tool:hover { opacity: 1; border-color: currentColor; }
     .close { font-size: 15px; }
-    .topics {
-      display: none;
-      align-items: center;
-      gap: 4px;
-      min-width: 0;
-      margin-right: auto;
-      font: 12px/18px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      opacity: 0.7;
-    }
-    .popup.has-topics .topics { display: flex; }
-    .topic-list { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    /* A round clear button, like the one in a macOS search field. */
-    .drop-topics {
-      flex: none;
-      width: 14px;
-      height: 14px;
-      padding: 0;
-      border: none;
-      border-radius: 50%;
-      background: #8c959f;
-      color: #ffffff;
-      font: bold 11px/14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      text-align: center;
-      cursor: pointer;
-    }
-    .drop-topics:hover { background: #57606a; }
     .copy { visibility: hidden; }
     .popup.has-text .copy { visibility: visible; }
     .action {
@@ -138,10 +116,8 @@
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .popup { border-color: #30363d; background: #161b22; color: #e6edf3; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); }
-      .bar { border-color: #30363d; background: #0d1117; }
+      .bar, .foot { border-color: #30363d; background: #0d1117; }
       .popup.is-error .text { color: #ff7b72; }
-      .drop-topics { background: #6e7681; color: #0d1117; }
-      .drop-topics:hover { background: #8b949e; }
     }
   `;
 
@@ -149,15 +125,18 @@
 
   // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
-  // The bar also shows the page topic the translation used, with a button to forget it.
-  function createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics }) {
+  // With an AI provider a footer row has the Context button, which opens the site context panel under the popup.
+  function createPopup({ onOpenSettings, onRetry, onDownload, onClose }) {
+    const { createNotesPanel, NOTES_CSS } = globalThis.paragloss;
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
     const shadow = host.attachShadow({ mode: 'open' });
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(POPUP_CSS);
-    shadow.adoptedStyleSheets = [sheet];
+    const notesSheet = new CSSStyleSheet();
+    notesSheet.replaceSync(NOTES_CSS);
+    shadow.adoptedStyleSheets = [sheet, notesSheet];
 
     const button = (className, label, onClick) => {
       const element = document.createElement('button');
@@ -174,15 +153,7 @@
     const copyButton = button('tool copy', 'Copy', () => copy());
     const closeButton = button('tool close', '×', () => onClose());
     closeButton.setAttribute('aria-label', 'Close');
-    const topicsEl = document.createElement('span');
-    topicsEl.className = 'topics';
-    const topicList = document.createElement('span');
-    topicList.className = 'topic-list';
-    const dropButton = button('drop-topics', '×', () => onDropTopics());
-    dropButton.setAttribute('aria-label', 'Forget the page topic');
-    dropButton.title = 'Forget the page topic';
-    topicsEl.append(topicList, dropButton);
-    bar.append(topicsEl, copyButton, closeButton);
+    bar.append(copyButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
@@ -193,7 +164,18 @@
       button('action retry', 'Retry', () => onRetry()),
       button('action download', 'Download', () => onDownload()),
     );
-    popupEl.append(bar, bodyEl);
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    foot.hidden = true;
+    const contextButton = button('tool context-toggle', 'Context', () => setContextOpen(!contextOpen));
+    contextButton.title = 'What Paragloss knows about this site';
+    contextButton.setAttribute('aria-expanded', 'false');
+    foot.append(contextButton);
+    popupEl.append(bar, bodyEl, foot);
+    const notesSlot = document.createElement('div');
+    notesSlot.className = 'notes-slot';
+    const notesPanel = createNotesPanel();
+    notesSlot.append(notesPanel.element);
     for (const edge of EDGES) {
       const handle = document.createElement('div');
       handle.className = `resize ${edge}`;
@@ -202,14 +184,21 @@
     }
     popupEl.addEventListener('mousedown', () => popupEl.classList.add('is-pinned'));
     bar.addEventListener('pointerdown', startDrag);
-    shadow.append(popupEl);
+    shadow.append(popupEl, notesSlot);
 
     let block = null;
+    let contextOpen = false; // stays for the next popups on this page until the user closes it
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
     let detached = false; // dragged or resized: fixed on screen instead of attached to the block
     let sized = false; // resized: explicit width and height instead of fitting the text
+
+    function setContextOpen(open) {
+      contextOpen = open;
+      contextButton.setAttribute('aria-expanded', String(open));
+      notesPanel.setOpen(open && !foot.hidden);
+    }
 
     // action: 'settings', 'retry' or 'download' adds that button under an error.
     function render(text, { loading = false, error = false, action = null } = {}) {
@@ -374,6 +363,7 @@
         side = chooseSide(block.getBoundingClientRect());
         popupEl.classList.remove('is-pinned', 'is-dragging');
         render('…', { loading: true });
+        notesPanel.setOpen(contextOpen && !foot.hidden);
         document.documentElement.append(host);
         bodyEl.scrollTop = 0;
         position();
@@ -391,11 +381,11 @@
         render(message, { error: true, action });
         schedulePosition();
       },
-      // The page topic tags this translation was made with; none hides them.
-      setTopics(topics) {
-        topicList.textContent = topics.join(' · ');
-        topicList.title = topics.length > 0 ? `Page topic used for this translation: ${topics.join(', ')}` : '';
-        popupEl.classList.toggle('has-topics', topics.length > 0);
+      // With an AI provider the footer offers the site context; `providerName` goes into the panel's note.
+      setContext(available, providerName = '') {
+        foot.hidden = !available;
+        notesPanel.setProvider(providerName);
+        notesPanel.setOpen(contextOpen && available && block !== null);
         schedulePosition();
       },
       // Keep the popup glued to its block when something scrolls (the window or an inner container).
@@ -416,7 +406,15 @@
       isLoading: () => popupEl.classList.contains('is-loading'),
       isDetached: () => detached,
       getBlock: () => block,
-      getRect: () => popupEl.getBoundingClientRect(),
+      // The popup with the context panel under it, when that is open.
+      getRect() {
+        const rect = popupEl.getBoundingClientRect();
+        if (!notesPanel.isOpen()) return rect;
+        const panel = notesPanel.element.getBoundingClientRect();
+        const left = Math.min(rect.left, panel.left);
+        const top = Math.min(rect.top, panel.top);
+        return new DOMRect(left, top, Math.max(rect.right, panel.right) - left, Math.max(rect.bottom, panel.bottom) - top);
+      },
       isOwn: (node) => node === host || node?.getRootNode?.() === shadow,
     };
   }

@@ -14,7 +14,7 @@ export const PROVIDERS = Object.freeze({
     extras: {},
     hint:
       'Free and private: Chrome translates on this computer, nothing is sent anywhere. It downloads a model ' +
-      'once for each pair of languages; Test gets the one from English. Page topics and dictionary entries ' +
+      'once for each pair of languages; Test gets the one from English. The site context and dictionary entries ' +
       'need an AI provider.',
   },
   deepseek: {
@@ -27,7 +27,7 @@ export const PROVIDERS = Object.freeze({
     keyRequired: true,
     keyUrl: 'https://platform.deepseek.com/api_keys',
     extras: { thinking: { type: 'disabled' } },
-    temperature: { translate: 1.3, topics: 0 }, // 1.3 is DeepSeek's advice for translation
+    temperature: { translate: 1.3, notes: 0 }, // 1.3 is DeepSeek's advice for translation
   },
   openai: {
     name: 'OpenAI',
@@ -156,7 +156,7 @@ export const PROVIDERS = Object.freeze({
   },
 });
 
-const TOPIC_MAX_TOKENS = 200;
+const NOTES_MAX_TOKENS = 400;
 const ANSWER_MAX_TOKENS = 8192; // Anthropic needs a limit; this one never cuts a translation short
 const ANTHROPIC_VERSION = '2023-06-01';
 const NOT_CHAT_MODEL = /embed|whisper|tts|speech|transcri|audio|realtime|image|dall-e|moderation|rerank/i;
@@ -173,7 +173,7 @@ function keyHeaders(provider) {
   return { ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}), ...provider.headers };
 }
 
-// The fetch() arguments for a chat request; `purpose` is 'translate' or 'topics' (a short answer).
+// The fetch() arguments for a chat request; `purpose` is 'translate' or 'notes' (a short answer: the site notes).
 export function chatRequest(provider, { messages, stream, purpose = 'translate' }, { extras = true } = {}) {
   const options = {
     ...(provider.temperature ? { temperature: provider.temperature[purpose] } : {}),
@@ -186,13 +186,13 @@ export function chatRequest(provider, { messages, stream, purpose = 'translate' 
       model: provider.model,
       system: system.content,
       messages: rest,
-      max_tokens: purpose === 'topics' ? TOPIC_MAX_TOKENS : ANSWER_MAX_TOKENS,
+      max_tokens: purpose === 'notes' ? NOTES_MAX_TOKENS : ANSWER_MAX_TOKENS,
       stream,
       ...options,
     };
     return { url: `${provider.baseUrl}/messages`, init: { method: 'POST', headers, body: JSON.stringify(body) } };
   }
-  const limit = purpose === 'topics' ? { [provider.maxTokensField ?? 'max_tokens']: TOPIC_MAX_TOKENS } : {};
+  const limit = purpose === 'notes' ? { [provider.maxTokensField ?? 'max_tokens']: NOTES_MAX_TOKENS } : {};
   const body = { model: provider.model, messages, stream, ...limit, ...options };
   return { url: `${provider.baseUrl}/chat/completions`, init: { method: 'POST', headers, body: JSON.stringify(body) } };
 }
@@ -245,8 +245,8 @@ export function dataNote(provider) {
     return `The text you hold Alt over or write in Paragloss goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
   }
   return (
-    `The text you hold Alt over or write in Paragloss, with a few words around a selection, is sent to ${provider.name} at ${host} ` +
-    'with your key; their privacy policy applies. Nothing else leaves your browser.'
+    'The text you hold Alt over or write in Paragloss, with a few words around a selection and the context Paragloss keeps for the site, ' +
+    `is sent to ${provider.name} at ${host} with your key; their privacy policy applies. Nothing else leaves your browser.`
   );
 }
 

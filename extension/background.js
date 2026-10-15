@@ -1,6 +1,6 @@
 import { buildMessages } from './lib/prompt.js';
-import { buildTopicMessages, cleanTopics, parseTopics } from './lib/topics.js';
-import { buildComposeMessages, chooseComposeTarget, pickReferences, rememberPair } from './lib/compose.js';
+import { MIN_PASSAGE, buildNotesMessages, cleanNotes, passageOf, takePassages } from './lib/notes.js';
+import { buildComposeMessages, chooseComposeTarget, countLanguage } from './lib/compose.js';
 import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
@@ -8,13 +8,15 @@ import { LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
 
 const IDLE_TIMEOUT_MS = 30_000;
-const TOPIC_TIMEOUT_MS = 15_000;
+const NOTES_TIMEOUT_MS = 15_000;
+const LEARNED_LIMIT = 50; // sources remembered per site, so a text shown again does not teach the notes twice
 const MAX_CONTEXT = 1000;
 const MODES = new Set(['text', 'dictionary']);
 const CACHE_PREFIX = 'cache:';
 const LOCAL_ORIGIN_RULE = 1;
 const MAX_DRAFT = 3000;
-const MEMORY_PREFIX = 'memory:'; // + site: the passages the user read there, for the compose window
+const NOTES_PREFIX = 'notes:'; // + site: the site context, in chrome.storage.session
+const LANGS_PREFIX = 'langs:'; // + site: { [lang]: count } of the texts read there, for the compose window
 const DRAFT_KEY = 'compose:draft'; // the last draft, in chrome.storage.session
 const COMPOSE_KEY = 'compose'; // { targets: { [site]: lang }, last: lang } in chrome.storage.local
 
@@ -43,13 +45,14 @@ chrome.declarativeNetRequest
   })
   .catch(() => {});
 
-// Pages get the public part of the settings: the target language, which engine translates and the keys. With the
-// free engine (Chrome's translator) the page translates by itself.
+// Pages get the public part of the settings: the target language, which engine translates and its name, and the keys.
+// With the free engine (Chrome's translator) the page translates by itself.
 function pageSettings(settings) {
   const { read, write } = settings.keys;
   return {
     targetLang: settings.targetLang,
     engine: activeProvider(settings).api === 'browser' ? 'browser' : 'api',
+    providerName: activeProvider(settings).name,
     keys: { read, readName: readKeyName(read, currentPlatform()), write },
   };
 }
@@ -62,11 +65,11 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
   }
 });
 
-// The site a message comes from: the tab's page for content scripts; extension pages (the toolbar popup)
-// name the site of the active tab themselves.
+// The site a message comes from: the tab's page for content scripts; extension pages (the toolbar popup, also
+// when it is opened in a tab) name the site of the active tab themselves.
 function siteOf(sender, claimed) {
-  if (sender.tab?.url) return hostOf(sender.tab.url);
-  return sender.url?.startsWith(chrome.runtime.getURL('')) && typeof claimed === 'string' ? claimed : null;
+  if (sender.url?.startsWith(chrome.runtime.getURL(''))) return typeof claimed === 'string' && claimed ? claimed : null;
+  return sender.tab?.url ? hostOf(sender.tab.url) : null;
 }
 
 function hostOf(url) {
@@ -94,16 +97,17 @@ chrome.runtime.onConnect.addListener((port) => {
       compose(message, siteOf(port.sender, message.site), controller.signal, send);
       return;
     }
-    const { text, mode, context, topics, lang } = message;
+    const { text, mode, context, lang } = message;
     const request = {
       text,
       mode: MODES.has(mode) ? mode : 'text',
       context: typeof context === 'string' ? context.slice(0, MAX_CONTEXT) : '',
-      topics: cleanTopics(topics),
     };
     const site = siteOf(port.sender);
-    translate(request, controller.signal, send, (translation) => {
-      if (site && request.mode === 'text') readOnSite(site, request.text, translation, lang);
+    translate(request, site, controller.signal, send, (translation) => {
+      if (!site || request.mode !== 'text') return;
+      countRead(site, lang);
+      learn(site, request.text, translation);
     });
   });
 });
@@ -114,16 +118,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     loadSettings().then((settings) => sendResponse(pageSettings(settings)));
     return true;
   }
-  if (message?.type === 'topics') {
-    findTopics(String(message.text ?? '')).then((topics) => sendResponse({ topics }));
+  if (message?.type === 'notes') {
+    const site = siteOf(sender, message.site);
+    notesOf(site).then((text) => sendResponse({ site, text, updating: Boolean(site && stateOf(site).controller) }));
     return true; // the answer comes later
   }
-  if (message?.type === 'remember-pair') {
-    // A passage the page translated by itself, with Chrome's translator.
+  if (message?.type === 'clear-notes') {
+    const site = siteOf(sender, message.site);
+    if (site) clearNotes(site);
+  }
+  if (message?.type === 'read-lang') {
+    // A text the page translated by itself, with Chrome's translator: only its language is counted.
     const site = siteOf(sender);
-    if (site && typeof message.source === 'string' && typeof message.translation === 'string') {
-      readOnSite(site, message.source, message.translation, message.lang);
-    }
+    if (site) countRead(site, message.lang);
   }
   if (message?.type === 'compose-open') {
     composeState(siteOf(sender, message.site), message.pageLang).then(sendResponse);
@@ -139,33 +146,102 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// The passages the user read on a site, in this browser session: references for writing there.
-async function memoryOf(site) {
-  const key = MEMORY_PREFIX + site;
-  return (await chrome.storage.session.get(key))[key] ?? [];
+// The site context (notes). Each site has one update at a time; texts translated meanwhile wait in its queue
+// for the next one. `learned` keeps the latest sources so the same text does not teach the notes twice.
+const notesState = new Map(); // site -> { queue, learned, controller }
+
+function stateOf(site) {
+  if (!notesState.has(site)) notesState.set(site, { queue: [], learned: [], controller: null });
+  return notesState.get(site);
 }
 
-async function readOnSite(site, source, translation, lang) {
-  const pair = { source, translation, lang: typeof lang === 'string' && lang ? lang : null };
-  try {
-    await chrome.storage.session.set({ [MEMORY_PREFIX + site]: rememberPair(await memoryOf(site), pair) });
-  } catch {
-    // the session storage is full; the memory is only a help
+async function notesOf(site) {
+  if (!site) return '';
+  const key = NOTES_PREFIX + site;
+  return (await chrome.storage.session.get(key))[key] ?? '';
+}
+
+// Tells the site's tabs and the toolbar popup what the notes are now.
+async function announce(site, text, updating) {
+  const message = { type: 'notes-changed', site, text, updating };
+  chrome.runtime.sendMessage(message).catch(() => {}); // no extension page is open
+  for (const tab of await chrome.tabs.query({})) {
+    if (tab.url && hostOf(tab.url) === site) chrome.tabs.sendMessage(tab.id, message).catch(() => {});
   }
 }
 
-// What the compose window needs to open: the languages, the engine, how much it knows about the site, the draft.
+// A text the user translated on the site, with its translation: the notes learn from it after it is shown.
+function learn(site, source, translation) {
+  if (source.trim().length < MIN_PASSAGE) return;
+  const state = stateOf(site);
+  if (state.learned.includes(source)) return;
+  state.learned = [...state.learned, source].slice(-LEARNED_LIMIT);
+  state.queue.push(passageOf(source, translation));
+  if (!state.controller) updateNotes(site);
+}
+
+// Rewrites the site's notes with the queued texts. Any failure leaves the notes as they were, without a word.
+async function updateNotes(site) {
+  const state = stateOf(site);
+  const passages = takePassages(state.queue);
+  state.queue = [];
+  if (passages.length === 0) return;
+  const controller = new AbortController();
+  state.controller = controller;
+  announce(site, await notesOf(site), true);
+  try {
+    const settings = await loadSettings();
+    const provider = activeProvider(settings);
+    if (provider.api !== 'browser' && !setupProblem(provider)) {
+      const messages = buildNotesMessages(await notesOf(site), passages, LANGUAGES[settings.targetLang]);
+      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(NOTES_TIMEOUT_MS)]);
+      const response = await sendChat(provider, { messages, stream: false, purpose: 'notes' }, signal);
+      const notes = response.ok ? cleanNotes(answerText(await response.json())) : '';
+      if (notes && !controller.signal.aborted) await chrome.storage.session.set({ [NOTES_PREFIX + site]: notes });
+    }
+  } catch {
+    // a timeout, a network error or a full session storage: the notes are only a help
+  }
+  if (state.controller !== controller) return; // cleared meanwhile
+  state.controller = null;
+  if (state.queue.length > 0) updateNotes(site);
+  else announce(site, await notesOf(site), false);
+}
+
+async function clearNotes(site) {
+  const state = stateOf(site);
+  state.controller?.abort();
+  state.controller = null;
+  state.queue = [];
+  state.learned = [];
+  await chrome.storage.session.remove(NOTES_PREFIX + site);
+  announce(site, '', false);
+}
+
+// The languages of the texts read on a site, counted; no text is kept.
+async function countRead(site, lang) {
+  const key = LANGS_PREFIX + site;
+  try {
+    const counts = (await chrome.storage.session.get(key))[key] ?? {};
+    const next = countLanguage(counts, lang);
+    if (next !== counts) await chrome.storage.session.set({ [key]: next });
+  } catch {
+    // the session storage is full; the counts are only a help
+  }
+}
+
+// What the compose window needs to open: the languages, the engine, the site and its notes, the draft.
 async function composeState(site, pageLang) {
   const settings = await loadSettings();
   const provider = activeProvider(settings);
-  const memory = site ? await memoryOf(site) : [];
+  const { [LANGS_PREFIX + site]: readCounts = {} } = site ? await chrome.storage.session.get(LANGS_PREFIX + site) : {};
   const { [COMPOSE_KEY]: saved = {} } = await chrome.storage.local.get(COMPOSE_KEY);
   const { [DRAFT_KEY]: draft = '' } = await chrome.storage.session.get(DRAFT_KEY);
   const from = settings.targetLang;
   const to = chooseComposeTarget({
     from,
     saved: site ? saved.targets?.[site] : null,
-    readLangs: memory.map((pair) => pair.lang),
+    readCounts,
     pageLang: typeof pageLang === 'string' ? pageLang : null,
     last: saved.last,
   });
@@ -175,7 +251,8 @@ async function composeState(site, pageLang) {
     to,
     engine: provider.api === 'browser' ? 'browser' : 'api',
     providerName: provider.name,
-    memorySize: memory.length,
+    site,
+    notes: await notesOf(site),
     draft,
   };
 }
@@ -188,7 +265,7 @@ async function saveComposeTarget(site, lang) {
 }
 
 // A draft into the page's language ('write'), or a translation back into the user's own ('check').
-async function compose({ text, from, to, purpose, topics, useMemory }, site, signal, send) {
+async function compose({ text, from, to, purpose }, site, signal, send) {
   const draft = typeof text === 'string' ? text.slice(0, MAX_DRAFT) : '';
   if (!draft || !Object.hasOwn(LANGUAGES, from) || !Object.hasOwn(LANGUAGES, to)) return;
   const provider = activeProvider(await loadSettings());
@@ -201,34 +278,15 @@ async function compose({ text, from, to, purpose, topics, useMemory }, site, sig
     send({ type: 'error', ...makeError(problem, provider) });
     return;
   }
-  let messages;
-  if (purpose === 'check') {
-    messages = buildMessages(draft, LANGUAGES[to]);
-  } else {
-    const references = useMemory && site ? pickReferences(await memoryOf(site), draft, { to }) : [];
-    messages = buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { topics: cleanTopics(topics), references });
-  }
+  // The check translates back without the notes, to show what the text says by itself.
+  const messages =
+    purpose === 'check'
+      ? buildMessages(draft, LANGUAGES[to])
+      : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes: await notesOf(site) });
   await stream(provider, messages, signal, send);
 }
 
-// Tags for the page topic; none when anything goes wrong, since the topic is only a hint.
-async function findTopics(text) {
-  const provider = activeProvider(await loadSettings());
-  if (provider.api === 'browser' || setupProblem(provider) || !text) return [];
-  try {
-    const response = await sendChat(
-      provider,
-      { messages: buildTopicMessages(text), stream: false, purpose: 'topics' },
-      AbortSignal.timeout(TOPIC_TIMEOUT_MS),
-    );
-    if (!response.ok) return [];
-    return parseTopics(answerText(await response.json()));
-  } catch {
-    return [];
-  }
-}
-
-async function translate(request, signal, send, onTranslated = () => {}) {
+async function translate(request, site, signal, send, onTranslated = () => {}) {
   const settings = await loadSettings();
   const provider = activeProvider(settings);
   if (provider.api === 'browser') {
@@ -251,7 +309,7 @@ async function translate(request, signal, send, onTranslated = () => {}) {
     return;
   }
 
-  const messages = buildMessages(request.text, LANGUAGES[settings.targetLang], request);
+  const messages = buildMessages(request.text, LANGUAGES[settings.targetLang], { ...request, notes: await notesOf(site) });
   const translation = await stream(provider, messages, signal, send);
   if (translation) {
     onTranslated(translation);
@@ -298,9 +356,10 @@ async function stream(provider, messages, signal, send) {
   }
 }
 
-// Translations are shared by all tabs for the browser session (chrome.storage.session).
-async function cacheKey({ id, baseUrl, model }, targetLang, { mode, text, context, topics }) {
-  const data = new TextEncoder().encode(JSON.stringify([id, baseUrl, model, targetLang, mode, text, context, topics]));
+// Translations are shared by all tabs for the browser session (chrome.storage.session). The notes are left out:
+// a text translated once is reused while they grow.
+async function cacheKey({ id, baseUrl, model }, targetLang, { mode, text, context }) {
+  const data = new TextEncoder().encode(JSON.stringify([id, baseUrl, model, targetLang, mode, text, context]));
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
   return CACHE_PREFIX + Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }

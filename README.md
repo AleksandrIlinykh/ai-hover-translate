@@ -12,7 +12,7 @@ In medieval manuscripts a gloss was a translation written above the line. Paragl
 2. Click "Load unpacked" and pick the `extension/` folder.
 3. Open the settings (right-click the extension icon, then "Options") and choose the language to translate into.
 4. Click "Save". Out of the box the extension uses Chrome's built-in translator: free, and nothing leaves your computer. The click lets Chrome download its model for English once.
-5. For translations that fit the context (page topic, dictionary entries), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), click "Test", then "Save".
+5. For translations that fit the subject of a site (the site context, dictionary entries), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), click "Test", then "Save".
 
 ## Providers
 
@@ -39,11 +39,11 @@ In medieval manuscripts a gloss was a translation written above the line. Paragl
 
 ## Free built-in translator
 
-Chrome 138 and later (and Edge) can translate on the computer itself. The extension uses that by default: free, offline, nothing sent anywhere. Chrome downloads a model once for each pair of languages, and only right after a click or a key press (holding Alt does not count), so the extension gets models ready ahead of time: the English one when you save the settings, and the one for a page's language on your first click on that page. Translations are then usually instant. If you hold Alt before ever clicking on a page in a new language, the popup asks you to click "Download". The language of a selected word is told from its whole paragraph, or else from the page. It is ordinary machine translation: no page topic and no dictionary entries, which need an AI provider.
+Chrome 138 and later (and Edge) can translate on the computer itself. The extension uses that by default: free, offline, nothing sent anywhere. Chrome downloads a model once for each pair of languages, and only right after a click or a key press (holding Alt does not count), so the extension gets models ready ahead of time: the English one when you save the settings, and the one for a page's language on your first click on that page. Translations are then usually instant. If you hold Alt before ever clicking on a page in a new language, the popup asks you to click "Download". The language of a selected word is told from its whole paragraph, or else from the page. It is ordinary machine translation: no site context and no dictionary entries, which need an AI provider.
 
 ## Where your text goes
 
-The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and the first long paragraph on a page is also sent once to name the page topic. The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
+The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and every translation on a site carries the short site context Paragloss built from what you translated there (see below). The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
 
 ## Usage
 
@@ -51,7 +51,8 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is about as wide as the paragraph, between 320 and 720 px.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).
-- The first long paragraph you translate on a page also tells the extension what the page is about: the model names the topic in a few tags, and later translations on that page use them to pick the right meaning of ambiguous words. The tags show on the popup's title bar. If they are wrong, click the round "×" next to them: the text is translated again without them, and the page gets no new tags until you reload it.
+- With an AI provider, Paragloss learns what each site is about: after each text you translate there, the model rewrites a short context of one or two paragraphs (the subject, what its terms and abbreviations mean and how to render them, which names to keep), and every later translation on the site carries it. Terms come out the same way every time, and ambiguous words take the meaning they have on that site.
+- "Context" under the translation shows what Paragloss knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not.
 - A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
@@ -68,7 +69,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - To write for anywhere else, click the Paragloss icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
 - "Check" translates the result back into your language, to see whether the meaning held.
 - The language to write in follows the site (what you read there, or the page's language); pick another one in the title row and the site keeps it.
-- With an AI provider, the passages you translated on the site and the page topic help it use the same terms. The window shows that, and its "×" writes without them. Paragloss never reads the text around the field, and never types or sends anything on the page itself.
+- With an AI provider, the site context goes with your draft, so it uses the site's terms; "Context" in the window shows it. "Check" translates back without it. Paragloss never reads the text around the field, and never types or sends anything on the page itself.
 - Settings are behind the gear in the toolbar window, or "Options" in the icon's right-click menu.
 
 After changing the extension files, click "Reload" on its card in `chrome://extensions` and reload open tabs.

@@ -35,7 +35,8 @@ test('Alt+click on a text field opens the compose window from the user language 
   await expect(part(page, 'target')).toHaveValue('en');
   await expect(part(page, 'draft')).toHaveAttribute('placeholder', 'Write in Russian');
   await expect(part(page, 'engine')).toHaveText('DeepSeek');
-  await expect(part(page, 'context')).toBeHidden();
+  await expect(part(page, 'context-toggle')).toBeVisible();
+  await expect(part(page, 'notes')).toBeHidden();
 });
 
 test('the draft is translated after a pause in typing, with one request and the compose prompt', async ({ page, server }) => {
@@ -166,41 +167,27 @@ test('another target language is used at once and remembered for the site', asyn
   await expect(part(page, 'target')).toHaveValue('de');
 });
 
-test('the passages the user read on the site guide the terms, until the context is dropped', async ({ page, server }) => {
-  await page.goto(`${server.url}/page.html`);
-  await altHover(page, '#p1');
-  await expect(popupText(page)).toContainText('[RU] The quick brown fox');
-  await page.keyboard.up('Alt');
-  await page.keyboard.press('Escape');
-  await altClick(page, '#comment');
-  await expect(part(page, 'context')).toContainText('1 passage read here');
-  await write(page, 'the quick fox jumps');
-  await expect.poll(() => server.requests.length).toBe(2);
-  expect(systemOf(server.requests[1])).toContain('English: "The quick brown fox jumps over the lazy dog. Read more"');
-  await part(page, 'drop-context').click();
-  await expect(part(page, 'context')).toBeHidden();
-  await expect.poll(() => server.requests.length).toBe(3);
-  expect(systemOf(server.requests[2])).not.toContain('Earlier on this site');
-});
-
-test('the page topic goes with the draft', async ({ page, server }) => {
-  await page.goto(`${server.url}/topics.html`);
+test('the site context shows in the window and goes with the draft, and Check goes without it', async ({ page, server }) => {
+  await page.goto(`${server.url}/long.html`);
   await altHover(page, '#long');
   await expect(popupText(page)).toContainText('[RU] Our team');
-  await expect.poll(() => server.topicRequests.length).toBe(1);
   await page.keyboard.up('Alt');
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
   await page.evaluate(() => {
     const field = document.createElement('textarea');
     field.id = 'reply';
     document.querySelector('main').prepend(field);
   });
   await altClick(page, '#reply');
-  await expect(part(page, 'context')).toContainText('git, continuous integration, devops');
+  await part(page, 'context-toggle').click();
+  await expect(part(page, 'notes-film')).toHaveText('Notes: Our team moved the whole build to a shared continuous integr');
+  await part(page, 'draft').focus();
   await write(page, DRAFT);
-  await expect.poll(() => server.requests.length).toBe(2);
-  expect(systemOf(server.requests[1])).toContain('Topic of the page the user is writing on: git, continuous integration, devops.');
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
+  expect(systemOf(server.requests.at(-1))).toContain('<notes>\nNotes: Our team moved the whole build to a shared continuous integr\n</notes>');
+  await part(page, 'check').click();
+  await expect(part(page, 'back')).toContainText('Back in Russian');
+  expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
 });
 
 test('a password field gets neither the hint nor the window', async ({ page, server }) => {
@@ -231,6 +218,7 @@ test('with the free translator the draft is translated on the page and nothing i
   await inContentScript(page, fakeBuiltInAI());
   await altClick(page, '#comment');
   await expect(part(page, 'engine')).toHaveText('Chrome, on this computer');
+  await expect(part(page, 'context-toggle')).toBeHidden();
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[en on device] ${DRAFT}`);
   await part(page, 'check').click();

@@ -1,5 +1,6 @@
 // The toolbar popup (and its keyboard shortcut): the compose window on its own, for writing that goes anywhere.
-// What it knows about the site comes from the active tab: what was read there, and its topic and language.
+// The site is the active tab's: its context and the language read there come from background, its declared
+// language from the tab.
 
 function siteOf(url) {
   try {
@@ -17,7 +18,7 @@ if (site) {
   try {
     page = await chrome.tabs.sendMessage(tab.id, { type: 'compose-context' });
   } catch {
-    // no content script there (a page opened before the extension was loaded): no topic then
+    // no content script there (a page opened before the extension was loaded): no declared language then
   }
 }
 const state = await chrome.runtime.sendMessage({ type: 'compose-open', site, pageLang: page?.pageLang ?? null });
@@ -28,7 +29,6 @@ globalThis.paragloss
     ...state,
     container: document.body,
     styleRoot: document,
-    topics: page?.topics ?? [],
     site,
     showSettings: true,
     onOpenSettings: () => chrome.runtime.openOptionsPage(),

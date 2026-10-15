@@ -11,8 +11,8 @@ Paragloss is an open-source browser extension that translates the paragraph you 
 - **The text you ask to translate**: the paragraph under the mouse when you hold Alt, or the text you selected, up to 3,000 characters.
 - **With an AI provider, also:**
   - for a dictionary entry of one to three selected words, up to 8 words around them from the same sentence;
-  - once per page, the first 1,500 characters of the first long paragraph you translate, so the provider can name the page topic in a few tags; those tags then go with later translations on that page.
-- **Text you write in Paragloss's compose window** (opened with Alt+click on a text field, Alt+T, the toolbar icon or Ctrl+Shift+Y): your draft, and the translation when you click "Check". With an AI provider, the page topic tags and up to 3 passages you translated on the same site, with their translations, go with the draft so the same terms come back. Paragloss never reads the text around the field, and never puts text into the page or sends anything there.
+  - after each text of 40 characters or more that you translate on a site, that text and its translation, with the site's current context, so the provider can rewrite the context: one or two short paragraphs about the site's subject and terms, built only from what you translated there. The context then goes with every later translation on that site, and with what you write in the compose window there.
+- **Text you write in Paragloss's compose window** (opened with Alt+click on a text field, Alt+T, the toolbar icon or Ctrl+Shift+Y): your draft, and the translation when you click "Check". With an AI provider, the site context goes with the draft so the same terms come back; "Check" goes without it. Paragloss never reads the text around the field, and never puts text into the page or sends anything there.
 - **With the built-in translator, also:** on your first click on a page, the start of the page text (up to 1,000 characters) or its declared language is read on your computer to tell the page's language and get the translation model ready. This never leaves your computer.
 - **Your settings**: the language to translate into, the provider you chose and, for each provider you filled in, its API key, model and API URL, and the keys you set to read and write.
 - **Translations**: kept so that the same text is not translated twice (see "Storage").
@@ -32,7 +32,7 @@ Paragloss sends nothing anywhere else: no analytics, telemetry, crash reports or
 
 - Settings, including API keys, are kept in the browser's extension storage (`chrome.storage.local`) on your computer. Only the extension's own pages and its background script can read them; web pages, and the extension's own scripts running on them, cannot. They are not synced to other devices.
 - Translations made with an AI provider are cached in the browser's session storage (`chrome.storage.session`) until the browser closes, so the same text is not sent twice. Each open page also keeps its recent translations in memory until it is closed.
-- For the compose window, the browser's session storage also keeps, until the browser closes, the last 30 passages you translated on each site with their translations, and your last draft. The language you chose to write in on a site is kept in the extension storage, with the site's name.
+- The browser's session storage also keeps, until the browser closes: the context of each site you translated on with an AI provider (until you click "Clear"), how many texts in each language you read on each site (no text, only the counts, to choose the language to write in), and your last draft. The language you chose to write in on a site is kept in the extension storage, with the site's name.
 - Paragloss sets no cookies.
 - To delete everything, remove the extension, or clear its fields in the settings and save.
 

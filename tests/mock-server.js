@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 
 const FIXTURES = new URL('./fixtures/', import.meta.url);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const TOPICS = 'Git, Continuous Integration, DevOps';
 const MODELS = ['mock-small', 'mock-large', 'text-embedding-mock', 'models/mock-gemini'];
 const REASONING_SWITCHES = ['thinking', 'reasoning_effort', 'reasoning', 'enable_thinking'];
 const RECORDED_HEADERS = [
@@ -30,14 +29,15 @@ const STREAM_END = { openai: 'data: [DONE]\n\n', anthropic: 'event: message_stop
 // flaky → 500 on the first request and normal answers after it,
 // strict → 400 for a request that carries a reasoning switch,
 // anything else → "[RU] <text>" in three chunks.
-// Requests that are not streamed ask for the page topic: bad → 401, anything else → three tags.
-// They are recorded in `topicRequests`, apart from the translations in `requests`.
+// Requests that are not streamed update the site notes: bad → 401, anything else, after 600 ms so the update can be
+// seen running, → "Notes: " and the start of the newest passage. They are recorded in `notesRequests`, apart from the
+// translations in `requests`.
 export async function startMockServer() {
   const requests = [];
-  const topicRequests = [];
+  const notesRequests = [];
   const state = { flakyFailed: false };
   const server = http.createServer((req, res) => {
-    handle(req, res, { requests, topicRequests }, state).catch((error) => {
+    handle(req, res, { requests, notesRequests }, state).catch((error) => {
       console.error(error);
       res.destroy();
     });
@@ -46,7 +46,7 @@ export async function startMockServer() {
   return {
     url: `http://127.0.0.1:${server.address().port}`,
     requests,
-    topicRequests,
+    notesRequests,
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();
@@ -90,7 +90,7 @@ function listModels(req, res) {
   json(res, 200, { object: 'list', data: MODELS.map((id) => ({ id, object: 'model' })) });
 }
 
-async function completions(req, res, { requests, topicRequests }, state, api) {
+async function completions(req, res, { requests, notesRequests }, state, api) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const record = {
@@ -101,7 +101,7 @@ async function completions(req, res, { requests, topicRequests }, state, api) {
     aborted: false,
   };
   const key = keyOf(req);
-  (record.body.stream === true ? requests : topicRequests).push(record);
+  (record.body.stream === true ? requests : notesRequests).push(record);
 
   if (key === 'strict' && REASONING_SWITCHES.some((name) => name in record.body)) {
     const name = REASONING_SWITCHES.find((switchName) => switchName in record.body);
@@ -109,7 +109,7 @@ async function completions(req, res, { requests, topicRequests }, state, api) {
     return;
   }
   if (record.body.stream !== true) {
-    answerTopics(res, key, api);
+    await answerNotes(res, key, api, record.body);
     return;
   }
 
@@ -166,15 +166,18 @@ async function completions(req, res, { requests, topicRequests }, state, api) {
   finish(STREAM_END[api]);
 }
 
-function answerTopics(res, key, api) {
+async function answerNotes(res, key, api, body) {
   if (key === 'bad') {
     json(res, 401, { error: { message: 'Authentication Fails', type: 'invalid_request_error' } });
     return;
   }
+  await delay(600);
+  const passages = [...String(body.messages.at(-1).content).matchAll(/<passage>\n([\s\S]*?)\n<\/passage>/g)];
+  const notes = `Notes: ${(passages.at(-1)?.[1] ?? '').slice(0, 60)}`;
   if (api === 'anthropic') {
-    json(res, 200, { type: 'message', role: 'assistant', content: [{ type: 'text', text: TOPICS }] });
+    json(res, 200, { type: 'message', role: 'assistant', content: [{ type: 'text', text: notes }] });
     return;
   }
-  const message = { role: 'assistant', content: TOPICS };
+  const message = { role: 'assistant', content: notes };
   json(res, 200, { choices: [{ index: 0, message, finish_reason: 'stop' }] });
 }

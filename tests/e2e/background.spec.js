@@ -50,25 +50,6 @@ test('sends a retired model name as deepseek-flash', async ({ page, server, setS
   expect(server.requests[0].body.model).toBe('deepseek-flash');
 });
 
-const askTopics = (page, text) => page.evaluate((value) => chrome.runtime.sendMessage({ type: 'topics', text: value }), text);
-
-test('the topic message returns the tags from a small request that is not streamed', async ({ page, server, setSettings }) => {
-  await setSettings();
-  expect(await askTopics(page, 'Some long text')).toEqual({ topics: ['git', 'continuous integration', 'devops'] });
-  expect(server.requests).toHaveLength(0);
-  const [{ body }] = server.topicRequests;
-  expect(body).toMatchObject({ model: 'deepseek-flash', stream: false, temperature: 0, max_tokens: 200, thinking: { type: 'disabled' } });
-  expect(body.messages[1]).toEqual({ role: 'user', content: 'Some long text' });
-});
-
-test('the topic message returns no tags without a key or on an API error', async ({ page, server, setSettings }) => {
-  await setSettings({ apiKey: '' });
-  expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
-  await setSettings({ apiKey: 'bad' });
-  expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
-  expect(server.topicRequests).toHaveLength(1);
-});
-
 test('accepts a base URL with a trailing slash', async ({ page, server, setSettings }) => {
   await setSettings({ baseUrl: `${server.url}/` });
   expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
@@ -194,12 +175,6 @@ test.describe('other providers', () => {
     expect(body.messages).toEqual([{ role: 'user', content: 'Hello' }]);
   });
 
-  test('Anthropic answers the topic request too', async ({ page, server, setSettings }) => {
-    await setSettings({ provider: 'anthropic' });
-    expect(await askTopics(page, 'Some long text')).toEqual({ topics: ['git', 'continuous integration', 'devops'] });
-    expect(server.topicRequests[0].body).toMatchObject({ stream: false, max_tokens: 200 });
-  });
-
   test('a local server gets no key and a local Origin instead of the extension one', async ({ page, server, setSettings }) => {
     await setSettings({ provider: 'ollama', apiKey: '', model: 'llama3' });
     expect(joined(await translateViaPort(page, 'Hi'))).toBe('[RU] Hi');
@@ -231,9 +206,8 @@ test.describe('other providers', () => {
     expect(await translateViaPort(page, 'Hi')).toEqual([
       { type: 'error', code: 'no_model', message: 'Choose a model for OpenRouter in the settings.' },
     ]);
-    expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
     expect(server.requests).toHaveLength(0);
-    expect(server.topicRequests).toHaveLength(0);
+    expect(server.notesRequests).toHaveLength(0);
   });
 });
 
@@ -243,9 +217,9 @@ test.describe('free built-in translator', () => {
   test('pages are told which engine translates, and the keys', async ({ page, setSettings }) => {
     const keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
     await setSettings({ targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', keys });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', providerName: 'DeepSeek', keys });
     await setSettings({ provider: 'chrome', targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', keys });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', providerName: 'Chrome built-in translator', keys });
   });
 
   test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {
@@ -253,8 +227,7 @@ test.describe('free built-in translator', () => {
     expect(await translateViaPort(page, 'Hi')).toEqual([
       { type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' },
     ]);
-    expect(await askTopics(page, 'Some long text')).toEqual({ topics: [] });
     expect(server.requests).toHaveLength(0);
-    expect(server.topicRequests).toHaveLength(0);
+    expect(server.notesRequests).toHaveLength(0);
   });
 });

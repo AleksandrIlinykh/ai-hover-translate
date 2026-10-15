@@ -29,13 +29,13 @@ test.beforeEach(async ({ setSettings }) => {
 });
 
 test('the free translator translates on the page and sends nothing anywhere', async ({ page, server }) => {
-  await page.goto(`${server.url}/topics.html`);
+  await page.goto(`${server.url}/long.html`);
   await inContentScript(page, fakeBuiltInAI());
   await altHover(page, '#long');
   await expect(popupText(page)).toHaveText(`[ru on device] ${await textOf(page, '#long')}`);
   await page.waitForTimeout(300);
   expect(server.requests).toHaveLength(0);
-  expect(server.topicRequests).toHaveLength(0);
+  expect(server.notesRequests).toHaveLength(0);
   expect((await fakeLog(page)).creates).toEqual([{ sourceLanguage: 'en', targetLanguage: 'ru', activated: false }]);
 });
 
