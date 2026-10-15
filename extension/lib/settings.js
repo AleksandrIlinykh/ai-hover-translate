@@ -3,7 +3,6 @@ import { checkedKeys, currentPlatform } from './keys.js';
 
 export const DEFAULTS = Object.freeze({
   provider: 'chrome',
-  targetLang: 'ru',
 });
 
 export const LANGUAGES = Object.freeze({
@@ -36,11 +35,22 @@ function providerEntry(id, stored) {
   return entry;
 }
 
+// The browser's own language: Chrome's interface language, the same in every part of the extension (pages may be
+// given another navigator.language).
+const browserLanguage = () => globalThis.chrome?.i18n?.getUILanguage?.() ?? globalThis.navigator?.language;
+
+// The language to translate into until the user picks one: the browser's own language when Paragloss offers it,
+// else English.
+export function defaultTargetLang(uiLanguage = browserLanguage()) {
+  const code = typeof uiLanguage === 'string' ? uiLanguage.split('-')[0].toLowerCase() : '';
+  return Object.hasOwn(LANGUAGES, code) ? code : 'en';
+}
+
 // Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } },
 // keys: { read, write } } (see keys.js; keys refused on `platform` become the defaults).
 // Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry,
 // and DeepSeek stays in use.
-export function withDefaults(stored, platform = currentPlatform()) {
+export function withDefaults(stored, platform = currentPlatform(), uiLanguage = browserLanguage()) {
   const old = !stored?.providers && PROVIDER_FIELDS.some((field) => trimmed(stored?.[field]));
   const provider = old ? 'deepseek' : trimmed(stored?.provider);
   const targetLang = trimmed(stored?.targetLang);
@@ -51,7 +61,7 @@ export function withDefaults(stored, platform = currentPlatform()) {
   }
   return {
     provider: Object.hasOwn(PROVIDERS, provider) ? provider : DEFAULTS.provider,
-    targetLang: Object.hasOwn(LANGUAGES, targetLang) ? targetLang : DEFAULTS.targetLang,
+    targetLang: Object.hasOwn(LANGUAGES, targetLang) ? targetLang : defaultTargetLang(uiLanguage),
     providers,
     keys: checkedKeys(stored?.keys, platform),
   };

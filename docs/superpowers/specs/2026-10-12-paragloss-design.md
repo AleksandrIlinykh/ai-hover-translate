@@ -103,7 +103,7 @@ Stored in `chrome.storage.local` under the `settings` key:
 | Field | Default | Purpose |
 |---|---|---|
 | `provider` | `"chrome"` | the provider in use |
-| `targetLang` | `"ru"` | target language code |
+| `targetLang` | the browser's language, else `"en"` | target language code; until one is saved, `defaultTargetLang()` takes Chrome's interface language (`chrome.i18n.getUILanguage()`) when it is in `LANGUAGES`, else English |
 | `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
 | `keys` | `{ read: "Alt", write: Alt+T }` | the key held to read and the shortcut to write (see "Keys") |
 
@@ -450,7 +450,7 @@ Unit tests (`node --test`, no dependencies):
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
-- `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `settings.js`: the starting language from the browser's, or English; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
 - `manifest.json`: the icons exist at every declared size; every content script exists.
 - `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
@@ -588,6 +588,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   123. The extension as shipped keeps the popup, the companion and the compose window in closed shadow roots.
   124. A draft stays with its site: another site opens an empty window, and the first one gets its draft back.
   125. On a site outside the host permissions (`*.test`, mapped to the mock server) an open context panel follows the update.
+  127. With nothing saved, the settings page shows the browser's language to translate into.
   126. With German as the language to translate into, the hints over the page, the popup, its errors, the context panel and the compose window (with the language names) are in German.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

@@ -1,9 +1,16 @@
 import { test, expect } from './fixtures.js';
 import { DEFAULT_KEYS } from '../../extension/lib/keys.js';
+import { LANGUAGES } from '../../extension/lib/settings.js';
 
 const optionsUrl = (extensionId) => `chrome-extension://${extensionId}/options.html`;
 const stored = async (serviceWorker) => (await serviceWorker.evaluate(() => chrome.storage.local.get('settings'))).settings;
 const save = (page) => page.getByRole('button', { name: 'Save' }).click();
+// The language to translate into before one is chosen: Chrome's interface language, or English. Playwright gives
+// pages a language of its own, so it is read on the page itself.
+const browserDefault = async (page) => {
+  const code = (await page.evaluate(() => chrome.i18n.getUILanguage())).split('-')[0];
+  return Object.hasOwn(LANGUAGES, code) ? code : 'en';
+};
 
 // Replaces Chrome's permission prompt: records what is asked and answers `granted`.
 async function stubPermissionPrompt(page, granted) {
@@ -34,9 +41,10 @@ async function fakeTranslatorHere(page, availability) {
   }, availability);
 }
 
-test('opens on the free translator with nothing to fill in', async ({ page, extensionId }) => {
+test('opens on the free translator and the browser language, with nothing to fill in', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
   await expect(page.locator('#provider')).toHaveValue('chrome');
+  await expect(page.locator('#targetLang')).toHaveValue(await browserDefault(page));
   await expect(page.locator('#dataNote')).toHaveText(
     'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.',
   );
@@ -48,13 +56,14 @@ test('opens on the free translator with nothing to fill in', async ({ page, exte
   await expect(page.locator('#provider optgroup')).toHaveCount(4);
   await expect(page.locator('#providerHint')).toContainText('Chrome translates on this computer');
   await expect(page.locator('#apiFields')).toBeHidden();
-  await expect(page.locator('#targetLang')).toHaveValue('ru');
+  await expect(page.locator('#targetLang')).toHaveValue(await browserDefault(page));
   await expect(page.locator('#targetLang option')).toHaveCount(13);
 });
 
 test('Test on the free translator downloads the model from English and translates the sample', async ({ page, extensionId, server }) => {
   await page.goto(optionsUrl(extensionId));
   await fakeTranslatorHere(page, 'downloadable');
+  await page.locator('#targetLang').selectOption('ru');
   await page.getByRole('button', { name: 'Test' }).click();
   await expect(page.locator('#status')).toContainText('Works');
   await expect(page.locator('#status')).toContainText('[ru on device] The quick brown fox jumps over the lazy dog.');
@@ -73,6 +82,7 @@ test('Test on the free translator into English starts from German', async ({ pag
 test('Save with the free translator gets the model from English ready', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
   await fakeTranslatorHere(page, 'downloadable');
+  await page.locator('#targetLang').selectOption('ru');
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved. The English to Russian model is ready.');
   expect(await page.evaluate(() => window.fakeAI.creates)).toEqual(['en>ru']);
@@ -85,7 +95,7 @@ test('Test without the built-in translator says so', async ({ page, extensionId 
   await expect(page.locator('#status')).toHaveText('This browser has no built-in translator. Choose an AI provider in the settings.');
 });
 
-test('DeepSeek shows its defaults, a key link and its models', async ({ page, extensionId }) => {
+test('DeepSeek shows its defaults, a key link and its models', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
   await page.locator('#provider').selectOption('deepseek');
   await expect(page.locator('#apiFields')).toBeVisible();
@@ -94,12 +104,13 @@ test('DeepSeek shows its defaults, a key link and its models', async ({ page, ex
   await expect(page.locator('#modelList option')).toHaveCount(2);
   await expect(page.locator('#baseUrl')).toHaveValue('https://api.deepseek.com');
   await expect(page.locator('#keyLink')).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
-  await expect(page.locator('#targetLang')).toHaveValue('ru');
+  await expect(page.locator('#targetLang')).toHaveValue(await browserDefault(page));
   await expect(page.locator('#targetLang option')).toHaveCount(13);
 });
 
 test('each provider keeps its own key, model and URL while switching, and all are saved', async ({ page, extensionId, serviceWorker }) => {
   await page.goto(optionsUrl(extensionId));
+  await page.locator('#targetLang').selectOption('ru');
   await page.locator('#provider').selectOption('deepseek');
   await page.locator('#apiKey').fill('sk-deep');
   await page.locator('#provider').selectOption('openai');

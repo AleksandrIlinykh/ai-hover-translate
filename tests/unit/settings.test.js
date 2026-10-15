@@ -1,12 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, LANGUAGES, activeProvider, withDefaults } from '../../extension/lib/settings.js';
+import { DEFAULTS, LANGUAGES, activeProvider, defaultTargetLang, withDefaults } from '../../extension/lib/settings.js';
 import { PROVIDERS } from '../../extension/lib/providers.js';
 import { DEFAULT_KEYS } from '../../extension/lib/keys.js';
 
-test('withDefaults returns the free built-in translator, Russian, no provider entries and the default keys when nothing is stored', () => {
-  assert.deepEqual(withDefaults(undefined), { provider: 'chrome', targetLang: 'ru', providers: {}, keys: DEFAULT_KEYS });
-  assert.deepEqual(DEFAULTS, { provider: 'chrome', targetLang: 'ru' });
+test('withDefaults returns the free built-in translator, the browser language, no provider entries and the default keys when nothing is stored', () => {
+  assert.deepEqual(withDefaults(undefined, 'win', 'ru-RU'), { provider: 'chrome', targetLang: 'ru', providers: {}, keys: DEFAULT_KEYS });
+  assert.equal(withDefaults(undefined, 'win', 'de-AT').targetLang, 'de');
+  assert.deepEqual(DEFAULTS, { provider: 'chrome' });
+});
+
+test('the language to translate into starts as the browser language, or English when Paragloss does not offer it', () => {
+  assert.equal(defaultTargetLang('ja'), 'ja');
+  assert.equal(defaultTargetLang('pt-BR'), 'pt');
+  assert.equal(defaultTargetLang('zh-CN'), 'zh');
+  assert.equal(defaultTargetLang('nl-NL'), 'en');
+  assert.equal(defaultTargetLang(undefined), 'en');
 });
 
 test('withDefaults keeps the chosen provider and every provider entry, trimmed', () => {
@@ -31,7 +40,7 @@ test('withDefaults keeps the chosen provider and every provider entry, trimmed',
 
 test('withDefaults drops unknown providers, unknown fields and non-string values', () => {
   const stored = { provider: 'nope', providers: { nope: { apiKey: 'x' }, openai: { apiKey: 42, extra: 'y' } } };
-  assert.deepEqual(withDefaults(stored), {
+  assert.deepEqual(withDefaults(stored, 'win', 'ru'), {
     provider: 'chrome',
     targetLang: 'ru',
     providers: { openai: { apiKey: '', model: '', baseUrl: '' } },
@@ -40,7 +49,7 @@ test('withDefaults drops unknown providers, unknown fields and non-string values
 });
 
 test('withDefaults falls back to the default language for unknown codes', () => {
-  assert.equal(withDefaults({ targetLang: 'xx' }).targetLang, 'ru');
+  assert.equal(withDefaults({ targetLang: 'xx' }, 'win', 'ru-RU').targetLang, 'ru');
 });
 
 test('settings saved before providers existed become the DeepSeek entry', () => {
@@ -97,5 +106,5 @@ test('every language has a two-letter code and an English name', () => {
     assert.match(code, /^[a-z]{2}$/);
     assert.match(name, /^[A-Z][A-Za-z ()]+$/, code);
   }
-  assert.equal(LANGUAGES[DEFAULTS.targetLang], 'Russian');
+  assert.equal(LANGUAGES.en, 'English'); // the default when the browser language is not offered
 });
