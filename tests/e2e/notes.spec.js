@@ -107,7 +107,7 @@ test('Clear empties the context, and the next translation goes without it', asyn
   expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
 });
 
-test('the panel stays open for the next popups on the page, and the popup stays while the mouse is on it', async ({ page, server }) => {
+test('the panel closes with its popup, the next popup opens without it, and the popup stays while the mouse is on it', async ({ page, server }) => {
   await page.goto(`${server.url}/long.html`);
   await translate(page, '#long');
   await part(page, 'context-toggle').click();
@@ -118,12 +118,22 @@ test('the panel stays open for the next popups on the page, and the popup stays 
   await expect(part(page, 'notes')).toBeVisible();
   await page.keyboard.press('Escape');
   await translate(page, '#long2');
-  await expect(part(page, 'notes')).toBeVisible();
+  await expect(part(page, 'notes')).toBeHidden();
+  await expect(part(page, 'context-toggle')).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('a popup is as wide as its paragraph from the start, so the panel opened while it loads is too', async ({ page, server, setSettings }) => {
+  await setSettings({ apiKey: 'late' }); // the translation comes after 1.5 s
+  await page.goto(`${server.url}/long.html`);
+  await altHover(page, '#long');
+  await expect(part(page, 'popup')).toHaveClass(/is-loading/);
+  const paragraph = await page.locator('#long').boundingBox();
+  expect(Math.round((await part(page, 'popup').boundingBox()).width)).toBe(Math.round(paragraph.width));
+  await page.keyboard.up('Alt');
   await part(page, 'context-toggle').click();
-  await expect(part(page, 'notes')).toBeHidden();
-  await page.keyboard.press('Escape');
-  await translate(page, '#short');
-  await expect(part(page, 'notes')).toBeHidden();
+  const panel = await part(page, 'notes').boundingBox();
+  expect(Math.round(panel.width)).toBe(Math.round(paragraph.width));
+  expect(panel.height).toBeLessThan(160);
 });
 
 test('the context of one site never goes with a translation on another', async ({ page, server }) => {

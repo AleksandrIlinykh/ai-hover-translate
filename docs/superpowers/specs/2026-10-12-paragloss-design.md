@@ -245,7 +245,7 @@ Using it: background reads the site's notes itself; pages send none. `buildMessa
 
 The panel (`createNotesPanel`), opened by a "Context" button (title "What Paragloss knows about this site", `aria-expanded`):
 
-- In the translation popup the button is in a footer row under the text (24 px, like the title bar); the panel hangs 4 px under the popup, as wide, in the same shadow root, so it moves with it. Once opened, later popups on the page open with it until it is closed. The popup's area for closing when the mouse leaves takes the panel in (`getRect`).
+- In the translation popup the button is in a footer row under the text (24 px, like the title bar); the panel hangs 4 px under the popup, as wide, in the same shadow root, so it moves with it. Each popup opens with the panel closed: the context is there to look at, not to keep open. The popup's area for closing when the mouse leaves takes the panel in (`getRect`).
 - In the compose window the button is first in the bottom row; the panel goes under the window, 4 px apart and as wide. The toolbar popup has it too, for the active tab's site.
 - Head: "Context for {site}", a faint "Updating…" while an update runs, and "Clear" at the right (disabled with no notes). The text sits under a film: muted, on a light surface with an inner rim and a soft diagonal sheen, with its own dark variant; it cannot be selected or edited (`user-select: none`). Empty: "Nothing yet. It builds up as you translate on this site." Under it: "Built automatically from the texts you translated on {site}. It goes with each translation to {provider}, so the meaning fits the subject."
 - An open panel asks `{ type: 'notes', site? }` for `{ site, text, updating }` and follows `notes-changed` for its site.
@@ -256,7 +256,7 @@ The panel (`createNotesPanel`), opened by a "Context" button (title "What Paragl
 
 - Host: `<div id="paragloss-root">` in `document.documentElement` with an open Shadow DOM inside. Host styles are inline with `!important` (`all: initial`, `position: absolute`, `display: block`, `z-index: 2147483647`) so site rules like `div { display: none !important }` do not touch it. Content styles go through `adoptedStyleSheets` (site CSP does not block them); the popup DOM is built with `createElement`, no `innerHTML`.
 - Coordinates are document coordinates (block rectangle + scroll), so the popup scrolls with the page. When an inner container (`overflow: auto`) scrolls, the popup moves with its paragraph (a capture-phase `scroll` listener).
-- Width follows the content, at most as wide as the block within readable limits: `clamp(block width, 320, 720)` px, and no wider than the window minus 16 px. So a wide paragraph gets a 720 px popup (lines stay readable), a regular paragraph gets a popup of its own width (lines run in parallel with the source), and a narrow column gets 320 px (the translation ends up shorter than the source, not a tall ribbon).
+- Width comes from the block, not from the text, and is set before the popup is first drawn: `clamp(block width, 320, 720)` px, no wider than the window minus 16 px (beside a tall block, no wider than the room on its right). So the popup does not grow while the translation streams in, and the context panel under it is as wide from the start; a short translation sits in a popup of the same width. So a wide paragraph gets a 720 px popup (lines stay readable), a regular paragraph gets a popup of its own width (lines run in parallel with the source), and a narrow column gets 320 px (the translation ends up shorter than the source, not a tall ribbon).
 - **Horizontal:** left edge = paragraph's left edge + 32 px, adjusted so the popup does not leave the window (8 px from the edges).
 - **Beside a tall block:** if the block is taller than 240 px (about 10 lines) and the window has at least 320 px free to its right, the popup goes to the right of the block with a 6 px gap, aligned to the block's top (clamped into the window), up to the window height. This reads like parallel text: the translation sits at the same height as the source. Without that room the rules below apply.
 - **Vertical:** the side (right, above or below) is chosen once, on open:
@@ -558,10 +558,11 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   113. The popup's Context button shows the context 4 px under the popup and as wide: the site, "Updating…" during the update, then the text, which cannot be selected, and the note with the provider.
   114. An empty context says how it builds up, and Clear is disabled.
   115. Clear empties the context, and the next translation goes without it.
-  116. The panel stays open for the next popups on the page until it is closed; the popup stays while the mouse is on the panel.
+  116. The panel closes with its popup and the next popup opens without it; the popup stays while the mouse is on the panel.
   117. The context of 127.0.0.1 never goes with a translation on localhost.
   118. An extension page gets the context of the site it names.
   119. Anthropic builds the context too.
   120. With Chrome's translator the popup has no Context row and nothing is sent.
+  121. A popup still loading is as wide as its paragraph, and the panel opened then is as wide and not stretched down.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

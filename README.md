@@ -48,11 +48,11 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 ## Usage
 
 - Hold Alt: the paragraph under the mouse gets a dashed outline, so you can see what will be translated.
-- Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is about as wide as the paragraph, between 320 and 720 px.
+- Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is as wide as the paragraph, between 320 and 720 px, from the moment it opens.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).
 - With an AI provider, Paragloss learns what each site is about: after each text you translate there, the model rewrites a short context of one or two paragraphs (the subject, what its terms and abbreviations mean and how to render them, which names to keep), and every later translation on the site carries it. Terms come out the same way every time, and ambiguous words take the meaning they have on that site.
-- "Context" under the translation shows what Paragloss knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes.
+- "Context" under the translation shows what Paragloss knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes; each new popup opens with it folded away.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not.
 - A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.

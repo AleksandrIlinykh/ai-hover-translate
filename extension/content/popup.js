@@ -24,7 +24,6 @@
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      width: max-content;
       overflow: hidden;
       border: 1px solid #d0d7de;
       border-radius: 8px;
@@ -167,7 +166,7 @@
     const foot = document.createElement('div');
     foot.className = 'foot';
     foot.hidden = true;
-    const contextButton = button('tool context-toggle', 'Context', () => setContextOpen(!contextOpen));
+    const contextButton = button('tool context-toggle', 'Context', () => setContextOpen(!notesPanel.isOpen()));
     contextButton.title = 'What Paragloss knows about this site';
     contextButton.setAttribute('aria-expanded', 'false');
     foot.append(contextButton);
@@ -187,7 +186,6 @@
     shadow.append(popupEl, notesSlot);
 
     let block = null;
-    let contextOpen = false; // stays for the next popups on this page until the user closes it
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
@@ -195,7 +193,6 @@
     let sized = false; // resized: explicit width and height instead of fitting the text
 
     function setContextOpen(open) {
-      contextOpen = open;
       contextButton.setAttribute('aria-expanded', String(open));
       notesPanel.setOpen(open && !foot.hidden);
     }
@@ -247,14 +244,15 @@
       const rect = block.getBoundingClientRect();
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      // As wide as the block, within readable line lengths.
+      // As wide as the block, within readable line lengths, from the first frame: the width comes from the block,
+      // not from the text, so the popup does not grow while the translation comes in, nor does the panel under it.
       const readableWidth = clamp(rect.width, MIN_WIDTH, MAX_WIDTH);
       if (side === 'right') {
-        popupEl.style.maxWidth = `${Math.min(readableWidth, viewportWidth - rect.right - GAP - MARGIN)}px`;
+        popupEl.style.width = `${Math.min(readableWidth, viewportWidth - rect.right - GAP - MARGIN)}px`;
         popupEl.style.maxHeight = `${viewportHeight - 2 * MARGIN}px`;
       } else {
         const room = (side === 'above' ? rect.top : viewportHeight - rect.bottom) - GAP - MARGIN;
-        popupEl.style.maxWidth = `${Math.min(readableWidth, viewportWidth - 2 * MARGIN)}px`;
+        popupEl.style.width = `${Math.min(readableWidth, viewportWidth - 2 * MARGIN)}px`;
         // No room beside a paragraph taller than the window: overlap it and use the whole window.
         popupEl.style.maxHeight = `${room >= MIN_HEIGHT ? room : viewportHeight - 2 * MARGIN}px`;
       }
@@ -274,8 +272,7 @@
     function placeFixed(left, top) {
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      const widthLimit = sized ? Infinity : parseFloat(popupEl.style.maxWidth) || MAX_WIDTH;
-      popupEl.style.maxWidth = `${Math.min(widthLimit, viewportWidth - 2 * MARGIN)}px`;
+      popupEl.style.maxWidth = `${viewportWidth - 2 * MARGIN}px`;
       popupEl.style.maxHeight = `${viewportHeight - 2 * MARGIN}px`;
       const { width, height } = popupEl.getBoundingClientRect();
       host.style.setProperty('left', `${clamp(left, MARGIN, viewportWidth - MARGIN - width)}px`, 'important');
@@ -363,7 +360,8 @@
         side = chooseSide(block.getBoundingClientRect());
         popupEl.classList.remove('is-pinned', 'is-dragging');
         render('…', { loading: true });
-        notesPanel.setOpen(contextOpen && !foot.hidden);
+        popupEl.style.maxWidth = '';
+        setContextOpen(false); // the context is there to look at, not to keep open
         document.documentElement.append(host);
         bodyEl.scrollTop = 0;
         position();
@@ -385,7 +383,7 @@
       setContext(available, providerName = '') {
         foot.hidden = !available;
         notesPanel.setProvider(providerName);
-        notesPanel.setOpen(contextOpen && available && block !== null);
+        if (!available) setContextOpen(false);
         schedulePosition();
       },
       // Keep the popup glued to its block when something scrolls (the window or an inner container).
