@@ -17,7 +17,7 @@ const LOCAL_ORIGIN_RULE = 1;
 const MAX_DRAFT = 3000;
 const NOTES_PREFIX = 'notes:'; // + site: the site context, in chrome.storage.session
 const LANGS_PREFIX = 'langs:'; // + site: { [lang]: count } of the texts read there, for the compose window
-const DRAFT_KEY = 'compose:draft'; // the last draft, in chrome.storage.session
+const DRAFT_PREFIX = 'draft:'; // + site ('' off any site): the last draft written there, in chrome.storage.session
 const COMPOSE_KEY = 'compose'; // { targets: { [site]: lang }, last: lang } in chrome.storage.local
 
 // The settings hold API keys: only extension pages and this worker may read them, never content scripts.
@@ -104,6 +104,7 @@ chrome.runtime.onConnect.addListener((port) => {
       context: typeof context === 'string' ? context.slice(0, MAX_CONTEXT) : '',
     };
     const site = siteOf(port.sender);
+    watch(site, port.sender);
     translate(request, site, controller.signal, send, (translation) => {
       if (!site || request.mode !== 'text') return;
       countRead(site, lang);
@@ -120,6 +121,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message?.type === 'notes') {
     const site = siteOf(sender, message.site);
+    watch(site, sender);
     notesOf(site).then((text) => sendResponse({ site, text, updating: Boolean(site && stateOf(site).controller) }));
     return true; // the answer comes later
   }
@@ -140,15 +142,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     saveComposeTarget(siteOf(sender, message.site), message.lang);
   }
   if (message?.type === 'compose-draft') {
+    // Each site keeps its own draft, so what was written for one site never shows up on another.
+    const key = DRAFT_PREFIX + (siteOf(sender, message.site) ?? '');
     const draft = typeof message.draft === 'string' ? message.draft.slice(0, MAX_DRAFT) : '';
-    if (draft) chrome.storage.session.set({ [DRAFT_KEY]: draft }).catch(() => {});
-    else chrome.storage.session.remove(DRAFT_KEY).catch(() => {});
+    if (draft) chrome.storage.session.set({ [key]: draft }).catch(() => {});
+    else chrome.storage.session.remove(key).catch(() => {});
   }
 });
 
 // The site context (notes). Each site has one update at a time; texts translated meanwhile wait in its queue
 // for the next one. `learned` keeps the latest sources so the same text does not teach the notes twice.
 const notesState = new Map(); // site -> { queue, learned, controller }
+// The tabs that translated on a site or opened its context, to tell about changes: without the `tabs` permission
+// Chrome does not say which site a tab is on, but a message from a tab does.
+const siteTabs = new Map(); // site -> Set of tab ids
+
+function watch(site, sender) {
+  const tabId = sender.tab?.id;
+  if (!site || tabId === undefined) return;
+  if (!siteTabs.has(site)) siteTabs.set(site, new Set());
+  siteTabs.get(site).add(tabId);
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  for (const tabs of siteTabs.values()) tabs.delete(tabId);
+});
 
 function stateOf(site) {
   if (!notesState.has(site)) notesState.set(site, { queue: [], learned: [], controller: null });
@@ -161,12 +179,13 @@ async function notesOf(site) {
   return (await chrome.storage.session.get(key))[key] ?? '';
 }
 
-// Tells the site's tabs and the toolbar popup what the notes are now.
-async function announce(site, text, updating) {
+// Tells the site's tabs and the toolbar popup what the notes are now. A tab that has moved on to another site
+// ignores it.
+function announce(site, text, updating) {
   const message = { type: 'notes-changed', site, text, updating };
   chrome.runtime.sendMessage(message).catch(() => {}); // no extension page is open
-  for (const tab of await chrome.tabs.query({})) {
-    if (tab.url && hostOf(tab.url) === site) chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+  for (const tabId of siteTabs.get(site) ?? []) {
+    chrome.tabs.sendMessage(tabId, message).catch(() => siteTabs.get(site)?.delete(tabId));
   }
 }
 
@@ -236,7 +255,8 @@ async function composeState(site, pageLang) {
   const provider = activeProvider(settings);
   const { [LANGS_PREFIX + site]: readCounts = {} } = site ? await chrome.storage.session.get(LANGS_PREFIX + site) : {};
   const { [COMPOSE_KEY]: saved = {} } = await chrome.storage.local.get(COMPOSE_KEY);
-  const { [DRAFT_KEY]: draft = '' } = await chrome.storage.session.get(DRAFT_KEY);
+  const draftKey = DRAFT_PREFIX + (site ?? '');
+  const { [draftKey]: draft = '' } = await chrome.storage.session.get(draftKey);
   const from = settings.targetLang;
   const to = chooseComposeTarget({
     from,

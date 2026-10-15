@@ -147,6 +147,21 @@ test('Esc closes the window and the draft comes back next time', async ({ page, 
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
 });
 
+test('a draft stays with its site', async ({ page, server }) => {
+  await openOnComment(page, server);
+  await write(page, DRAFT);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.goto(`http://other.test:${new URL(server.url).port}/page.html`);
+  await altClick(page, '#comment');
+  await expect(part(page, 'draft')).toBeFocused();
+  await expect(part(page, 'draft')).toHaveValue('');
+  await page.keyboard.press('Escape');
+  await page.goto(`${server.url}/page.html`);
+  await altClick(page, '#comment');
+  await expect(part(page, 'draft')).toHaveValue(DRAFT);
+});
+
 test('typing in the window does not reach the page', async ({ page, server }) => {
   await openOnComment(page, server);
   const before = await page.evaluate(() => window.pageKeys);

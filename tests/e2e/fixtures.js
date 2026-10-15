@@ -1,20 +1,36 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, chromium, expect } from '@playwright/test';
 import { startMockServer } from '../mock-server.js';
 
-const EXTENSION_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../extension');
+export const EXTENSION_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../extension');
+
+// The extension keeps its shadow roots closed, so pages cannot read or press anything in them; tests reach inside
+// through a copy whose content/config.js opens them. security.spec.js checks that the real one keeps them closed.
+const TEST_EXTENSION_PATH = path.join(os.tmpdir(), `paragloss-e2e-${process.pid}`);
+fs.rmSync(TEST_EXTENSION_PATH, { recursive: true, force: true });
+fs.cpSync(EXTENSION_PATH, TEST_EXTENSION_PATH, { recursive: true });
+const config = path.join(TEST_EXTENSION_PATH, 'content/config.js');
+fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace("SHADOW_MODE: 'closed'", "SHADOW_MODE: 'open'"));
 
 export const test = base.extend({
+  extensionPath: [TEST_EXTENSION_PATH, { option: true }],
   server: async ({}, use) => {
     const server = await startMockServer();
     await use(server);
     await server.close();
   },
-  context: async ({}, use) => {
+  // Hosts under .test lead to the mock server too: sites outside the extension's host permissions, as most real ones are.
+  context: async ({ extensionPath }, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
-      args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+        '--host-resolver-rules=MAP *.test 127.0.0.1',
+      ],
     });
     await use(context);
     await context.close();

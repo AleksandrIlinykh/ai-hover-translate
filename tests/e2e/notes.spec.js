@@ -136,6 +136,17 @@ test('a popup is as wide as its paragraph from the start, so the panel opened wh
   expect(panel.height).toBeLessThan(160);
 });
 
+test('on a site outside the host permissions an open panel follows the update', async ({ page, server }) => {
+  const site = `jira.example.test:${new URL(server.url).port}`;
+  await page.goto(`http://${site}/long.html`);
+  await translate(page, '#long');
+  await part(page, 'context-toggle').click();
+  await expect(part(page, 'notes-title')).toHaveText(`Context for ${site}`);
+  await expect(part(page, 'notes-updating')).toBeVisible();
+  await expect(part(page, 'notes-film')).toHaveText(NOTES);
+  await expect(part(page, 'notes-updating')).toBeHidden();
+});
+
 test('the context of one site never goes with a translation on another', async ({ page, server }) => {
   await page.goto(`${server.url}/long.html`);
   await translate(page, '#long');

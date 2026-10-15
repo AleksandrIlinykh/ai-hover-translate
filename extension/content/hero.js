@@ -98,7 +98,7 @@
       host = document.createElement('div');
       host.id = ROOT_ID;
       host.style.cssText = HOST_STYLE;
-      const shadow = host.attachShadow({ mode: 'open' });
+      const shadow = host.attachShadow({ mode: globalThis.paragloss.SHADOW_MODE });
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(spriteCss(hero));
       shadow.adoptedStyleSheets = [sheet];

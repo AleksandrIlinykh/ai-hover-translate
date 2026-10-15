@@ -384,9 +384,12 @@
     highlight.hide();
   }
 
+  // Only the user's own input counts: a page could otherwise fake Alt and the mouse to have its text translated
+  // with the user's key.
   addEventListener(
     'mousemove',
     (event) => {
+      if (!event.isTrusted) return;
       mouseX = event.clientX;
       mouseY = event.clientY;
       if (readDown && !readHeld(event)) releaseReadKey(); // keyup happened outside the page
@@ -403,6 +406,7 @@
   addEventListener(
     'keydown',
     (event) => {
+      if (!event.isTrusted) return;
       if (event.key === keys.read) {
         if (event.repeat) return;
         readDown = true;
@@ -436,7 +440,7 @@
   addEventListener(
     'keyup',
     (event) => {
-      if (event.key !== keys.read) return;
+      if (!event.isTrusted || event.key !== keys.read) return;
       releaseReadKey();
       if (usedReadKey) {
         usedReadKey = false;

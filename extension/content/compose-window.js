@@ -28,6 +28,7 @@
 
   function createComposeWindow() {
     let host = null;
+    let shadow = null; // kept, since a closed root cannot be reached through the host
     let composer = null;
     let finish = null; // closes the window and gives the focus back
 
@@ -89,6 +90,7 @@
       composer = null;
       host?.remove();
       host = null;
+      shadow = null;
       finish = null;
     }
 
@@ -101,7 +103,7 @@
       host.id = ROOT_ID;
       host.style.cssText = HOST_STYLE;
       for (const type of ['keydown', 'keyup', 'keypress']) host.addEventListener(type, (event) => event.stopPropagation());
-      const shadow = host.attachShadow({ mode: 'open' });
+      shadow = host.attachShadow({ mode: globalThis.paragloss.SHADOW_MODE });
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(FRAME_CSS);
       shadow.adoptedStyleSheets = [sheet];
@@ -134,7 +136,7 @@
       // Closes the window as its × does.
       dismiss: () => finish?.(),
       isOpen: () => host !== null,
-      isOwn: (node) => host !== null && (node === host || node?.getRootNode?.() === host.shadowRoot),
+      isOwn: (node) => host !== null && (node === host || node?.getRootNode?.() === shadow),
     };
   }
 
