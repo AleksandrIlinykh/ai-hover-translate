@@ -31,6 +31,8 @@
         "content/highlight.js",
         "content/composer.js",
         "content/compose-window.js",
+        "content/pup.js",
+        "content/hero.js",
         "content/main.js"
       ],
       "run_at": "document_end"

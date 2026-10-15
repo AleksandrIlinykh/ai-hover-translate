@@ -413,6 +413,7 @@
       },
       isOpen: () => block !== null,
       isPinned: () => popupEl.classList.contains('is-pinned'),
+      isLoading: () => popupEl.classList.contains('is-loading'),
       isDetached: () => detached,
       getBlock: () => block,
       getRect: () => popupEl.getBoundingClientRect(),

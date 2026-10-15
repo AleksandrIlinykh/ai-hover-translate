@@ -57,6 +57,8 @@ paragloss/
       highlight.js      createHighlight()
       composer.js       createComposer(options): the compose window, also used by the toolbar popup
       compose-window.js createComposeWindow(): the compose window at a text field
+      pup.js            heroes.pup: the companion's frames
+      hero.js           createHero(hero, spot): the companion by the mouse and on the popup
       main.js           trigger, what to translate, talking to background, closing, page cache, Alt+click on fields
     compose.html        the toolbar popup: the compose window on its own
     compose-page.js
@@ -81,7 +83,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `action: { default_title: "Paragloss: write in another language", default_popup: "compose.html" }`: the icon opens the compose window. The settings open from its gear and from the "Options" item Chrome adds to the icon's menu.
 - `commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y", mac: "Command+Shift+Y" } } }`: the same popup from the keyboard; the user can change the keys at `chrome://extensions/shortcuts`. Alt+Shift is avoided: on Windows it often switches the keyboard layout.
@@ -228,6 +230,19 @@ Closing:
 
 On close, the port to background is disconnected and any unfinished API request is cancelled.
 
+## Companion (content/hero.js, content/pup.js)
+
+A small pixel character keeps the reader company, so that Paragloss has a face. The first one is Pup, a shiba (`content/pup.js`). A hero is only data, so others can be added and picked in the settings later.
+
+- A hero is `{ name, width, height, palette, animations }`. Each animation, `{ fps, frames }`, loops. A frame is `height` rows of `width` cells: `.` is transparent, any other character a color of the palette. Pup is 16 by 16 cells drawn at 2 css px per cell (32 px), with `dance` (4 frames at 7 fps: a crouch and a jump with one paw up, each paw in turn) and `idle` (6 frames at 4 fps: standing, with one blink).
+- `createHero(hero, spot)` draws it as inline SVG strips, one per animation, with runs of same-colored cells as paths (`crispEdges`), in its own host `#paragloss-hero`: an open shadow root, `position: fixed`, the top z-index and `pointer-events: none`, so hovering and clicks go through it to the page. CSS steps through the frames of the current mood. With `prefers-reduced-motion` the frames, the pop-in and the hop stop.
+- Where it is (`heroSpot` in `main.js`), checked on every animation frame while it is shown:
+  - while Alt is held (not in a combination) and the mouse position is known: 12 px right of and 16 px below the tip of the mouse pointer (left of it or above it at the window's edges), following it with a slight lag (40% of the way each frame);
+  - else while the popup is open: standing on its top edge, 10 px from its left, or under its bottom edge when there is no room above. It hops there in an arc (320 ms, 18 px high) and then moves with the popup;
+  - else nowhere, and it is removed.
+- Its mood is `dance` until the popup has a translation or an error to show, then `idle`.
+- It is woken by Alt going down, by the mouse moving with Alt held and by the popup opening (`hero.wake()`), and stops its frame loop when it has nowhere to be.
+
 ## Free translator (content/translator.js)
 
 With the `chrome` provider the page translates by itself with Chrome's on-device Translator API (Chrome 138+ on desktop; also in Edge). It is not available in the service worker, so content runs it; nothing is sent to background or anywhere else.
@@ -364,6 +379,7 @@ Unit tests (`node --test`, no dependencies):
 - `topics.js`: the topic request and parsing the tags.
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
+- `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the topic and references; picking references by shared word stems, language, limit and budget; the memory's size and order; choosing the language to write in.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
@@ -371,7 +387,7 @@ Unit tests (`node --test`, no dependencies):
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
-- `mock-server.js` on a random port serves the test pages, `POST /chat/completions`, `POST /messages` (Anthropic's format) and `GET /models` (two chat models, an embedding model and one with a `models/` prefix), with CORS headers and `OPTIONS` handling. The API key selects the behavior: `strict` → 400 for a request that carries a reasoning switch; `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (path, key headers, `Origin`, body, whether the client aborted it), topic requests apart from translations.
+- `mock-server.js` on a random port serves the test pages, `POST /chat/completions`, `POST /messages` (Anthropic's format) and `GET /models` (two chat models, an embedding model and one with a `models/` prefix), with CORS headers and `OPTIONS` handling. The API key selects the behavior: `strict` → 400 for a request that carries a reasoning switch; `bad` → 401, `broke` → 402, `empty` → stream without text, `slow` → one chunk per second, `late` → the first chunk after 1.5 s, `split` → "Hello 👋 world" with the emoji cut between chunks; any other key → `[RU] {text}` in three chunks with pauses. A request that is not streamed (the topic request) is answered with the tags `Git, Continuous Integration, DevOps` (`bad` → 401). Every request is recorded (path, key headers, `Origin`, body, whether the client aborted it), topic requests apart from translations.
 - Settings are set through the extension's service worker (`chrome.storage.local.set`): one provider (DeepSeek unless a test picks another) with `baseUrl` pointing at the mock.
 - Whether the test Chromium has the on-device Translator and LanguageDetector depends on its build and the page (on `http://127.0.0.1` it may, and then its downloads never finish), so tests do not rely on them. Stand-ins are put into the extension's isolated world over CDP (not a user gesture, unlike `page.evaluate`), and the test for a browser without them deletes the real ones there. Playwright's own actions count as user gestures in Chrome, so the stand-in reports activation only within 5 s of a real click.
 - Scenarios:
@@ -463,5 +479,10 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   86. With Chrome's translator the draft and the check are translated on the page, and nothing is sent.
   87. The toolbar popup (opened as a page) translates the draft and opens the settings from its gear.
   88. Settings that arrive 800 ms late do not overwrite a provider picked meanwhile.
+  89. Holding Alt brings a dancing pup, 32 by 32 px, 12 px right of and 16 px below the mouse, and it follows the mouse; a combination with Alt brings none.
+  90. Letting Alt go with nothing translated sends the pup away.
+  91. The pup sits down once the translation is there, and hops onto the popup's top edge, 10 px from its left, when Alt is let go; with no room above the popup it sits under it.
+  92. The pup dances on the popup while the translation is on its way, then sits down.
+  93. The pup leaves with the popup; it never takes the mouse from the page; with reduced motion it stands still.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

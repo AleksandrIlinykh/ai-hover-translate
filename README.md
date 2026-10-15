@@ -59,6 +59,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
+- A little pixel pup keeps you company: it dances next to the mouse while you hold Alt, sits down when the translation is ready, and hops onto the popup when you let Alt go. It never gets in the way of the mouse, and stands still if your system asks for reduced motion.
 
 ## Writing in another language
 

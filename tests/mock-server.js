@@ -26,7 +26,7 @@ const STREAM_END = { openai: 'data: [DONE]\n\n', anthropic: 'event: message_stop
 // Fake OpenAI-compatible API (POST /chat/completions, GET /models), fake Anthropic Messages API (POST /messages)
 // and the fixture pages, on a random local port.
 // The API key picks the behaviour: bad → 401, broke → 402, empty → no text,
-// slow → one chunk per second, split → a four-byte emoji cut between writes,
+// slow → one chunk per second, late → the first chunk after 1.5 seconds, split → a four-byte emoji cut between writes,
 // flaky → 500 on the first request and normal answers after it,
 // strict → 400 for a request that carries a reasoning switch,
 // anything else → "[RU] <text>" in three chunks.
@@ -157,6 +157,7 @@ async function completions(req, res, { requests, topicRequests }, state, api) {
   const translation = `[RU] ${record.body.messages.at(-1).content}`;
   const size = Math.ceil(translation.length / 3);
   const pause = key === 'slow' ? 1000 : 30;
+  if (key === 'late') await delay(1500);
   for (let i = 0; i < translation.length; i += size) {
     if (i > 0) await delay(pause);
     if (record.aborted) return;

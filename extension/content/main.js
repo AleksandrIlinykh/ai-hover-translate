@@ -19,6 +19,8 @@
     createPopup,
     createHighlight,
     createComposeWindow,
+    createHero,
+    heroes,
   } = globalThis.paragloss;
 
   const TRIGGER_DELAY_MS = 200;
@@ -47,6 +49,7 @@
   });
   const highlight = createHighlight();
   const composeWindow = createComposeWindow();
+  const hero = createHero(heroes.pup, heroSpot);
 
   let mouseX = null;
   let mouseY = null;
@@ -86,6 +89,15 @@
     // Over a huge block's padding or margins rather than its text there is nothing to point at.
     if (picked?.reason === 'too-long' && !picked.selection && !isOverText(mouseX, mouseY)) return null;
     return picked;
+  }
+
+  // Where the companion is: by the mouse while Alt is held, then on the popup's edge until it closes. It dances
+  // until there is a translation to look at.
+  function heroSpot() {
+    const mood = popup.isOpen() && !popup.isLoading() ? 'idle' : 'dance';
+    if (altDown && !combo && mouseX !== null) return { mouse: { x: mouseX, y: mouseY }, mood };
+    if (popup.isOpen()) return { perch: popup.getRect(), mood };
+    return null;
   }
 
   function hintFor(picked) {
@@ -163,6 +175,7 @@
     // Chrome's translator needs the source language: a few selected words tell too little, their paragraph more.
     sample = (picked.selection && blockTextOf(picked.target)) || picked.text;
     popup.open(picked.target);
+    hero.wake();
     load();
     if (mode === 'text') askForTopics(picked.text);
   }
@@ -392,6 +405,7 @@
       if (altDown && !combo) {
         scheduleTrigger();
         schedulePreview();
+        hero.wake();
       }
       if (event.buttons === 0) checkLeave(); // a drag, e.g. selecting popup text, never closes it
     },
@@ -410,6 +424,7 @@
         if (!combo) {
           scheduleTrigger();
           updatePreview();
+          hero.wake();
         }
         return;
       }
