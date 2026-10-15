@@ -68,6 +68,9 @@ paragloss/
     compose-page.js
     options.html
     options.js
+    icons/              icon-16/32/48/128.png: the pup, drawn by tools/icons.mjs
+  tools/
+    icons.mjs           draws the icons from the pup's resting frame (node tools/icons.mjs)
   tests/
     unit/               node --test
     e2e/                Playwright
@@ -78,7 +81,7 @@ paragloss/
   README.md
 ```
 
-The extension code lives apart from `node_modules` so Chrome does not pick up dev dependencies. No icons: Chrome shows its default one.
+The extension code lives apart from `node_modules` so Chrome does not pick up dev dependencies. The icons are the pup's resting frame (`content/pup.js`) drawn as pixel art by `tools/icons.mjs`: 16, 32 and 48 px with each cell 1, 2 and 3 px, and 128 px with each cell 6 px inside a transparent 16 px margin, as the Chrome Web Store asks.
 
 ## Manifest
 
@@ -89,6 +92,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `background: { service_worker: "background.js", type: "module" }`.
 - `content_scripts: [{ matches: ["<all_urls>"], js: ["content/config.js", "content/strings.js", "content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/notes-panel.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
+- `icons` and `action.default_icon`: `icons/icon-{16,32,48,128}.png`.
 - `action: { default_title: "Paragloss: write in another language", default_popup: "compose.html" }`: the icon opens the compose window. The settings open from its gear and from the "Options" item Chrome adds to the icon's menu.
 - `commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y", mac: "Command+Shift+Y" } } }`: the same popup from the keyboard; the user can change the keys at `chrome://extensions/shortcuts`. Alt+Shift is avoided: on Windows it often switches the keyboard layout.
 
@@ -447,6 +451,7 @@ Unit tests (`node --test`, no dependencies):
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `manifest.json`: the icons exist at every declared size; every content script exists.
 - `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
