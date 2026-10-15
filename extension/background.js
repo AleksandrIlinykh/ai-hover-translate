@@ -5,6 +5,7 @@ import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
 import { LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
+import { currentPlatform, readKeyName } from './lib/keys.js';
 
 const IDLE_TIMEOUT_MS = 30_000;
 const TOPIC_TIMEOUT_MS = 15_000;
@@ -42,10 +43,15 @@ chrome.declarativeNetRequest
   })
   .catch(() => {});
 
-// Pages get the public part of the settings: the target language and which engine translates. With the free
-// one (Chrome's translator) the page translates by itself.
+// Pages get the public part of the settings: the target language, which engine translates and the keys. With the
+// free engine (Chrome's translator) the page translates by itself.
 function pageSettings(settings) {
-  return { targetLang: settings.targetLang, engine: activeProvider(settings).api === 'browser' ? 'browser' : 'api' };
+  const { read, write } = settings.keys;
+  return {
+    targetLang: settings.targetLang,
+    engine: activeProvider(settings).api === 'browser' ? 'browser' : 'api',
+    keys: { read, readName: readKeyName(read, currentPlatform()), write },
+  };
 }
 
 chrome.storage.onChanged.addListener(async (changes, area) => {

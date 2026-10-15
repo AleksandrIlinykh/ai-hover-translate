@@ -47,7 +47,8 @@ paragloss/
       chat.js           sendChat(provider, payload, signal), readTextStream(body, onText, touch)
       sse.js            createSseParser(), deltaFromPayload(payload)
       errors.js         errorFromStatus(status, bodyText, provider), makeError(code, provider)
-      settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), activeProvider(settings), loadSettings()
+      settings.js       DEFAULTS, LANGUAGES, withDefaults(stored, platform), activeProvider(settings), loadSettings()
+      keys.js           DEFAULT_KEYS, READ_KEYS, shortcutProblem(shortcut, platform), checkedKeys(), formatShortcut(), readKeyName(), shortcutFromEvent(), currentPlatform()
     content/            classic scripts (not modules) sharing globalThis.paragloss
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y), writableField(node)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), blockTextOf(range), contextOf(range)
@@ -97,6 +98,7 @@ Stored in `chrome.storage.local` under the `settings` key:
 | `provider` | `"chrome"` | the provider in use |
 | `targetLang` | `"ru"` | target language code |
 | `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
+| `keys` | `{ read: "Alt", write: Alt+T }` | the key held to read and the shortcut to write (see "Keys") |
 
 A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `chrome`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry, and DeepSeek stays in use. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
 
@@ -120,7 +122,7 @@ Providers (`lib/providers.js`):
 
 Each preset also has a group (`free`, `cloud`, `local`, `other`), whether a key is required (cloud ones only), the page where keys are made, 0 to 3 suggested models and an optional one-line hint (for Qwen: keys work only in their own region). Model names come from the providers' docs as of October 2026; the model field is free text, so a stale suggestion never blocks anyone.
 
-The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language and the engine: `{ type: 'page-settings' }` is answered with `{ targetLang, engine }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang, engine }` to every tab.
+The settings hold API keys, so web pages never see them. On every start background calls `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`: only extension pages and the service worker can read `chrome.storage.local`, content scripts cannot. Content gets only the target language, the engine and the keys: `{ type: 'page-settings' }` is answered with `{ targetLang, engine, keys }`, and after any change of the settings background sends `{ type: 'settings-changed', targetLang, engine, keys }` to every tab. `keys` is `{ read, readName, write }`.
 
 `LANGUAGES` maps a code to its English name, used both in the prompt and in the settings page: ru, en, de, fr, es, it, pt, pl, uk, tr, zh (Chinese (Simplified)), ja, ko.
 
@@ -138,7 +140,33 @@ At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the
 
 The fields are disabled until the saved settings are shown, so a choice made on a slow machine before they arrive is not overwritten by them. Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
+## Keys (lib/keys.js)
+
+Two keys can be changed in the settings, under "Keys"; everything else stays as it is.
+
+- **Hold to translate** (`read`): `Alt` (Option on a Mac) or `Control`. Shift is not offered: it is held to type capitals, and the paragraph under the mouse would get translated while typing. Neither are Command and the Windows key. The same key with a click on a text field opens the compose window there.
+- **Write in another language** (`write`): a shortcut `{ ctrl, alt, shift, meta, code }`, where `code` is the physical key (`KeyA` to `KeyZ`, `Digit0` to `Digit9`), so it works in any keyboard layout. The user clicks the field and presses the shortcut; the field never takes typed text. Tab and Shift+Tab move on, Esc leaves the field, a modifier alone waits for the rest.
+- The toolbar window's shortcut (Ctrl+Shift+Y) is Chrome's to set: the section shows it (`chrome.commands.getAll()`) and opens `chrome://extensions/shortcuts`.
+
+A shortcut is refused, with the reason under the field, and the field keeps the one before (`shortcutProblem`, by platform: `mac`, `win`, `linux` or `cros` from `navigator.userAgentData.platform`):
+
+| Shortcut | Reason |
+|---|---|
+| no letter or digit | "Press Alt or Ctrl with a letter or a digit." |
+| with Command, the Windows key or Super | they belong to the browser and the system |
+| without Alt and Ctrl | "Add Alt or Ctrl: without them the key types text." |
+| Ctrl+Alt | AltGr on Windows and Linux (it types @ or € in many layouts); the VoiceOver key on a Mac |
+| Ctrl with a letter or a digit, without Shift | the browser and text editing (on a Mac: text editing and macOS) |
+| Alt+Shift, not on a Mac | it switches the keyboard layout |
+| Chrome's Ctrl+Shift shortcuts, not on a Mac | A, B, C, D, G, I, J, M, N, O, Q, R, T, V, W, Z, and Y (the toolbar window), each named with what it does; U on Linux and ChromeOS (Unicode input) |
+| Alt+F, Alt+E, Alt+D, not on a Mac | the Chrome menu and the address bar |
+| Alt with a digit on Linux and ChromeOS | it switches tabs |
+
+Keys are stored with the other settings, where only the extension can read or change them; `withDefaults` (`checkedKeys`) puts back the default for an unknown read key and for a write shortcut that is malformed or refused on this platform, so no stored value can take a needed shortcut or leave Paragloss without one. "Reset keys" shows Alt and Alt+T again, to save. Pages get the keys through `page-settings` and `settings-changed` with the read key's name on this platform (`readName`), and use them at once.
+
 ## Trigger (content/main.js)
+
+The trigger is described with Alt, the default; the read key from the settings (see "Keys") takes its place.
 
 State: last mouse coordinates, whether Alt is held, whether another key was pressed while Alt was held (a "combo"), whether a translation was shown during this Alt press, a single trigger timer.
 
@@ -308,7 +336,7 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 
 For the compose window, `chrome.runtime.connect({ name: 'compose' })` takes `{ text, from, to, purpose, topics, useMemory, site }` (`purpose` is `'write'` or `'check'`; `site` only from the toolbar popup, which is not a tab) and answers like `'translate'`. Messages: `{ type: 'compose-open', site?, pageLang }` → `{ languages, from, to, engine, providerName, memorySize, draft }`; `{ type: 'compose-target', site?, lang }` saves the chosen language; `{ type: 'compose-draft', draft }` keeps the draft; `{ type: 'remember-pair', source, translation, lang }` adds a passage read with Chrome's translator. The site of a message is the sender tab's host; extension pages name it themselves. The translate request also carries `lang`, the passage's language if known.
 
-A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang, engine }`, where `engine` is `'browser'` for the free translator and `'api'` otherwise (see "Settings" and "Free translator").
+A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang, engine, keys }`, where `engine` is `'browser'` for the free translator and `'api'` otherwise (see "Settings" and "Free translator").
 
 ## API request (background.js, lib/chat.js, lib/providers.js)
 
@@ -382,7 +410,8 @@ Unit tests (`node --test`, no dependencies):
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the topic and references; picking references by shared word stems, language, limit and budget; the memory's size and order; choosing the language to write in.
-- `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
+- `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
 - `providers.js`: the list of providers and that the manifest covers their hosts; where the text goes (`dataNote`); the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
@@ -489,5 +518,13 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   95. Alt+T away from fields opens the window 22 px below the mouse, and the paragraph under the mouse is neither translated nor sent, nor does the pup come.
   96. Alt+T again closes the window.
   97. Alt+T works with another letter on the T key (another layout), and the page hears only the Alt.
+  98. The settings show Alt to read and Alt+T to write.
+  99. Ctrl to read and Alt+W to write, saved, work at once on a page that was already open: Alt no longer translates, Ctrl does; Alt+T no longer writes, Alt+W does; the intro of the settings says Ctrl.
+  100. The hint over a text field names the read key: "Ctrl+click: write in Russian.".
+  101. K, Ctrl+K and Alt+F are refused in the shortcut field with their reasons and the field keeps Alt+T; Alt+W is taken and saved.
+  102. Tab leaves the shortcut field without recording anything.
+  103. Reset keys brings back Alt and Alt+T, saved.
+  104. Keys refused on this platform in storage (Shift, Ctrl+T) show as the defaults.
+  105. The settings show the toolbar window's shortcut, Ctrl+Shift+Y, and open Chrome's page for extension shortcuts.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

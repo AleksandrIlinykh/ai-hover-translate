@@ -16,13 +16,15 @@
     #status { flex-basis: 100%; overflow-wrap: anywhere; }
     .footer { margin-top: 32px; }
     fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-    #status.error { color: #c62828; }
-    @media (prefers-color-scheme: dark) { #status.error { color: #ef9a9a; } }
+    h2 { margin: 32px 0 0; font-size: 18px; }
+    #writeKey { cursor: pointer; caret-color: transparent; }
+    #status.error, #keysProblem { color: #c62828; }
+    @media (prefers-color-scheme: dark) { #status.error, #keysProblem { color: #ef9a9a; } }
   </style>
 </head>
 <body>
   <h1>Paragloss</h1>
-  <p>Hold Alt and hover over a paragraph to see its translation above it.</p>
+  <p id="intro">Hold Alt and hover over a paragraph to see its translation above it.</p>
   <form id="form">
     <!-- Disabled until the saved settings are shown, so nothing picked earlier gets overwritten. -->
     <fieldset id="fields" disabled>
@@ -54,6 +56,20 @@
     <input id="baseUrl" name="baseUrl" spellcheck="false">
     <p class="hint">The address up to /v1. Clear it to go back to the provider's own.</p>
     </div>
+
+    <h2>Keys</h2>
+    <label for="readKey">Hold to translate</label>
+    <select id="readKey" name="readKey"></select>
+    <p class="hint">Hold it over a paragraph to translate it. Hold it and click a text field to write there.</p>
+
+    <label for="writeKey">Write in another language</label>
+    <div class="row">
+      <input id="writeKey" readonly spellcheck="false" autocomplete="off" aria-describedby="keysProblem keysHint">
+      <button type="button" id="resetKeys">Reset keys</button>
+    </div>
+    <p class="hint" id="keysProblem" role="alert"></p>
+    <p class="hint" id="keysHint">Click the field and press a new shortcut: Alt or Ctrl with a letter or a digit. It opens the compose window at the field you are typing in, or next to the mouse.</p>
+    <p class="hint"><span id="toolbarKeyLine">The toolbar window opens with <kbd id="toolbarKey"></kbd>. </span><a href="#" id="chromeShortcuts">Change it in Chrome</a></p>
 
     <div class="actions">
       <button type="submit">Save</button>

@@ -53,9 +53,9 @@
 
   let mouseX = null;
   let mouseY = null;
-  let altDown = false;
+  let readDown = false;
   let combo = false;
-  let usedAlt = false;
+  let usedReadKey = false;
   let triggerTimer = 0;
   let leaveTimer = 0;
   let previewFrame = 0;
@@ -70,17 +70,21 @@
   let topics = []; // tags of the page topic from DeepSeek, sent with every translation on this page
   let topicState = 'unknown'; // 'unknown', 'asking', 'known', or 'dropped' by the user
   let pageAddress = currentAddress();
+  // The key held to read ('Alt' or 'Control') with its name on this platform, and the shortcut to write
+  // (see lib/keys.js); background sends the ones in the settings.
+  let keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
 
-  // The settings hold API keys, so pages get only the target language, from background.
+  // The settings hold API keys, so pages get only the target language, the engine and the keys, from background.
   chrome.runtime
     .sendMessage({ type: 'page-settings' })
     .then((answer) => {
       targetLang = answer?.targetLang || DEFAULT_LANG;
       engine = answer?.engine || 'api';
+      keys = answer?.keys ?? keys;
     })
     .catch(() => {});
 
-  // What Alt would act on under the mouse: undefined over our own popup, null over nothing to read,
+  // What the read key would act on under the mouse: undefined over our own popup, null over nothing to read,
   // otherwise { target, text } or { target, reason } (target is a block element or a selection Range).
   function pickUnderMouse() {
     const element = elementAt(mouseX, mouseY);
@@ -91,18 +95,18 @@
     return picked;
   }
 
-  // Where the companion is: by the mouse while Alt is held, then on the popup's edge until it closes. It dances
+  // Where the companion is: by the mouse while the read key is held, then on the popup's edge until it closes. It dances
   // until there is a translation to look at.
   function heroSpot() {
     const mood = popup.isOpen() && !popup.isLoading() ? 'idle' : 'dance';
-    if (altDown && !combo && mouseX !== null) return { mouse: { x: mouseX, y: mouseY }, mood };
+    if (readDown && !combo && mouseX !== null) return { mouse: { x: mouseX, y: mouseY }, mood };
     if (popup.isOpen()) return { perch: popup.getRect(), mood };
     return null;
   }
 
   function hintFor(picked) {
     if (picked.reason === 'too-long') return HINTS[picked.selection ? 'too-long-selection' : 'too-long'];
-    if (picked.reason === 'editable' && writableField(picked.target)) return `Alt+click: write in ${languageNames.of(targetLang)}.`;
+    if (picked.reason === 'editable' && writableField(picked.target)) return `${keys.readName}+click: write in ${languageNames.of(targetLang)}.`;
     if (picked.reason) return HINTS[picked.reason];
     if (sameLanguage.get(picked.text)) return `Already in ${languageNames.of(targetLang)}.`;
     return '';
@@ -120,10 +124,10 @@
   }
 
   async function trigger() {
-    if (!altDown || combo || mouseX === null) return;
+    if (!readDown || combo || mouseX === null) return;
     const picked = pickUnderMouse();
     if (!picked || picked.reason || sameTarget(picked.target, popup.getBlock())) return;
-    usedAlt = true;
+    usedReadKey = true;
     const ticket = ++triggerTicket;
     const skip = await isAlreadyInTargetLanguage(picked.text);
     if (ticket !== triggerTicket) return; // the mouse has moved on to something else
@@ -145,7 +149,7 @@
 
   // Outline what Alt + hover would translate, before the trigger delay runs out.
   function updatePreview() {
-    if (!altDown || combo || mouseX === null) {
+    if (!readDown || combo || mouseX === null) {
       highlight.hide();
       return;
     }
@@ -391,10 +395,23 @@
     triggerTimer = setTimeout(trigger, TRIGGER_DELAY_MS);
   }
 
-  // Alt+T writes. T is the physical key, so it works in any keyboard layout.
+  // The shortcut to write, Alt+T unless the settings say otherwise. Its key is the physical one, so it works in any
+  // keyboard layout.
   function isWriteKey(event) {
-    return event.code === 'KeyT' && event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey && event.isTrusted;
+    const { write } = keys;
+    return (
+      event.isTrusted &&
+      event.code === write.code &&
+      event.ctrlKey === write.ctrl &&
+      event.altKey === write.alt &&
+      event.shiftKey === write.shift &&
+      event.metaKey === write.meta
+    );
   }
+
+  // Whether the key held to read is down during `event`, and whether another modifier is.
+  const readHeld = (event) => (keys.read === 'Control' ? event.ctrlKey : event.altKey);
+  const otherModifiers = (event) => event.shiftKey || event.metaKey || (keys.read === 'Control' ? event.altKey : event.ctrlKey);
 
   function focusedElement() {
     let element = document.activeElement;
@@ -417,8 +434,8 @@
     else openCompose({ point: mouseX === null ? null : { x: mouseX, y: mouseY }, returnTo: focused });
   }
 
-  function releaseAlt() {
-    altDown = false;
+  function releaseReadKey() {
+    readDown = false;
     clearTimeout(triggerTimer);
     highlight.hide();
   }
@@ -428,8 +445,8 @@
     (event) => {
       mouseX = event.clientX;
       mouseY = event.clientY;
-      if (altDown && !event.altKey) releaseAlt(); // keyup happened outside the page
-      if (altDown && !combo) {
+      if (readDown && !readHeld(event)) releaseReadKey(); // keyup happened outside the page
+      if (readDown && !combo) {
         scheduleTrigger();
         schedulePreview();
         hero.wake();
@@ -442,12 +459,12 @@
   addEventListener(
     'keydown',
     (event) => {
-      if (event.key === 'Alt') {
+      if (event.key === keys.read) {
         if (event.repeat) return;
-        altDown = true;
-        // Ctrl/Shift/Meta already held (Ctrl+Alt+…, the Alt+Shift layout switch) is not a translation request.
-        combo = event.ctrlKey || event.shiftKey || event.metaKey;
-        usedAlt = false;
+        readDown = true;
+        // Another modifier already held (Ctrl+Alt+…, the Alt+Shift layout switch) is not a translation request.
+        combo = otherModifiers(event);
+        usedReadKey = false;
         if (!combo) {
           scheduleTrigger();
           updatePreview();
@@ -455,7 +472,7 @@
         }
         return;
       }
-      if (altDown) {
+      if (readDown) {
         combo = true; // Alt+Tab, Alt+←, … are not translation requests
         clearTimeout(triggerTimer);
         highlight.hide();
@@ -463,7 +480,7 @@
       if (isWriteKey(event)) {
         event.preventDefault(); // the page hears neither the T nor the letter it types
         event.stopImmediatePropagation();
-        usedAlt = true;
+        usedReadKey = true;
         if (!event.repeat) toggleCompose();
         return;
       }
@@ -475,23 +492,23 @@
   addEventListener(
     'keyup',
     (event) => {
-      if (event.key !== 'Alt') return;
-      releaseAlt();
-      if (usedAlt) {
-        usedAlt = false;
+      if (event.key !== keys.read) return;
+      releaseReadKey();
+      if (usedReadKey) {
+        usedReadKey = false;
         event.preventDefault(); // stop Chrome on Windows from focusing its "⋮" menu
       }
     },
     true,
   );
 
-  addEventListener('blur', releaseAlt);
+  addEventListener('blur', releaseReadKey);
 
   addEventListener(
     'scroll',
     () => {
       if (popup.isOpen()) popup.follow();
-      if (altDown && !combo) schedulePreview();
+      if (readDown && !combo) schedulePreview();
     },
     { capture: true, passive: true },
   );
@@ -502,16 +519,16 @@
     else closePopup();
   });
 
-  // Alt+click on a field where one writes opens the compose window there.
+  // A click with the read key held (Alt+click) on a field where one writes opens the compose window there.
   addEventListener(
     'click',
     (event) => {
-      if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey || !event.isTrusted) return;
+      if (!readHeld(event) || otherModifiers(event) || !event.isTrusted) return;
       const target = event.composedPath()[0];
       if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
       const field = writableField(target);
       if (!field) return;
-      usedAlt = true; // releasing Alt must not focus Chrome's menu
+      usedReadKey = true; // releasing Alt must not focus Chrome's menu
       highlight.hide();
       closePopup();
       openCompose({ field });
@@ -542,6 +559,7 @@
     forgetTopics();
     targetLang = message.targetLang || DEFAULT_LANG;
     engine = message.engine || 'api';
+    keys = message.keys ?? keys;
     modelAsked = false;
   });
 })();

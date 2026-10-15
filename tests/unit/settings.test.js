@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, LANGUAGES, activeProvider, withDefaults } from '../../extension/lib/settings.js';
 import { PROVIDERS } from '../../extension/lib/providers.js';
+import { DEFAULT_KEYS } from '../../extension/lib/keys.js';
 
-test('withDefaults returns the free built-in translator, Russian and no provider entries when nothing is stored', () => {
-  assert.deepEqual(withDefaults(undefined), { provider: 'chrome', targetLang: 'ru', providers: {} });
+test('withDefaults returns the free built-in translator, Russian, no provider entries and the default keys when nothing is stored', () => {
+  assert.deepEqual(withDefaults(undefined), { provider: 'chrome', targetLang: 'ru', providers: {}, keys: DEFAULT_KEYS });
   assert.deepEqual(DEFAULTS, { provider: 'chrome', targetLang: 'ru' });
 });
 
@@ -24,6 +25,7 @@ test('withDefaults keeps the chosen provider and every provider entry, trimmed',
       openai: { apiKey: 'sk-o', model: 'gpt-x', baseUrl: '' },
       deepseek: { apiKey: 'sk-d', model: '', baseUrl: 'https://example.com/v1' },
     },
+    keys: DEFAULT_KEYS,
   });
 });
 
@@ -33,6 +35,7 @@ test('withDefaults drops unknown providers, unknown fields and non-string values
     provider: 'chrome',
     targetLang: 'ru',
     providers: { openai: { apiKey: '', model: '', baseUrl: '' } },
+    keys: DEFAULT_KEYS,
   });
 });
 
@@ -46,7 +49,16 @@ test('settings saved before providers existed become the DeepSeek entry', () => 
     provider: 'deepseek',
     targetLang: 'de',
     providers: { deepseek: { apiKey: 'sk-1', model: 'deepseek-v4-pro', baseUrl: 'https://example.com' } },
+    keys: DEFAULT_KEYS,
   });
+});
+
+test('withDefaults keeps keys allowed on the platform and replaces the rest with the defaults', () => {
+  const write = { ctrl: true, alt: false, shift: true, meta: false, code: 'KeyK' };
+  assert.deepEqual(withDefaults({ keys: { read: 'Control', write } }, 'win').keys, { read: 'Control', write });
+  const refused = { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyF' };
+  assert.deepEqual(withDefaults({ keys: { read: 'Control', write: refused } }, 'win').keys, { read: 'Control', write: DEFAULT_KEYS.write });
+  assert.deepEqual(withDefaults({ keys: { read: 'Control', write: refused } }, 'mac').keys, { read: 'Control', write: refused });
 });
 
 test('retired DeepSeek model names fall back to the default model', () => {

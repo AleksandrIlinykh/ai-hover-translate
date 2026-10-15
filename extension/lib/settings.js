@@ -1,4 +1,5 @@
 import { PROVIDERS } from './providers.js';
+import { checkedKeys, currentPlatform } from './keys.js';
 
 export const DEFAULTS = Object.freeze({
   provider: 'chrome',
@@ -35,10 +36,11 @@ function providerEntry(id, stored) {
   return entry;
 }
 
-// Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } } }.
+// Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } },
+// keys: { read, write } } (see keys.js; keys refused on `platform` become the defaults).
 // Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry,
 // and DeepSeek stays in use.
-export function withDefaults(stored) {
+export function withDefaults(stored, platform = currentPlatform()) {
   const old = !stored?.providers && PROVIDER_FIELDS.some((field) => trimmed(stored?.[field]));
   const provider = old ? 'deepseek' : trimmed(stored?.provider);
   const targetLang = trimmed(stored?.targetLang);
@@ -51,6 +53,7 @@ export function withDefaults(stored) {
     provider: Object.hasOwn(PROVIDERS, provider) ? provider : DEFAULTS.provider,
     targetLang: Object.hasOwn(LANGUAGES, targetLang) ? targetLang : DEFAULTS.targetLang,
     providers,
+    keys: checkedKeys(stored?.keys, platform),
   };
 }
 

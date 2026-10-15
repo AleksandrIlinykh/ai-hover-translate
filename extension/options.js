@@ -3,12 +3,23 @@ import { PROVIDERS, dataNote, hostPattern, modelsRequest, parseModels, setupProb
 import { readTextStream, sendChat } from './lib/chat.js';
 import { buildMessages } from './lib/prompt.js';
 import { errorFromStatus, makeError } from './lib/errors.js';
+import {
+  DEFAULT_KEYS,
+  READ_KEYS,
+  currentPlatform,
+  formatShortcut,
+  readKeyName,
+  shortcutFromEvent,
+  shortcutProblem,
+} from './lib/keys.js';
 
 const TEST_TEXT = 'The quick brown fox jumps over the lazy dog.';
 const TEST_TEXT_DE = 'Der schnelle braune Fuchs springt über den faulen Hund.'; // for a test into English
 const TIMEOUT_MS = 30_000;
 const GROUPS = { free: 'Free, on this computer', cloud: 'Cloud APIs', local: 'Local AI models', other: 'Other' };
 const FIELDS = ['apiKey', 'model', 'baseUrl'];
+const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Shift', 'Meta']);
+const platform = currentPlatform();
 
 const form = document.getElementById('form');
 const status = document.getElementById('status');
@@ -17,6 +28,7 @@ const element = (id) => document.getElementById(id);
 const drafts = {}; // provider id -> { apiKey, model, baseUrl } as shown, kept while switching providers
 const loadedModels = {}; // provider id -> model ids from its API
 let current = ''; // the provider on screen
+let writeShortcut = DEFAULT_KEYS.write; // the shortcut to write on screen
 
 for (const [code, name] of Object.entries(LANGUAGES)) {
   form.elements.targetLang.add(new Option(name, code));
@@ -29,6 +41,7 @@ for (const [group, label] of Object.entries(GROUPS)) {
   }
   form.elements.provider.append(optgroup);
 }
+for (const read of READ_KEYS) form.elements.readKey.add(new Option(readKeyName(read, platform), read));
 
 function report(text, isError = false) {
   status.textContent = text;
@@ -37,6 +50,8 @@ function report(text, isError = false) {
 
 // Fields show the provider's defaults instead of blanks.
 function show(settings) {
+  element('intro').textContent = `Hold ${readKeyName(settings.keys.read, platform)} and hover over a paragraph to see its translation above it.`;
+  showKeys(settings.keys);
   form.elements.targetLang.value = settings.targetLang;
   for (const [id, preset] of Object.entries(PROVIDERS)) {
     const entry = settings.providers[id];
@@ -231,16 +246,64 @@ element('test').addEventListener('click', async () => {
   }
 });
 
+function showKeys(keys) {
+  form.elements.readKey.value = keys.read;
+  writeShortcut = keys.write;
+  form.elements.writeKey.value = formatShortcut(keys.write, platform);
+  element('keysProblem').textContent = '';
+}
+
+// The shortcut field records the next shortcut pressed in it; one that types text, or that the browser or the system
+// needs, is refused with the reason and the field keeps the one before.
+form.elements.writeKey.addEventListener('keydown', (event) => {
+  const plain = !event.ctrlKey && !event.altKey && !event.metaKey;
+  if (event.key === 'Tab' && plain) return; // Tab and Shift+Tab move on
+  event.preventDefault();
+  if (MODIFIER_KEYS.has(event.key)) return; // the rest of the shortcut is on its way
+  if (event.key === 'Escape' && plain && !event.shiftKey) {
+    event.currentTarget.blur();
+    return;
+  }
+  const shortcut = shortcutFromEvent(event);
+  const problem = shortcutProblem(shortcut, platform);
+  element('keysProblem').textContent = problem ?? '';
+  if (problem) return;
+  writeShortcut = shortcut;
+  form.elements.writeKey.value = formatShortcut(shortcut, platform);
+});
+
+element('resetKeys').addEventListener('click', () => showKeys(DEFAULT_KEYS));
+
+// The toolbar window's shortcut is Chrome's to set, on its own page for extension shortcuts.
+async function showToolbarKey() {
+  const commands = await chrome.commands.getAll();
+  const shortcut = commands.find((command) => command.name === '_execute_action')?.shortcut ?? '';
+  element('toolbarKey').textContent = shortcut;
+  element('toolbarKeyLine').hidden = !shortcut;
+  element('chromeShortcuts').textContent = shortcut ? 'Change it in Chrome' : 'Give the toolbar window a shortcut in Chrome';
+}
+
+element('chromeShortcuts').addEventListener('click', (event) => {
+  event.preventDefault();
+  chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const provider = providerInForm();
   const allowed = requestHost(provider);
-  const settings = withDefaults({ provider: current, targetLang: form.elements.targetLang.value, providers: entriesToStore() });
+  const settings = withDefaults({
+    provider: current,
+    targetLang: form.elements.targetLang.value,
+    providers: entriesToStore(),
+    keys: { read: form.elements.readKey.value, write: writeShortcut },
+  });
   await chrome.storage.local.set({ settings });
   show(settings);
   report((await allowed) ? 'Saved' : `Saved, but ${notAllowed(provider)}, so requests to it will fail.`);
   if (provider.api === 'browser') await prepareBrowserModel(settings.targetLang);
 });
 
+showToolbarKey();
 show(await loadSettings());
 element('fields').disabled = false;

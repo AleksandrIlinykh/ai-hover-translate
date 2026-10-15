@@ -14,7 +14,7 @@ Paragloss is an open-source browser extension that translates the paragraph you 
   - once per page, the first 1,500 characters of the first long paragraph you translate, so the provider can name the page topic in a few tags; those tags then go with later translations on that page.
 - **Text you write in Paragloss's compose window** (opened with Alt+click on a text field, Alt+T, the toolbar icon or Ctrl+Shift+Y): your draft, and the translation when you click "Check". With an AI provider, the page topic tags and up to 3 passages you translated on the same site, with their translations, go with the draft so the same terms come back. Paragloss never reads the text around the field, and never puts text into the page or sends anything there.
 - **With the built-in translator, also:** on your first click on a page, the start of the page text (up to 1,000 characters) or its declared language is read on your computer to tell the page's language and get the translation model ready. This never leaves your computer.
-- **Your settings**: the language to translate into, the provider you chose and, for each provider you filled in, its API key, model and API URL.
+- **Your settings**: the language to translate into, the provider you chose and, for each provider you filled in, its API key, model and API URL, and the keys you set to read and write.
 - **Translations**: kept so that the same text is not translated twice (see "Storage").
 
 Paragloss does not read or send anything until you hold Alt, write in its compose window, click "Test" or "Load models" in its settings, or, with the built-in translator, click on a page as described above.

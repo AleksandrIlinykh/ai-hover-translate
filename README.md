@@ -73,6 +73,12 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 
 After changing the extension files, click "Reload" on its card in `chrome://extensions` and reload open tabs.
 
+## Keys
+
+- Alt to read and Alt+T to write are the defaults. In the settings, under "Keys", you can hold Ctrl to read instead, and record another shortcut to write: click the field and press it.
+- Shortcuts that would type text, or that Chrome or your system needs (such as Ctrl+T, Alt+F, Ctrl+Alt, which is AltGr, or Alt+Shift, which switches the layout), are refused with the reason. "Reset keys" brings the defaults back.
+- The toolbar window's shortcut (Ctrl+Shift+Y) is set in Chrome, at `chrome://extensions/shortcuts`; the settings link there.
+
 ## Development
 
     npm install

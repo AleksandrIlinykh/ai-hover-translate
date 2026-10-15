@@ -240,11 +240,12 @@ test.describe('other providers', () => {
 test.describe('free built-in translator', () => {
   const pageSettings = (page) => page.evaluate(() => chrome.runtime.sendMessage({ type: 'page-settings' }));
 
-  test('pages are told which engine translates', async ({ page, setSettings }) => {
+  test('pages are told which engine translates, and the keys', async ({ page, setSettings }) => {
+    const keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
     await setSettings({ targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api' });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', keys });
     await setSettings({ provider: 'chrome', targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser' });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', keys });
   });
 
   test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {

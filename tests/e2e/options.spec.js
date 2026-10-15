@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures.js';
+import { DEFAULT_KEYS } from '../../extension/lib/keys.js';
 
 const optionsUrl = (extensionId) => `chrome-extension://${extensionId}/options.html`;
 const stored = async (serviceWorker) => (await serviceWorker.evaluate(() => chrome.storage.local.get('settings'))).settings;
@@ -118,6 +119,7 @@ test('each provider keeps its own key, model and URL while switching, and all ar
       deepseek: { apiKey: 'sk-deep', model: '', baseUrl: '' },
       openai: { apiKey: 'sk-open', model: '', baseUrl: '' },
     },
+    keys: DEFAULT_KEYS,
   });
 });
 
@@ -136,6 +138,7 @@ test('saves trimmed values, and a blank model or URL means the default', async (
     provider: 'deepseek',
     targetLang: 'de',
     providers: { deepseek: { apiKey: 'sk-test', model: '', baseUrl: '' } },
+    keys: DEFAULT_KEYS,
   });
 });
 
