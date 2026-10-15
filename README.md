@@ -63,7 +63,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 
 ## Writing in another language
 
-- Hold Alt over a text field and click (Alt+click): a window opens under it. Write in your own language at the top; the translation into the page's language appears below as you type. Click "Copy" (or press Ctrl+Enter) and paste it into the field.
+- Hold Alt over a text field and click (Alt+click): a window opens under it. Write in your own language at the top; the translation into the page's language appears below a second after you stop typing. While it is on its way, the one before stays, with an ellipsis after it. Click "Copy" (or press Ctrl+Enter) and paste it into the field.
 - Or press Alt+T: the same window opens at the field you are typing in, or next to the mouse. Alt+T again closes it. It works in any keyboard layout.
 - To write for anywhere else, click the Paragloss icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
 - "Check" translates the result back into your language, to see whether the meaning held.

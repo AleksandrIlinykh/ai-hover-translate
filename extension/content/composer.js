@@ -1,7 +1,7 @@
 // The compose window: the user writes in their own language and gets a translation into another one to copy.
 // Shared by the window at a text field on a page (content/compose-window.js) and the toolbar popup (compose.html).
 (() => {
-  const TRANSLATE_DELAY_MS = 500;
+  const TRANSLATE_DELAY_MS = 1000; // after the typing stops
   const SAVE_DELAY_MS = 300;
   const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js
   const ACTION_LABELS = { settings: 'Open settings', retry: 'Retry', download: 'Download' };
@@ -44,7 +44,7 @@
     .result { min-height: 48px; max-height: 40vh; overflow-y: auto; padding: 6px 8px; border-radius: 6px; background: #f6f8fa; }
     .translation { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
     .translation:empty::before { content: attr(data-placeholder); opacity: 0.5; }
-    .composer.is-loading .translation { animation: pulse 1s ease-in-out infinite; }
+    .pending { animation: pulse 1s ease-in-out infinite; }
     .composer.is-error .translation { color: #cf222e; }
     .back { margin-top: 6px; font-size: 13px; opacity: 0.75; white-space: pre-wrap; overflow-wrap: anywhere; }
     .back:empty { display: none; }
@@ -204,6 +204,7 @@
 
     let useContext = true;
     let translation = ''; // the finished translation of the current draft
+    let shown = ''; // the last finished translation, kept on screen while the next one is on its way
     let pending = null; // the translation in progress: { controller, done: Promise }
     let translateTimer = 0;
     let saveTimer = 0;
@@ -223,8 +224,10 @@
       context.hidden = !useContext || engine === 'browser' || parts.length === 0;
     }
 
+    // A translation on its way (`loading`) shows as `text`, the one before, with a pulsing ellipsis after it.
     function showResult(text, { loading = false, error = null } = {}) {
-      translationEl.textContent = text;
+      if (loading) translationEl.replaceChildren(...(text ? [`${text} `] : []), element('span', 'pending', '\u2026'));
+      else translationEl.textContent = text;
       root.classList.toggle('is-loading', loading);
       root.classList.toggle('is-error', Boolean(error));
       action = error?.action ?? null;
@@ -264,26 +267,34 @@
       });
     }
 
-    // Translates the draft now; resolves when this translation is over (or replaced by a newer one).
-    function translateNow() {
+    // The draft changed: the translation so far stays with an ellipsis after it until the new one is there, whole.
+    function markChanged() {
       cancel();
       backEl.textContent = '';
       translation = '';
-      const text = draftEl.value.trim();
-      if (!text) {
+      if (draftEl.value.trim()) {
+        showResult(shown, { loading: true });
+      } else {
+        shown = '';
         showResult('');
-        return Promise.resolve();
       }
+    }
+
+    // Translates the draft now; resolves when this translation is over (or replaced by a newer one).
+    function translateNow() {
+      markChanged();
+      const text = draftEl.value.trim();
+      if (!text) return Promise.resolve();
       const controller = new AbortController();
-      showResult('…', { loading: true });
       const done = run({
         text,
         from,
         to: target.value,
         purpose: 'write',
         signal: controller.signal,
+        // Only a download's progress shows; the translation itself shows when it is complete.
         onChunk: (partial, isProgress = false) => {
-          if (!controller.signal.aborted) showResult(partial, { loading: isProgress });
+          if (isProgress && !controller.signal.aborted) showResult(partial, { loading: true });
         },
       }).then((outcome) => {
         if (controller.signal.aborted || outcome.aborted) return;
@@ -300,6 +311,7 @@
           return;
         }
         translation = outcome.text.trim();
+        shown = translation;
         showResult(translation);
       });
       pending = { controller, done };
@@ -377,6 +389,7 @@
 
     draftEl.addEventListener('input', () => {
       scheduleSave();
+      markChanged();
       if (!composing) scheduleTranslation();
     });
     draftEl.addEventListener('compositionstart', () => {
@@ -399,6 +412,7 @@
     });
     target.addEventListener('change', () => {
       onTargetChange(target.value);
+      shown = ''; // it is in the language before
       translateNow();
     });
     dropContext.addEventListener('click', () => {

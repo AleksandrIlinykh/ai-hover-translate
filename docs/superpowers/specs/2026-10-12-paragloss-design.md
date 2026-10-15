@@ -309,7 +309,7 @@ Three ways in, one window (`createComposer` in `content/composer.js`):
 The window:
 
 - Title row: "{own language} →" and a select of the other languages (the target), what Paragloss knows about the site ("{n} passage(s) read here · {tags}") with a round "×" to translate without it, and "×" or the gear.
-- The draft (`textarea`, "Write in {language}"), focused on open. Below it, the translation, which follows the draft 500 ms after the typing stops; a newer draft cancels the request in flight. Nothing is sent during an IME composition.
+- The draft (`textarea`, "Write in {language}"), focused on open. Below it, the translation, which follows the draft 1 s after the typing stops; nothing is sent during an IME composition. From the first key of a change, the translation so far stays with a pulsing ellipsis after it (only the ellipsis pulses), or the ellipsis alone when there is none, and Copy and Check wait; a request in flight for the draft before is cancelled. The new translation replaces the old one whole when it is complete, never in parts; only a model download shows its progress meanwhile. Another target language drops the translation so far, as it is in the language before.
 - Below the translation, after "Check", the translation back into the user's language ("Back in {language}: …"), to see whether the meaning held. Only on request, to keep the requests down.
 - The engine in use ("Chrome, on this computer" or the provider's name), "Check", and "Copy" (also Ctrl+Enter, which waits for a translation still on its way). Errors show in place of the translation with the same buttons as the popup: "Open settings", "Retry" or "Download".
 - The last draft is kept in the session (Esc keeps it; Copy clears it) and comes back in either window.
@@ -526,5 +526,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   103. Reset keys brings back Alt and Alt+T, saved.
   104. Keys refused on this platform in storage (Shift, Ctrl+T) show as the defaults.
   105. The settings show the toolbar window's shortcut, Ctrl+Shift+Y, and open Chrome's page for extension shortcuts.
+  106. The draft is not sent 700 ms after the typing stops, and is sent after 1 s.
+  107. From the first key the translation shows an ellipsis, and while a slow answer streams in it shows nothing but the ellipsis and then the whole translation; Copy waits for it.
+  108. Typing more keeps the translation so far with the ellipsis after it; only the ellipsis pulses; then the new translation replaces it.
+  109. Another target language shows the ellipsis alone.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

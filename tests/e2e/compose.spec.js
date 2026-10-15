@@ -49,6 +49,60 @@ test('the draft is translated after a pause in typing, with one request and the 
   expect(request.body).toMatchObject({ stream: true, thinking: { type: 'disabled' } });
 });
 
+test('the draft waits a second after the typing stops before it is sent', async ({ page, server }) => {
+  await openOnComment(page, server);
+  await write(page, DRAFT);
+  await page.waitForTimeout(700);
+  expect(server.requests).toHaveLength(0);
+  await expect.poll(() => server.requests.length).toBe(1);
+});
+
+test('an ellipsis shows from the first key until the whole translation is there, never a part of it', async ({ page, server, setSettings }) => {
+  await setSettings({ apiKey: 'slow' }); // one chunk a second
+  await openOnComment(page, server);
+  // Every text the translation shows, from now on.
+  await page.evaluate(() => {
+    const translation = document.querySelector('#paragloss-compose').shadowRoot.querySelector('.translation');
+    window.shownTexts = [];
+    new MutationObserver(() => window.shownTexts.push(translation.textContent)).observe(translation, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  });
+  await part(page, 'draft').press('p');
+  await expect(part(page, 'translation')).toHaveText('…');
+  await write(page, 'rivet mir');
+  await expect.poll(() => server.requests.length).toBe(1);
+  await expect(part(page, 'copy')).toBeDisabled();
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`, { timeout: 5000 });
+  await expect(part(page, 'copy')).toBeEnabled();
+  const shown = new Set(await page.evaluate(() => window.shownTexts));
+  expect([...shown].toSorted()).toEqual(['[RU] privet mir', '…']);
+});
+
+test('typing more keeps the translation so far, the ellipsis after it, and only the ellipsis pulses', async ({ page, server }) => {
+  await openOnComment(page, server);
+  await write(page, DRAFT);
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
+  await write(page, ' i vsem');
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT} …`);
+  await expect(part(page, 'copy')).toBeDisabled();
+  expect(await part(page, 'translation').evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
+  expect(await part(page, 'pending').evaluate((element) => getComputedStyle(element).animationName)).toBe('pulse');
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT} i vsem`);
+  await expect(part(page, 'pending')).toHaveCount(0);
+});
+
+test('another language does not keep the translation in the one before', async ({ page, server, setSettings }) => {
+  await setSettings({ apiKey: 'slow' });
+  await openOnComment(page, server);
+  await write(page, DRAFT);
+  await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`, { timeout: 6000 });
+  await part(page, 'target').selectOption('de');
+  await expect(part(page, 'translation')).toHaveText('…');
+});
+
 test('Ctrl+Enter copies the translation, closes the window and gives the focus back to the field', async ({ page, server, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: server.url });
   await openOnComment(page, server);
