@@ -324,6 +324,8 @@ Page-side (content) errors:
 
 ## Testing
 
+GitHub Actions (`.github/workflows/test.yml`) runs both suites on every push and pull request: Node 24 on Ubuntu, `npm ci`, the unit tests, Playwright's Chromium with its system dependencies, then the e2e tests headless. The `test-results/` folder of a failed run is kept for 7 days.
+
 Unit tests (`node --test`, no dependencies):
 
 - `sse.js`: a line split between chunks; several events in one chunk; `\r\n`; keep-alive comments; `[DONE]`; invalid JSON.

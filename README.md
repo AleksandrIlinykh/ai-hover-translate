@@ -1,5 +1,7 @@
 # Paragloss
 
+[![Tests](https://github.com/AleksandrIlinykh/paragloss/actions/workflows/test.yml/badge.svg)](https://github.com/AleksandrIlinykh/paragloss/actions/workflows/test.yml)
+
 A gloss for the paragraph you're stuck on. Hold **Alt** and hover over a paragraph to see its translation above it: free with Chrome's built-in translator, or from the AI model you choose.
 
 In medieval manuscripts a gloss was a translation written above the line. Paragloss does the same for any paragraph on the web, and leaves the page as it was.
@@ -66,6 +68,8 @@ After changing the extension files, click "Reload" on its card in `chrome://exte
     npx playwright install chromium
     npm test           # unit tests
     npm run test:e2e   # e2e: real Chromium with the extension and a mock API
+
+GitHub Actions runs both on every push and pull request (`.github/workflows/test.yml`).
 
 Design: `docs/superpowers/specs/2026-10-12-paragloss-design.md`.
 
