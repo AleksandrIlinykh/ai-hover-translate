@@ -1,44 +1,56 @@
-const MESSAGES = {
-  no_key: ({ name }) => `${name} API key is not set.`,
-  no_model: ({ name }) => `Choose a model for ${name} in the settings.`,
-  no_url: ({ name }) => `Set the API URL for ${name} in the settings.`,
-  auth: () => 'Invalid API key. Check it in the settings.',
-  balance: ({ name }) => `Your ${name} balance has run out.`,
-  rate_limit: () => 'Too many requests. Please wait a moment.',
-  network: () => 'Cannot connect to the API.',
-  timeout: () => 'The API did not respond within 30 seconds.',
-  empty: () => 'The API returned an empty response.',
+// The errors Paragloss shows, worded in `lang`: the language the user translates into on pages, English on the settings
+// page. The texts are in content/strings.js.
+import '../content/strings.js';
+
+const KEYS = {
+  no_key: 'noKey',
+  no_model: 'noModel',
+  no_url: 'noUrl',
+  auth: 'auth',
+  balance: 'balance',
+  rate_limit: 'rateLimit',
+  network: 'network',
+  timeout: 'timeout',
+  empty: 'empty',
 };
 
-export function makeError(code, provider) {
-  return { code, message: MESSAGES[code](provider) };
+const say = (lang, key, params) => globalThis.paragloss.t(lang, key, params);
+
+export function makeError(code, provider, lang = 'en') {
+  return { code, message: say(lang, KEYS[code], { name: provider.name }) };
 }
 
-export function errorFromStatus(status, bodyText, provider) {
+// The settings changed to Chrome's translator while a request was on its way to background.
+export function settingsChanged(lang = 'en') {
+  return { code: 'engine_changed', message: say(lang, 'settingsChanged') };
+}
+
+export function errorFromStatus(status, bodyText, provider, lang = 'en') {
   const apiMessage = parseApiMessage(bodyText);
   const tail = apiMessage ? `: ${apiMessage}` : '';
+  const error = (code, key) => ({ code, message: say(lang, key, { status, tail }) });
   switch (status) {
     case 401:
-      return makeError('auth', provider);
+      return makeError('auth', provider, lang);
     case 402:
-      return makeError('balance', provider);
+      return makeError('balance', provider, lang);
     case 403:
-      return { code: 'denied', message: `Access denied (403)${tail}` };
+      return error('denied', 'denied');
     case 404:
-      return { code: 'not_found', message: `Not found (404). Check the model and the API URL${tail}` };
+      return error('not_found', 'notFound');
     case 429:
-      return makeError('rate_limit', provider);
+      return makeError('rate_limit', provider, lang);
     case 400:
     case 422:
-      return { code: 'bad_request', message: `Invalid API request${tail}` };
+      return error('bad_request', 'badRequest');
     case 500:
     case 502:
     case 503:
     case 504:
     case 529: // Anthropic is overloaded
-      return { code: 'server', message: `The API server is unavailable (${status}). Try again later.` };
+      return error('server', 'server');
     default:
-      return { code: 'http', message: `API error ${status}${tail}` };
+      return error('http', 'http');
   }
 }
 

@@ -1,4 +1,4 @@
-import { test, expect, moveTo, altHover, popupRoot, popupText, popupBox } from './fixtures.js';
+import { test, expect, moveTo, altHover, popupRoot, popupText, popupBox, say } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 const P2 = 'Second paragraph with an inline span inside.';
@@ -111,7 +111,7 @@ test.describe('errors', () => {
     await setSettings({ apiKey: 'bad' });
     await page.goto(`${server.url}/page.html`);
     await altHover(page, '#p1');
-    await expect(popupText(page)).toHaveText('Invalid API key. Check it in the settings.');
+    await expect(popupText(page)).toHaveText(say('auth'));
     await expect(popupBox(page)).toHaveClass(/is-error/);
     await expect(popupRoot(page).locator('.settings')).toBeHidden();
   });
@@ -120,7 +120,7 @@ test.describe('errors', () => {
     await setSettings({ apiKey: '' });
     await page.goto(`${server.url}/page.html`);
     await altHover(page, '#p1');
-    await expect(popupText(page)).toHaveText('DeepSeek API key is not set.');
+    await expect(popupText(page)).toHaveText(say('noKey', { name: 'DeepSeek' }));
     await page.keyboard.up('Alt');
     const [optionsPage] = await Promise.all([
       context.waitForEvent('page'),

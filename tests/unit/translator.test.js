@@ -1,5 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import '../../extension/content/strings.js';
 import '../../extension/content/translator.js';
 
 const { languageCode, sourceLanguage, translateInBrowser, prepareInBrowser, describeProblem, forgetTranslators } =
@@ -196,24 +197,28 @@ test('a download that fails can be started again', async () => {
   assert.equal(attempts, 2);
 });
 
-test('describeProblem explains each problem and offers the matching button', () => {
-  assert.deepEqual(describeProblem({ problem: 'needs_download', source: 'en' }, 'ru'), {
-    message: 'Chrome needs to download its English to Russian model once.',
+test('describeProblem explains each problem and offers the matching button, in the language asked for', () => {
+  assert.deepEqual(describeProblem({ problem: 'needs_download', source: 'en' }, 'ru', 'en'), {
+    message: 'Chrome needs to download its English → Russian model once.',
     action: 'download',
   });
-  assert.deepEqual(describeProblem({ problem: 'unavailable', source: 'en' }, 'ko'), {
-    message: 'Chrome cannot translate English to Korean on this computer. Choose an AI provider in the settings.',
+  assert.deepEqual(describeProblem({ problem: 'unavailable', source: 'en' }, 'ko', 'en'), {
+    message: 'Chrome cannot translate English → Korean on this computer. Choose an AI provider in the settings.',
     action: 'settings',
   });
-  assert.deepEqual(describeProblem({ problem: 'unsupported' }, 'ru'), {
+  assert.deepEqual(describeProblem({ problem: 'needs_download', source: 'en' }, 'de'), {
+    message: 'Chrome muss das Modell Englisch → Deutsch einmal herunterladen.',
+    action: 'download',
+  });
+  assert.deepEqual(describeProblem({ problem: 'unsupported' }, 'ru', 'en'), {
     message: 'This browser has no built-in translator. Choose an AI provider in the settings.',
     action: 'settings',
   });
-  assert.deepEqual(describeProblem({ problem: 'unknown_language' }, 'ru'), {
+  assert.deepEqual(describeProblem({ problem: 'unknown_language' }, 'ru', 'en'), {
     message: 'Could not tell which language this text is in.',
     action: 'retry',
   });
-  assert.deepEqual(describeProblem({ problem: 'failed', source: 'en', detail: 'Out of memory' }, 'ru'), {
+  assert.deepEqual(describeProblem({ problem: 'failed', source: 'en', detail: 'Out of memory' }, 'ru', 'en'), {
     message: 'The built-in translator failed: Out of memory',
     action: 'retry',
   });

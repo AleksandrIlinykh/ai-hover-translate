@@ -51,6 +51,7 @@ paragloss/
       keys.js           DEFAULT_KEYS, READ_KEYS, shortcutProblem(shortcut, platform), checkedKeys(), formatShortcut(), readKeyName(), shortcutFromEvent(), currentPlatform()
     content/            classic scripts (not modules) sharing globalThis.paragloss
       config.js         SHADOW_MODE: 'closed' (the e2e tests run a copy with 'open')
+      strings.js        STRINGS, t(lang, key, params), languageName(code, ui): what Paragloss says, in 13 languages
       block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y), writableField(node)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), blockTextOf(range), contextOf(range)
       language.js       isAlreadyIn(results, lang), detectLanguage(text), detectedBefore(text), alreadyInLanguage(text, lang)
@@ -86,7 +87,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/config.js", "content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/notes-panel.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/config.js", "content/strings.js", "content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/notes-panel.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `action: { default_title: "Paragloss: write in another language", default_popup: "compose.html" }`: the icon opens the compose window. The settings open from its gear and from the "Options" item Chrome adds to the icon's menu.
 - `commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y", mac: "Command+Shift+Y" } } }`: the same popup from the keyboard; the user can change the keys at `chrome://extensions/shortcuts`. Alt+Shift is avoided: on Windows it often switches the keyboard layout.
@@ -143,6 +144,16 @@ Settings page (`options.html`), top to bottom:
 At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the store listing points to.
 
 The fields are disabled until the saved settings are shown, so a choice made on a slow machine before they arrive is not overwritten by them. Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
+
+## Language of the interface (content/strings.js)
+
+Everything Paragloss says on a page and in its windows is in the language the user translates into (`targetLang`): the hints over the page, the popup's buttons and errors, the compose window and the site context panel. It changes at once with the settings (`popup.setLanguage`). The settings page stays in English.
+
+- `STRINGS` holds one table per language of `LANGUAGES`, all with the same keys and the same `{placeholders}`; `t(lang, key, params)` fills them in and falls back to English.
+- The wording avoids putting a language name into a sentence, where many languages would need another grammatical case: "Alt+click: write in your language.", "Already in your language.", "Back translation: {text}". Language names come from `Intl.DisplayNames` in the interface language (`languageName`), capitalized for labels and lists, and a pair of languages is written with an arrow ("English → Russian").
+- Background words its errors in the same language (`makeError(code, provider, lang)`, `errorFromStatus(..., lang)`, `settingsChanged(lang)`); the settings page passes English. `describeProblem(result, targetLang, ui)` does the same for Chrome's translator.
+- The compose window speaks the user's own language (its `from`), which is the same one.
+- `strings.js` is the one file in the project with text in other scripts. The e2e tests take the expected texts from it (`say(key, params)`), so they stay in English.
 
 ## Keys (lib/keys.js)
 
@@ -436,6 +447,7 @@ Unit tests (`node --test`, no dependencies):
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
 - `providers.js`: the list of providers and that the manifest covers their hosts; where the text goes (`dataNote`); the request of each API (URL, headers, body, reasoning off, without extras, the context update's limits); the model list request and parsing; reading answers; the setup check; host patterns.
@@ -571,5 +583,6 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   123. The extension as shipped keeps the popup, the companion and the compose window in closed shadow roots.
   124. A draft stays with its site: another site opens an empty window, and the first one gets its draft back.
   125. On a site outside the host permissions (`*.test`, mapped to the mock server) an open context panel follows the update.
+  126. With German as the language to translate into, the hints over the page, the popup, its errors, the context panel and the compose window (with the language names) are in German.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

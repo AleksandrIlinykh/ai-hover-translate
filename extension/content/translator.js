@@ -2,7 +2,6 @@
 (() => {
   const MIN_CONFIDENCE = 0.3;
   const TRADITIONAL_CHINESE = /^zh-(hant|tw|hk|mo)\b/i;
-  const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
   // 'en>ru' -> { ready: Promise of a translator, share: last download progress, listeners: progress callbacks }.
   // A download started ahead of time is shared with the translations that come while it runs.
   const pairs = new Map();
@@ -94,24 +93,25 @@
   }
 
   // What to tell the user about a problem, and which button helps: 'download', 'settings' or 'retry'.
-  function describeProblem({ problem, source, detail }, targetLang) {
-    const pair = () => `${languageNames.of(source)} to ${languageNames.of(targetLang)}`;
+  // What went wrong with Chrome's translator into `targetLang`, worded in `ui` (the language the user translates into on
+  // pages, English on the settings page), and the button that helps.
+  function describeProblem({ problem, source, detail }, targetLang, ui = targetLang) {
+    const { t, languageName } = globalThis.paragloss;
+    const pair = () => `${languageName(source, ui)} \u2192 ${languageName(targetLang, ui)}`;
     switch (problem) {
       case 'needs_download':
-        return { message: `Chrome needs to download its ${pair()} model once.`, action: 'download' };
+        return { message: t(ui, 'needsDownload', { pair: pair() }), action: 'download' };
       case 'unavailable':
-        return {
-          message: `Chrome cannot translate ${pair()} on this computer. Choose an AI provider in the settings.`,
-          action: 'settings',
-        };
+        return { message: t(ui, 'unavailable', { pair: pair() }), action: 'settings' };
       case 'unsupported':
-        return { message: 'This browser has no built-in translator. Choose an AI provider in the settings.', action: 'settings' };
+        return { message: t(ui, 'unsupported'), action: 'settings' };
       case 'unknown_language':
-        return { message: 'Could not tell which language this text is in.', action: 'retry' };
+        return { message: t(ui, 'unknownLanguage'), action: 'retry' };
       default:
-        return { message: `The built-in translator failed${detail ? `: ${detail}` : '.'}`, action: 'retry' };
+        return { message: detail ? t(ui, 'builtInFailedDetail', { detail }) : t(ui, 'builtInFailed'), action: 'retry' };
     }
   }
+
 
   function forgetTranslators() {
     pairs.clear();

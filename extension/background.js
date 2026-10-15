@@ -3,7 +3,7 @@ import { MIN_PASSAGE, buildNotesMessages, cleanNotes, passageOf, takePassages } 
 import { buildComposeMessages, chooseComposeTarget, countLanguage } from './lib/compose.js';
 import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
-import { errorFromStatus, makeError } from './lib/errors.js';
+import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
 import { LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
 
@@ -288,14 +288,15 @@ async function saveComposeTarget(site, lang) {
 async function compose({ text, from, to, purpose }, site, signal, send) {
   const draft = typeof text === 'string' ? text.slice(0, MAX_DRAFT) : '';
   if (!draft || !Object.hasOwn(LANGUAGES, from) || !Object.hasOwn(LANGUAGES, to)) return;
-  const provider = activeProvider(await loadSettings());
+  const settings = await loadSettings();
+  const provider = activeProvider(settings);
   if (provider.api === 'browser') {
-    send({ type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' });
+    send({ type: 'error', ...settingsChanged(settings.targetLang) });
     return;
   }
   const problem = setupProblem(provider);
   if (problem) {
-    send({ type: 'error', ...makeError(problem, provider) });
+    send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
     return;
   }
   // The check translates back without the notes, to show what the text says by itself.
@@ -303,7 +304,7 @@ async function compose({ text, from, to, purpose }, site, signal, send) {
     purpose === 'check'
       ? buildMessages(draft, LANGUAGES[to])
       : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes: await notesOf(site) });
-  await stream(provider, messages, signal, send);
+  await stream(provider, messages, signal, send, settings.targetLang);
 }
 
 async function translate(request, site, signal, send, onTranslated = () => {}) {
@@ -311,12 +312,12 @@ async function translate(request, site, signal, send, onTranslated = () => {}) {
   const provider = activeProvider(settings);
   if (provider.api === 'browser') {
     // The page did not hear about the switch to the free translator yet; the message is on its way.
-    send({ type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' });
+    send({ type: 'error', ...settingsChanged(settings.targetLang) });
     return;
   }
   const problem = setupProblem(provider);
   if (problem) {
-    send({ type: 'error', ...makeError(problem, provider) });
+    send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
     return;
   }
 
@@ -330,15 +331,16 @@ async function translate(request, site, signal, send, onTranslated = () => {}) {
   }
 
   const messages = buildMessages(request.text, LANGUAGES[settings.targetLang], { ...request, notes: await notesOf(site) });
-  const translation = await stream(provider, messages, signal, send);
+  const translation = await stream(provider, messages, signal, send, settings.targetLang);
   if (translation) {
     onTranslated(translation);
     await remember(key, translation);
   }
 }
 
-// Streams a chat answer to `send` as chunks, then done or an error. Resolves to the whole text, or '' when none came.
-async function stream(provider, messages, signal, send) {
+// Streams a chat answer to `send` as chunks, then done or an error (worded in `lang`). Resolves to the whole text, or ''
+// when none came.
+async function stream(provider, messages, signal, send, lang) {
   const idle = new AbortController();
   let timer = 0;
   const touch = () => {
@@ -350,7 +352,7 @@ async function stream(provider, messages, signal, send) {
     touch();
     const response = await sendChat(provider, { messages, stream: true }, AbortSignal.any([signal, idle.signal]));
     if (!response.ok) {
-      send({ type: 'error', ...errorFromStatus(response.status, await response.text(), provider) });
+      send({ type: 'error', ...errorFromStatus(response.status, await response.text(), provider, lang) });
       return '';
     }
     let translation = '';
@@ -363,13 +365,13 @@ async function stream(provider, messages, signal, send) {
       touch,
     );
     if (!translation) {
-      send({ type: 'error', ...makeError('empty', provider) });
+      send({ type: 'error', ...makeError('empty', provider, lang) });
       return '';
     }
     send({ type: 'done' });
     return translation;
   } catch {
-    if (!signal.aborted) send({ type: 'error', ...makeError(idle.signal.aborted ? 'timeout' : 'network', provider) });
+    if (!signal.aborted) send({ type: 'error', ...makeError(idle.signal.aborted ? 'timeout' : 'network', provider, lang) });
     return ''; // aborted: the page closed the popup
   } finally {
     clearTimeout(timer);

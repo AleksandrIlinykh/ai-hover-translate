@@ -1,4 +1,4 @@
-import { test, expect, altHover, moveTo, popupRoot, popupText, inContentScript, fakeBuiltInAI } from './fixtures.js';
+import { test, expect, altHover, moveTo, popupRoot, popupText, inContentScript, fakeBuiltInAI, say } from './fixtures.js';
 
 const LONG_START = 'Our team moved the whole build to a shared continuous integr'; // the first 60 characters of #long
 const NOTES = `Notes: ${LONG_START}`; // what the mock writes for #long
@@ -70,14 +70,11 @@ test('the Context button shows the context under the popup, as it is built, and 
   await translate(page, '#long');
   await part(page, 'context-toggle').click();
   await expect(part(page, 'context-toggle')).toHaveAttribute('aria-expanded', 'true');
-  await expect(part(page, 'notes-title')).toHaveText(`Context for ${siteOf(server)}`);
+  await expect(part(page, 'notes-title')).toHaveText(say('notesTitle', { site: siteOf(server) }));
   await expect(part(page, 'notes-updating')).toBeVisible();
   await expect(part(page, 'notes-film')).toHaveText(NOTES);
   await expect(part(page, 'notes-updating')).toBeHidden();
-  await expect(part(page, 'notes-note')).toHaveText(
-    `Built automatically from the texts you translated on ${siteOf(server)}. ` +
-      'It goes with each translation to DeepSeek, so the meaning fits the subject.',
-  );
+  await expect(part(page, 'notes-note')).toHaveText(say('notesNote', { provider: 'DeepSeek' }));
   expect(await part(page, 'notes-film').evaluate((element) => getComputedStyle(element).userSelect)).toBe('none');
   const [popupBox, panelBox] = await Promise.all([part(page, 'popup').boundingBox(), part(page, 'notes').boundingBox()]);
   expect(Math.round(panelBox.y - (popupBox.y + popupBox.height))).toBe(4);
@@ -91,7 +88,7 @@ test('a new context shows in an open panel, and an empty one says how it builds 
   await expect(popupText(page)).toContainText('[RU]');
   await page.keyboard.up('Alt');
   await part(page, 'context-toggle').click();
-  await expect(part(page, 'notes-film')).toHaveText('Nothing yet. It builds up as you translate on this site.');
+  await expect(part(page, 'notes-film')).toHaveText(say('notesEmpty'));
   await expect(part(page, 'notes-clear')).toBeDisabled();
 });
 
@@ -101,7 +98,7 @@ test('Clear empties the context, and the next translation goes without it', asyn
   await part(page, 'context-toggle').click();
   await expect(part(page, 'notes-film')).toHaveText(NOTES);
   await part(page, 'notes-clear').click();
-  await expect(part(page, 'notes-film')).toHaveText('Nothing yet. It builds up as you translate on this site.');
+  await expect(part(page, 'notes-film')).toHaveText(say('notesEmpty'));
   await page.keyboard.press('Escape');
   await translate(page, '#short');
   expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
@@ -141,7 +138,7 @@ test('on a site outside the host permissions an open panel follows the update', 
   await page.goto(`http://${site}/long.html`);
   await translate(page, '#long');
   await part(page, 'context-toggle').click();
-  await expect(part(page, 'notes-title')).toHaveText(`Context for ${site}`);
+  await expect(part(page, 'notes-title')).toHaveText(say('notesTitle', { site }));
   await expect(part(page, 'notes-updating')).toBeVisible();
   await expect(part(page, 'notes-film')).toHaveText(NOTES);
   await expect(part(page, 'notes-updating')).toBeHidden();

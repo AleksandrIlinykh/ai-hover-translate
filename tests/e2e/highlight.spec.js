@@ -1,4 +1,4 @@
-import { test, expect, moveTo, altHover, popupRoot, popupText } from './fixtures.js';
+import { test, expect, moveTo, altHover, popupRoot, popupText, say } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 
@@ -53,9 +53,9 @@ test('releasing Alt removes the outline but keeps the popup', async ({ page }) =
 });
 
 for (const [selector, hint] of [
-  ['#huge', 'Too much text. Select the part you need.'],
-  ['#input', 'Alt+click: write in Russian.'],
-  ['#password', 'Input fields are not translated.'],
+  ['#huge', say('hintTooLong')],
+  ['#input', say('hintWrite', { key: 'Alt' })],
+  ['#password', say('hintEditable')],
 ]) {
   test(`${selector} gets a grey outline with a hint and no request`, async ({ page, server }) => {
     await altHover(page, selector);
@@ -87,7 +87,7 @@ test('text already in the target language gets a hint instead of a request', asy
   test.skip(availability !== 'available', `Chrome's language detector is ${availability} in this browser`);
   await setSettings({ targetLang: 'en' });
   await altHover(page, '#p1');
-  await expect(outline(page).locator('.hint')).toHaveText('Already in English.');
+  await expect(outline(page).locator('.hint')).toHaveText(say('hintAlready', {}, 'en'));
   await page.waitForTimeout(300);
   expect(server.requests).toHaveLength(0);
 });

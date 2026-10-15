@@ -21,6 +21,7 @@
     createComposeWindow,
     createHero,
     heroes,
+    t,
   } = globalThis.paragloss;
 
   const TRIGGER_DELAY_MS = 200;
@@ -30,12 +31,6 @@
   const PAGE_SAMPLE_CHARS = 1000;
   const DEFAULT_LANG = 'ru'; // DEFAULTS.targetLang in lib/settings.js
   const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js: fixed in the settings
-  const HINTS = {
-    editable: 'Input fields are not translated.',
-    'too-long': 'Too much text. Select the part you need.',
-    'too-long-selection': 'Too much text. Select a shorter part.',
-  };
-  const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
 
   const cache = new Map(); // [mode, text, context] -> translation, for this page
   const sameLanguage = new Map(); // text -> whether it is already in the target language
@@ -76,6 +71,7 @@
       targetLang = answer?.targetLang || DEFAULT_LANG;
       engine = answer?.engine || 'api';
       keys = answer?.keys ?? keys;
+      popup.setLanguage(targetLang);
       popup.setContext(engine === 'api', answer?.providerName);
     })
     .catch(() => {});
@@ -100,11 +96,13 @@
     return null;
   }
 
+  // Hints are worded in the language the user translates into, like everything Paragloss says on the page.
   function hintFor(picked) {
-    if (picked.reason === 'too-long') return HINTS[picked.selection ? 'too-long-selection' : 'too-long'];
-    if (picked.reason === 'editable' && writableField(picked.target)) return `${keys.readName}+click: write in ${languageNames.of(targetLang)}.`;
-    if (picked.reason) return HINTS[picked.reason];
-    if (sameLanguage.get(picked.text)) return `Already in ${languageNames.of(targetLang)}.`;
+    if (picked.reason === 'too-long') return t(targetLang, picked.selection ? 'hintTooLongSelection' : 'hintTooLong');
+    if (picked.reason === 'editable') {
+      return writableField(picked.target) ? t(targetLang, 'hintWrite', { key: keys.readName }) : t(targetLang, 'hintEditable');
+    }
+    if (sameLanguage.get(picked.text)) return t(targetLang, 'hintAlready');
     return '';
   }
 
@@ -204,7 +202,7 @@
     try {
       current = chrome.runtime.connect({ name: 'translate' });
     } catch {
-      popup.setError('The extension was updated. Reload the page.');
+      popup.setError(t(targetLang, 'extensionUpdated'));
       return;
     }
     port = current;
@@ -226,7 +224,7 @@
     current.onDisconnect.addListener(() => {
       if (port !== current) return; // we disconnected on purpose
       port = null;
-      popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
+      popup.setError(t(targetLang, 'interrupted'), { action: 'retry' });
     });
     const { text, mode, context } = request;
     // The passage's language, if the detector has looked at it, for the memory of what was read on the site.
@@ -238,7 +236,7 @@
   async function translateHere(request) {
     const ticket = ++localTicket;
     const showProgress = (share) => {
-      if (ticket === localTicket) popup.setLoading(`Downloading the translation model: ${Math.round(share * 100)}%`);
+      if (ticket === localTicket) popup.setLoading(t(targetLang, 'downloading', { percent: Math.round(share * 100) }));
     };
     const result = await translateInBrowser(request.text, targetLang, {
       sample,
@@ -507,6 +505,7 @@
     targetLang = message.targetLang || DEFAULT_LANG;
     engine = message.engine || 'api';
     keys = message.keys ?? keys;
+    popup.setLanguage(targetLang);
     popup.setContext(engine === 'api', message.providerName);
     modelAsked = false;
   });

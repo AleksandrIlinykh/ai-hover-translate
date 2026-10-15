@@ -1,4 +1,4 @@
-import { test, expect, altHover, moveTo, popupRoot, popupText, inContentScript, fakeBuiltInAI } from './fixtures.js';
+import { test, expect, altHover, moveTo, popupRoot, popupText, inContentScript, fakeBuiltInAI, say } from './fixtures.js';
 
 const textOf = (page, selector) => page.locator(selector).evaluate((element) => element.textContent);
 const button = (page, name) => popupRoot(page).locator(`.${name}`);
@@ -23,6 +23,8 @@ async function altOverPhrase(page, selector, phrase) {
 
 // A click on the page away from any text.
 const clickAside = (page) => page.mouse.click(5, 5);
+// English to Russian, as the popup names it: in Russian.
+const PAIR = `${globalThis.paragloss.languageName('en', 'ru')} \u2192 ${globalThis.paragloss.languageName('ru', 'ru')}`;
 
 test.beforeEach(async ({ setSettings }) => {
   await setSettings({ provider: 'chrome', apiKey: '' });
@@ -43,11 +45,11 @@ test('a language pair to download asks for one click, shows the progress, then t
   await page.goto(`${server.url}/page.html`);
   await inContentScript(page, fakeBuiltInAI({ availability: 'downloadable', downloadMs: 800 }));
   await altHover(page, '#p1');
-  await expect(popupText(page)).toHaveText('Chrome needs to download its English to Russian model once.');
+  await expect(popupText(page)).toHaveText(say('needsDownload', { pair: PAIR }));
   expect((await fakeLog(page)).creates).toEqual([]);
   await page.keyboard.up('Alt');
   await button(page, 'download').click();
-  await expect(popupText(page)).toHaveText('Downloading the translation model: 50%');
+  await expect(popupText(page)).toHaveText(say('downloading', { percent: 50 }));
   await expect(popupText(page)).toHaveText(`[ru on device] ${await textOf(page, '#p1')}`);
   expect((await fakeLog(page)).creates).toEqual([{ sourceLanguage: 'en', targetLanguage: 'ru', activated: true }]);
 });
@@ -57,7 +59,7 @@ test('a pair Chrome cannot translate offers the settings', async ({ page, server
   await inContentScript(page, fakeBuiltInAI({ availability: 'unavailable' }));
   await altHover(page, '#p1');
   await expect(popupText(page)).toHaveText(
-    'Chrome cannot translate English to Russian on this computer. Choose an AI provider in the settings.',
+    say('unavailable', { pair: PAIR }),
   );
   await expect(button(page, 'settings')).toBeVisible();
   await expect(button(page, 'download')).toBeHidden();
@@ -68,7 +70,7 @@ test('a browser without the built-in translator suggests an AI provider', async 
   // Whether the test browser has these APIs depends on its build; here it must not.
   await inContentScript(page, 'delete globalThis.Translator; delete globalThis.LanguageDetector');
   await altHover(page, '#p1');
-  await expect(popupText(page)).toHaveText('This browser has no built-in translator. Choose an AI provider in the settings.');
+  await expect(popupText(page)).toHaveText(say('unsupported'));
   await expect(button(page, 'settings')).toBeVisible();
   expect(server.requests).toHaveLength(0);
 });
@@ -105,7 +107,7 @@ test('Alt during a download started by a click shows its progress and then the t
   await inContentScript(page, fakeBuiltInAI({ availability: 'downloadable', downloadMs: 1500 }));
   await clickAside(page);
   await altHover(page, '#p1');
-  await expect(popupText(page)).toHaveText('Downloading the translation model: 50%');
+  await expect(popupText(page)).toHaveText(say('downloading', { percent: 50 }));
   await expect(popupText(page)).toHaveText(`[ru on device] ${await textOf(page, '#p1')}`);
   expect((await fakeLog(page)).creates).toHaveLength(1);
 });

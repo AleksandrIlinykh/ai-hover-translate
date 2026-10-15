@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, chromium, expect } from '@playwright/test';
 import { startMockServer } from '../mock-server.js';
+import '../../extension/content/strings.js';
 
 export const EXTENSION_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../extension');
 
@@ -53,6 +54,11 @@ export const test = base.extend({
 });
 
 export { expect };
+
+// What Paragloss says in `lang`, from the texts the extension itself uses. The tests translate into Russian, so its
+// hints, buttons and errors are in Russian; this keeps the test files in English.
+export const say = (key, params = {}, lang = 'ru') => globalThis.paragloss.t(lang, key, params);
+export const languageLabel = (code, lang = 'ru') => globalThis.paragloss.languageName(code, lang, { capitalized: true });
 
 export const popupRoot = (page) => page.locator('#paragloss-root');
 export const popupText = (page) => popupRoot(page).locator('.text');

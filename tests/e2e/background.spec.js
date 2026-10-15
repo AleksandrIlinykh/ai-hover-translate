@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures.js';
+import { test, expect, say } from './fixtures.js';
 
 function translateViaPort(page, text, mode) {
   return page.evaluate(
@@ -58,7 +58,7 @@ test('accepts a base URL with a trailing slash', async ({ page, server, setSetti
 test('reports a missing key without calling the API', async ({ page, server, setSettings }) => {
   await setSettings({ apiKey: '' });
   expect(await translateViaPort(page, 'Hi')).toEqual([
-    { type: 'error', code: 'no_key', message: 'DeepSeek API key is not set.' },
+    { type: 'error', code: 'no_key', message: say('noKey', { name: 'DeepSeek' }) },
   ]);
   expect(server.requests).toHaveLength(0);
 });
@@ -68,27 +68,27 @@ test('maps 401 and 402 to Russian messages', async ({ page, setSettings }) => {
   expect((await translateViaPort(page, 'Hi')).at(-1)).toEqual({
     type: 'error',
     code: 'auth',
-    message: 'Invalid API key. Check it in the settings.',
+    message: say('auth'),
   });
   await setSettings({ apiKey: 'broke' });
   expect((await translateViaPort(page, 'Hi')).at(-1)).toEqual({
     type: 'error',
     code: 'balance',
-    message: 'Your DeepSeek balance has run out.',
+    message: say('balance', { name: 'DeepSeek' }),
   });
 });
 
 test('reports a stream without text as an empty answer', async ({ page, setSettings }) => {
   await setSettings({ apiKey: 'empty' });
   expect(await translateViaPort(page, 'Hi')).toEqual([
-    { type: 'error', code: 'empty', message: 'The API returned an empty response.' },
+    { type: 'error', code: 'empty', message: say('empty') },
   ]);
 });
 
 test('reports a network failure', async ({ page, setSettings }) => {
   await setSettings({ baseUrl: 'http://127.0.0.1:1' });
   expect(await translateViaPort(page, 'Hi')).toEqual([
-    { type: 'error', code: 'network', message: 'Cannot connect to the API.' },
+    { type: 'error', code: 'network', message: say('network') },
   ]);
 });
 
@@ -204,7 +204,7 @@ test.describe('other providers', () => {
   test('a provider without a model asks to finish the setup and sends nothing', async ({ page, server, setSettings }) => {
     await setSettings({ provider: 'openrouter', model: '' });
     expect(await translateViaPort(page, 'Hi')).toEqual([
-      { type: 'error', code: 'no_model', message: 'Choose a model for OpenRouter in the settings.' },
+      { type: 'error', code: 'no_model', message: say('noModel', { name: 'OpenRouter' }) },
     ]);
     expect(server.requests).toHaveLength(0);
     expect(server.notesRequests).toHaveLength(0);
@@ -225,7 +225,7 @@ test.describe('free built-in translator', () => {
   test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {
     await setSettings({ provider: 'chrome' });
     expect(await translateViaPort(page, 'Hi')).toEqual([
-      { type: 'error', code: 'engine_changed', message: 'The settings have changed. Try again.' },
+      { type: 'error', code: 'engine_changed', message: say('settingsChanged') },
     ]);
     expect(server.requests).toHaveLength(0);
     expect(server.notesRequests).toHaveLength(0);

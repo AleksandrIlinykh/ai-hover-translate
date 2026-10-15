@@ -4,7 +4,7 @@
   const TRANSLATE_DELAY_MS = 1000; // after the typing stops
   const SAVE_DELAY_MS = 300;
   const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js
-  const ACTION_LABELS = { settings: 'Open settings', retry: 'Retry', download: 'Download' };
+  const ACTION_KEYS = { settings: 'openSettings', retry: 'retry', download: 'download' };
 
   const COMPOSER_CSS = `
     .composer {
@@ -71,13 +71,15 @@
 
   // Through background, which calls the AI provider, as a stream.
   // Resolves to { text }, { error: { message, action, code } }, or { aborted: true }.
-  function translateByApi({ text, from, to, purpose, site, onChunk, signal }) {
+  // Messages are worded in `from`, the user's language.
+  function translateByApi({ text, from, to, purpose, site, onChunk, signal, ui }) {
+    const { t } = globalThis.paragloss;
     return new Promise((resolve) => {
       let port;
       try {
         port = chrome.runtime.connect({ name: 'compose' });
       } catch {
-        resolve({ error: { message: 'The extension was updated. Reload the page.', action: null } });
+        resolve({ error: { message: t(ui, 'extensionUpdated'), action: null } });
         return;
       }
       let result = '';
@@ -98,17 +100,17 @@
         }
       });
       port.onDisconnect.addListener(() => {
-        resolve({ error: { message: 'The translation was interrupted. Try again.', action: 'retry' } });
+        resolve({ error: { message: t(ui, 'interrupted'), action: 'retry' } });
       });
       port.postMessage({ text, from, to, purpose, site });
     });
   }
 
   // With Chrome's translator, right where the window is.
-  async function translateInPlace({ text, from, to, onProgress }) {
+  async function translateInPlace({ text, from, to, onProgress, ui }) {
     const { translateInBrowser, describeProblem } = globalThis.paragloss;
     const result = await translateInBrowser(text, to, { sourceLang: from, onProgress });
-    return result.text === undefined ? { error: describeProblem(result, to) } : { text: result.text };
+    return result.text === undefined ? { error: describeProblem(result, to, ui) } : { text: result.text };
   }
 
   // Builds the window into `container` (its styles go to `styleRoot`, a shadow root or the document), and the site
@@ -133,42 +135,44 @@
     onClose = () => {},
     onOpenSettings = () => {},
   }) {
-    const { createNotesPanel, NOTES_CSS } = globalThis.paragloss;
+    const { createNotesPanel, NOTES_CSS, t, languageName } = globalThis.paragloss;
+    const ui = from; // the window speaks the user's own language
+    const say = (key, params) => t(ui, key, params);
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(COMPOSER_CSS);
     const notesSheet = new CSSStyleSheet();
     notesSheet.replaceSync(NOTES_CSS);
     styleRoot.adoptedStyleSheets = [...styleRoot.adoptedStyleSheets, notesSheet, sheet];
-    const nameOf = (code) => languages[code] ?? code;
+    const nameOf = (code) => languageName(code, ui, { capitalized: true });
 
     const root = element('div', 'composer');
     const head = element('div', 'head');
     const pair = element('span', 'pair', `${nameOf(from)} →`);
     const target = element('select', 'target');
-    target.setAttribute('aria-label', 'Language to write in');
-    for (const [code, name] of Object.entries(languages)) {
-      if (code !== from) target.add(new Option(name, code));
+    target.setAttribute('aria-label', say('languageToWrite'));
+    for (const code of Object.keys(languages)) {
+      if (code !== from) target.add(new Option(nameOf(code), code));
     }
     target.value = to;
     head.append(pair, target, element('span', 'spacer'));
     if (showSettings) {
       const settings = element('button', 'tool settings', '⚙');
       settings.type = 'button';
-      settings.title = 'Settings';
-      settings.setAttribute('aria-label', 'Settings');
+      settings.title = say('settings');
+      settings.setAttribute('aria-label', say('settings'));
       settings.addEventListener('click', () => onOpenSettings());
       head.append(settings);
     }
     if (showClose) {
       const close = element('button', 'tool close', '×');
       close.type = 'button';
-      close.setAttribute('aria-label', 'Close');
+      close.setAttribute('aria-label', say('close'));
       close.addEventListener('click', () => closeWindow());
       head.append(close);
     }
 
     const draftEl = element('textarea', 'draft');
-    draftEl.placeholder = `Write in ${nameOf(from)}`;
+    draftEl.placeholder = say('writePlaceholder');
     draftEl.value = draft;
     draftEl.spellcheck = true;
     const result = element('div', 'result');
@@ -178,21 +182,21 @@
     result.append(translationEl, backEl);
 
     const foot = element('div', 'foot');
-    const contextButton = element('button', 'button context-toggle', 'Context');
+    const contextButton = element('button', 'button context-toggle', say('context'));
     contextButton.type = 'button';
-    contextButton.title = 'What Paragloss knows about this site';
+    contextButton.title = say('contextTitle');
     contextButton.setAttribute('aria-expanded', 'false');
-    const notesPanel = createNotesPanel({ site, providerName });
+    const notesPanel = createNotesPanel({ site, providerName, lang: ui });
     const engineEl = element('span', 'engine');
     const actionButton = element('button', 'button action');
     actionButton.type = 'button';
     actionButton.hidden = true;
-    const checkButton = element('button', 'button check', 'Check');
+    const checkButton = element('button', 'button check', say('check'));
     checkButton.type = 'button';
-    checkButton.title = `Translate it back into ${nameOf(from)}, to see whether the meaning held`;
-    const copyButton = element('button', 'button copy', 'Copy');
+    checkButton.title = say('checkTitle');
+    const copyButton = element('button', 'button copy', say('copy'));
     copyButton.type = 'button';
-    copyButton.title = 'Copy the translation (Ctrl+Enter)';
+    copyButton.title = say('copyTitle');
     foot.append(contextButton, engineEl, actionButton, checkButton, copyButton);
     root.append(head, draftEl, result, foot);
     container.append(root);
@@ -207,7 +211,7 @@
     let action = null;
 
     function showEngine() {
-      engineEl.textContent = engine === 'browser' ? 'Chrome, on this computer' : providerName;
+      engineEl.textContent = engine === 'browser' ? say('onDevice') : providerName;
     }
 
     // The site context belongs to AI providers only.
@@ -229,7 +233,7 @@
       root.classList.toggle('is-error', Boolean(error));
       action = error?.action ?? null;
       actionButton.hidden = !action;
-      actionButton.textContent = ACTION_LABELS[action] ?? '';
+      actionButton.textContent = action ? say(ACTION_KEYS[action]) : '';
       const ready = !loading && !error && Boolean(translation);
       copyButton.disabled = !ready;
       checkButton.disabled = !ready;
@@ -248,7 +252,8 @@
           text,
           from: source,
           to: destination,
-          onProgress: (share) => onChunk(`Downloading the translation model: ${Math.round(share * 100)}%`, true),
+          onProgress: (share) => onChunk(say('downloading', { percent: Math.round(share * 100) }), true),
+          ui,
         });
       }
       return translateByApi({
@@ -259,6 +264,7 @@
         site,
         onChunk,
         signal,
+        ui,
       });
     }
 
@@ -358,7 +364,7 @@
     async function check() {
       if (!translation) return;
       const original = translation;
-      backEl.textContent = 'Checking…';
+      backEl.textContent = say('checking');
       const outcome = await run({
         text: original,
         from: target.value,
@@ -368,7 +374,7 @@
         onChunk: () => {},
       });
       if (translation !== original) return; // the draft changed meanwhile
-      backEl.textContent = outcome.error ? outcome.error.message : `Back in ${nameOf(from)}: ${outcome.text.trim()}`;
+      backEl.textContent = outcome.error ? outcome.error.message : say('back', { text: outcome.text.trim() });
     }
 
     function closeWindow() {
@@ -421,10 +427,7 @@
 
     showEngine();
     showContext();
-    translationEl.dataset.placeholder = `The translation into ${nameOf(to)} appears here.`;
-    target.addEventListener('change', () => {
-      translationEl.dataset.placeholder = `The translation into ${nameOf(target.value)} appears here.`;
-    });
+    translationEl.dataset.placeholder = say('translationPlaceholder');
     showResult('');
     if (draftEl.value.trim()) translateNow();
 

@@ -1,4 +1,4 @@
-import { test, expect, moveTo, popupRoot, popupText } from './fixtures.js';
+import { test, expect, moveTo, popupRoot, popupText, say } from './fixtures.js';
 
 const compose = (page) => page.locator('#paragloss-compose');
 
@@ -59,7 +59,7 @@ test('the hint over a field names the key held to read', async ({ page, context,
   await page.goto(`${server.url}/page.html`);
   await moveTo(page, '#comment');
   await page.keyboard.down('Control');
-  await expect(page.locator('#paragloss-highlight')).toContainText('Ctrl+click: write in Russian.');
+  await expect(page.locator('#paragloss-highlight')).toContainText(say('hintWrite', { key: 'Ctrl' }));
 });
 
 test('a shortcut that types or that Chrome needs is refused with the reason and never saved', async ({ context, extensionId, serviceWorker }) => {

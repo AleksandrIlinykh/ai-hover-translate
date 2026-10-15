@@ -1,4 +1,4 @@
-import { test, expect, moveTo, popupText } from './fixtures.js';
+import { test, expect, moveTo, popupText, say } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 const outline = (page) => page.locator('#paragloss-highlight');
@@ -86,7 +86,7 @@ test('an overlong selection gets a grey outline with a hint and no request', asy
     return { x, y, width, height };
   });
   await altOver(page, rect);
-  await expect(outline(page).locator('.hint')).toHaveText('Too much text. Select a shorter part.');
+  await expect(outline(page).locator('.hint')).toHaveText(say('hintTooLongSelection'));
   await page.waitForTimeout(300);
   expect(server.requests).toHaveLength(0);
 });

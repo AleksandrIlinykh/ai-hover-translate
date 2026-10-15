@@ -179,7 +179,7 @@ async function prepareBrowserModel(targetLang) {
   const [, sourceLang] = browserSample(targetLang);
   const problem = await prepareInBrowser(sourceLang, targetLang, { onProgress: (share) => report(`Saved. ${modelProgress(share)}`) });
   if (problem) {
-    report(`Saved. ${describeProblem({ problem, source: sourceLang }, targetLang).message}`, true);
+    report(`Saved. ${describeProblem({ problem, source: sourceLang }, targetLang, 'en').message}`, true);
     return;
   }
   const names = new Intl.DisplayNames(['en'], { type: 'language' });
@@ -198,7 +198,7 @@ async function testInBrowser() {
     onProgress: (share) => report(modelProgress(share)),
   });
   if (result.text === undefined) {
-    report(describeProblem(result, targetLang).message, true);
+    report(describeProblem(result, targetLang, 'en').message, true);
     return;
   }
   const seconds = ((performance.now() - started) / 1000).toFixed(1);

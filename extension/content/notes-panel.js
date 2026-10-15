@@ -68,14 +68,16 @@
   }
 
   // `site` is for extension pages, which are not on the site (the toolbar popup); content scripts leave it out and
-  // background uses their tab's. `providerName` goes into the note. The panel starts closed.
-  function createNotesPanel({ site: claimedSite = null, providerName = '' } = {}) {
+  // background uses their tab's. `providerName` goes into the note; `lang` is the language it speaks, the one the user
+  // translates into. The panel starts closed.
+  function createNotesPanel({ site: claimedSite = null, providerName = '', lang: startLang = 'en' } = {}) {
+    const { t } = globalThis.paragloss;
     const panel = element('div', 'notes');
     panel.hidden = true;
-    const title = element('span', 'notes-title', 'Context');
-    const updating = element('span', 'notes-updating', 'Updating…');
+    const title = element('span', 'notes-title');
+    const updating = element('span', 'notes-updating');
     updating.hidden = true;
-    const clear = element('button', 'notes-clear', 'Clear');
+    const clear = element('button', 'notes-clear');
     clear.type = 'button';
     clear.disabled = true;
     const film = element('div', 'notes-film');
@@ -87,19 +89,22 @@
 
     let site = null; // as background names it
     let provider = providerName;
+    let lang = startLang;
+    let shown = { text: '', updating: false };
 
     function show({ site: named, text, updating: busy }) {
       site = named ?? site;
-      const where = site ?? 'this site';
-      title.textContent = `Context for ${where}`;
+      shown = { text, updating: busy };
+      title.textContent = t(lang, 'notesTitle', { site: site ?? t(lang, 'thisSite') });
+      updating.textContent = t(lang, 'updating');
       updating.hidden = !busy;
-      film.textContent = text || 'Nothing yet. It builds up as you translate on this site.';
+      film.textContent = text || t(lang, 'notesEmpty');
       film.classList.toggle('is-empty', !text);
+      clear.textContent = t(lang, 'clear');
       clear.disabled = !text;
-      note.textContent =
-        `Built automatically from the texts you translated on ${where}. ` +
-        `It goes with each translation${provider ? ` to ${provider}` : ''}, so the meaning fits the subject.`;
+      note.textContent = t(lang, 'notesNote', { provider });
     }
+    show(shown);
 
     async function load() {
       try {
@@ -126,8 +131,13 @@
         panel.hidden = !open;
         if (open) load();
       },
+      setLanguage(next) {
+        lang = next;
+        show(shown);
+      },
       setProvider(name) {
         provider = name;
+        show(shown);
       },
       destroy() {
         chrome.runtime.onMessage.removeListener(listener);

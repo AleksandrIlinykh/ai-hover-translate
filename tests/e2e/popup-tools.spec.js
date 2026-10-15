@@ -1,4 +1,4 @@
-import { test, expect, altHover, popupRoot, popupText, popupBox } from './fixtures.js';
+import { test, expect, altHover, popupRoot, popupText, popupBox, say } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 const tool = (page, name) => popupRoot(page).locator(`.${name}`);
@@ -163,7 +163,7 @@ test.describe('with a working key', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: server.url });
     await popupBox(page).hover();
     await tool(page, 'copy').click();
-    await expect(tool(page, 'copy')).toHaveText('Copied');
+    await expect(tool(page, 'copy')).toHaveText(say('copied'));
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`[RU] ${P1}`);
   });
 });
@@ -173,7 +173,7 @@ test.describe('errors', () => {
     await setSettings({ apiKey: 'flaky' });
     await page.goto(`${server.url}/page.html`);
     await openOn(page, '#p1');
-    await expect(popupText(page)).toHaveText('The API server is unavailable (500). Try again later.');
+    await expect(popupText(page)).toHaveText(say('server', { status: 500 }));
     await expect(tool(page, 'settings')).toBeHidden();
     await tool(page, 'retry').click();
     await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
@@ -192,7 +192,7 @@ test.describe('errors', () => {
     await setSettings({ provider: 'custom', model: '' });
     await page.goto(`${server.url}/page.html`);
     await openOn(page, '#p1');
-    await expect(popupText(page)).toHaveText('Choose a model for Other OpenAI-compatible API in the settings.');
+    await expect(popupText(page)).toHaveText(say('noModel', { name: 'Other OpenAI-compatible API' }));
     await expect(tool(page, 'settings')).toBeVisible();
     await expect(tool(page, 'retry')).toBeHidden();
   });

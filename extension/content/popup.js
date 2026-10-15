@@ -149,25 +149,23 @@
     popupEl.className = 'popup';
     const bar = document.createElement('div');
     bar.className = 'bar';
-    const copyButton = button('tool copy', 'Copy', () => copy());
+    const copyButton = button('tool copy', '', () => copy());
     const closeButton = button('tool close', '×', () => onClose());
-    closeButton.setAttribute('aria-label', 'Close');
     bar.append(copyButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
     textEl.className = 'text';
-    bodyEl.append(
-      textEl,
-      button('action settings', 'Open settings', () => onOpenSettings()),
-      button('action retry', 'Retry', () => onRetry()),
-      button('action download', 'Download', () => onDownload()),
-    );
+    const actions = {
+      openSettings: button('action settings', '', () => onOpenSettings()),
+      retry: button('action retry', '', () => onRetry()),
+      download: button('action download', '', () => onDownload()),
+    };
+    bodyEl.append(textEl, ...Object.values(actions));
     const foot = document.createElement('div');
     foot.className = 'foot';
     foot.hidden = true;
-    const contextButton = button('tool context-toggle', 'Context', () => setContextOpen(!notesPanel.isOpen()));
-    contextButton.title = 'What Paragloss knows about this site';
+    const contextButton = button('tool context-toggle', '', () => setContextOpen(!notesPanel.isOpen()));
     contextButton.setAttribute('aria-expanded', 'false');
     foot.append(contextButton);
     popupEl.append(bar, bodyEl, foot);
@@ -186,11 +184,23 @@
     shadow.append(popupEl, notesSlot);
 
     let block = null;
+    let lang = 'en'; // what the popup speaks: the language the user translates into
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
     let detached = false; // dragged or resized: fixed on screen instead of attached to the block
     let sized = false; // resized: explicit width and height instead of fitting the text
+
+    // The buttons in `lang`.
+    function label() {
+      const { t } = globalThis.paragloss;
+      copyButton.textContent = t(lang, 'copy');
+      closeButton.setAttribute('aria-label', t(lang, 'close'));
+      for (const [key, element] of Object.entries(actions)) element.textContent = t(lang, key);
+      contextButton.textContent = t(lang, 'context');
+      contextButton.title = t(lang, 'contextTitle');
+      notesPanel.setLanguage(lang);
+    }
 
     function setContextOpen(open) {
       contextButton.setAttribute('aria-expanded', String(open));
@@ -221,10 +231,8 @@
         document.execCommand('copy');
         area.remove();
       }
-      copyButton.textContent = 'Copied';
-      setTimeout(() => {
-        copyButton.textContent = 'Copy';
-      }, COPIED_MS);
+      copyButton.textContent = globalThis.paragloss.t(lang, 'copied');
+      setTimeout(label, COPIED_MS);
     }
 
     function chooseSide(rect) {
@@ -349,6 +357,8 @@
       });
     }
 
+    label();
+
     return {
       open(target) {
         block = target;
@@ -378,6 +388,11 @@
       setError(message, { action = null } = {}) {
         render(message, { error: true, action });
         schedulePosition();
+      },
+      // Everything the popup says is in `next`, the language the user translates into.
+      setLanguage(next) {
+        lang = next;
+        label();
       },
       // With an AI provider the footer offers the site context; `providerName` goes into the panel's note.
       setContext(available, providerName = '') {

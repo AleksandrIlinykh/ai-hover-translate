@@ -1,4 +1,4 @@
-import { test, expect, altHover, moveTo, popupText, inContentScript, fakeBuiltInAI } from './fixtures.js';
+import { test, expect, altHover, moveTo, popupText, inContentScript, fakeBuiltInAI, say, languageLabel } from './fixtures.js';
 
 const DRAFT = 'privet mir'; // the user's own language, in the Latin script the project's files keep to
 const compose = (page) => page.locator('#paragloss-compose');
@@ -31,9 +31,9 @@ test.beforeEach(async ({ setSettings }) => {
 
 test('Alt+click on a text field opens the compose window from the user language into the page language', async ({ page, server }) => {
   await openOnComment(page, server);
-  await expect(part(page, 'pair')).toHaveText('Russian →');
+  await expect(part(page, 'pair')).toHaveText(`${languageLabel('ru')} \u2192`);
   await expect(part(page, 'target')).toHaveValue('en');
-  await expect(part(page, 'draft')).toHaveAttribute('placeholder', 'Write in Russian');
+  await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writePlaceholder'));
   await expect(part(page, 'engine')).toHaveText('DeepSeek');
   await expect(part(page, 'context-toggle')).toBeVisible();
   await expect(part(page, 'notes')).toBeHidden();
@@ -129,7 +129,7 @@ test('Check translates the translation back into the user language', async ({ pa
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
   await part(page, 'check').click();
-  await expect(part(page, 'back')).toHaveText(`Back in Russian: [RU] [RU] ${DRAFT}`);
+  await expect(part(page, 'back')).toHaveText(say('back', { text: `[RU] [RU] ${DRAFT}` }));
   const check = server.requests.at(-1);
   expect(systemOf(check)).toContain("Translate the user's text into Russian.");
   expect(userOf(check)).toBe(`[RU] ${DRAFT}`);
@@ -201,7 +201,7 @@ test('the site context shows in the window and goes with the draft, and Check go
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
   expect(systemOf(server.requests.at(-1))).toContain('<notes>\nNotes: Our team moved the whole build to a shared continuous integr\n</notes>');
   await part(page, 'check').click();
-  await expect(part(page, 'back')).toContainText('Back in Russian');
+  await expect(part(page, 'back')).toHaveText(say('back', { text: `[RU] [RU] ${DRAFT}` }));
   expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
 });
 
@@ -222,8 +222,8 @@ test('a missing key is reported in the window with a way to the settings', async
   await setSettings({ apiKey: '' });
   await openOnComment(page, server);
   await write(page, DRAFT);
-  await expect(part(page, 'translation')).toHaveText('DeepSeek API key is not set.');
-  await expect(part(page, 'action')).toHaveText('Open settings');
+  await expect(part(page, 'translation')).toHaveText(say('noKey', { name: 'DeepSeek' }));
+  await expect(part(page, 'action')).toHaveText(say('openSettings'));
   expect(server.requests).toHaveLength(0);
 });
 
@@ -232,12 +232,12 @@ test('with the free translator the draft is translated on the page and nothing i
   await page.goto(`${server.url}/page.html`);
   await inContentScript(page, fakeBuiltInAI());
   await altClick(page, '#comment');
-  await expect(part(page, 'engine')).toHaveText('Chrome, on this computer');
+  await expect(part(page, 'engine')).toHaveText(say('onDevice'));
   await expect(part(page, 'context-toggle')).toBeHidden();
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[en on device] ${DRAFT}`);
   await part(page, 'check').click();
-  await expect(part(page, 'back')).toHaveText(`Back in Russian: [ru on device] [en on device] ${DRAFT}`);
+  await expect(part(page, 'back')).toHaveText(say('back', { text: `[ru on device] [en on device] ${DRAFT}` }));
   const { creates } = await inContentScript(page, 'globalThis.fakeAI');
   // en>ru may come first: the Alt+click is also the first click on the page, which gets the reading model ready.
   const pairs = creates.map(({ sourceLanguage, targetLanguage }) => `${sourceLanguage}>${targetLanguage}`);
@@ -248,7 +248,7 @@ test('with the free translator the draft is translated on the page and nothing i
 test.describe('the toolbar popup', () => {
   test('opens the same window with a settings button and translates the draft', async ({ page, extensionId, server, context }) => {
     await page.goto(`chrome-extension://${extensionId}/compose.html`);
-    await expect(page.locator('.pair')).toHaveText('Russian →');
+    await expect(page.locator('.pair')).toHaveText(`${languageLabel('ru')} \u2192`);
     await expect(page.locator('.target')).toHaveValue('en');
     await expect(page.locator('.draft')).toBeFocused();
     await page.locator('.draft').pressSequentially(DRAFT, { delay: 20 });
