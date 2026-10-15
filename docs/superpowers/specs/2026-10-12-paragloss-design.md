@@ -66,6 +66,8 @@ paragloss/
       main.js           trigger, what to translate, talking to background, closing, page cache, Alt+click and Alt+T
     compose.html        the toolbar popup: the compose window on its own
     compose-page.js
+    welcome.html        the page opened on install, with the content scripts loaded so the gestures work on it
+    welcome.js
     options.html
     options.js
     icons/              icon-16/32/48/128.png: the pup, drawn by tools/icons.mjs
@@ -106,6 +108,7 @@ Stored in `chrome.storage.local` under the `settings` key:
 | `targetLang` | the browser's language, else `"en"` | target language code; until one is saved, `defaultTargetLang()` takes Chrome's interface language (`chrome.i18n.getUILanguage()`) when it is in `LANGUAGES`, else English |
 | `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
 | `keys` | `{ read: "Alt", write: Alt+T }` | the key held to read and the shortcut to write (see "Keys") |
+| `consent` | `0` | the `CONSENT_VERSION` of what is sent to AI providers that the user agreed to (see "Agreement") |
 
 A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `chrome`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry, and DeepSeek stays in use. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
 
@@ -146,6 +149,10 @@ Settings page (`options.html`), top to bottom:
 - "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red. With the free translator it runs Chrome's translator right in the settings page, from English (from German when the target is English); the click lets Chrome download that model, with "Downloading the translation model: {n}%" meanwhile.
 
 At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the store listing points to.
+
+**Agreement.** Chrome's translator sends nothing, so it needs no agreement. For an AI provider, a box under the provider's note says "I agree that the texts I translate or write in Paragloss, with the context it keeps for each site, go there."; Save refuses an AI provider without it ("Tick the box to agree that the texts go to {provider}, then save.") and stores `consent: CONSENT_VERSION`. Background sends nothing to an AI provider (translations, compose drafts, site context updates) while `consent` is below `CONSENT_VERSION`, and answers `no_consent` with "Open settings". Raising `CONSENT_VERSION` when what is sent changes asks everyone to agree again before anything goes out.
+
+**Welcome page.** On install (`chrome.runtime.onInstalled`, reason `install`) background opens `welcome.html`: the language to translate into (native language names; saved at once, then the page reloads so Paragloss on it follows), a paragraph to hold Alt over (English, or German for someone who translates into English) and a field to try Alt+click and Alt+T (the page loads the content scripts in the manifest order), what leaves the computer with a link to the privacy policy, and a button to the settings. It is in English, like the settings page.
 
 The fields are disabled until the saved settings are shown, so a choice made on a slow machine before they arrive is not overwritten by them. Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
@@ -450,8 +457,8 @@ Unit tests (`node --test`, no dependencies):
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
-- `settings.js`: the starting language from the browser's, or English; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
-- `manifest.json`: the icons exist at every declared size; every content script exists.
+- `settings.js`: the starting language from the browser's, or English; the agreement kept only as a version number; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `manifest.json`: the icons exist at every declared size; every content script exists; the welcome page loads them in the manifest order.
 - `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
@@ -588,7 +595,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   123. The extension as shipped keeps the popup, the companion and the compose window in closed shadow roots.
   124. A draft stays with its site: another site opens an empty window, and the first one gets its draft back.
   125. On a site outside the host permissions (`*.test`, mapped to the mock server) an open context panel follows the update.
-  127. With nothing saved, the settings page shows the browser's language to translate into.
   126. With German as the language to translate into, the hints over the page, the popup, its errors, the context panel and the compose window (with the language names) are in German.
+  127. With nothing saved, the settings page shows the browser's language to translate into.
+  128. Installing opens the welcome page; it saves the language, says what leaves the computer, and Alt over its paragraph translates it.
+  129. Without the agreement nothing is sent to the AI provider, not even a context update, and the popup leads to the settings; the settings save an AI provider only with the box ticked, and keep it.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

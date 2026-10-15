@@ -17,6 +17,9 @@
     .footer { margin-top: 32px; }
     fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
     h2 { margin: 32px 0 0; font-size: 18px; }
+    .consent { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; font-weight: 400; }
+    .consent[hidden] { display: none; }
+    .consent input { width: auto; }
     #writeKey { cursor: pointer; caret-color: transparent; }
     #status.error, #keysProblem { color: #c62828; }
     @media (prefers-color-scheme: dark) { #status.error, #keysProblem { color: #ef9a9a; } }
@@ -35,6 +38,7 @@
     <select id="provider" name="provider"></select>
     <p class="hint" id="providerHint" hidden></p>
     <p class="hint" id="dataNote"></p>
+    <label class="consent" id="consentRow" hidden><input type="checkbox" id="consent"> I agree that the texts I translate or write in Paragloss, with the context it keeps for each site, go there.</label>
 
     <div id="apiFields">
     <label for="apiKey">API key</label>

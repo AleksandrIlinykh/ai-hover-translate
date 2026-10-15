@@ -28,3 +28,9 @@ test('every content script the manifest lists exists', () => {
     assert.ok(fs.existsSync(path.join(EXTENSION, file)), file);
   }
 });
+
+test('the welcome page loads the content scripts in the manifest order, so the gestures work on it', () => {
+  const html = fs.readFileSync(path.join(EXTENSION, 'welcome.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(([, file]) => file);
+  assert.deepEqual(scripts, manifest.content_scripts[0].js);
+});

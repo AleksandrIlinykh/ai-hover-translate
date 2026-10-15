@@ -22,7 +22,7 @@ Paragloss does not read or send anything until you hold Alt, write in its compos
 ## Where your data goes
 
 - **Chrome's built-in translator** (the default): the translation runs on your computer. Chrome downloads its translation models from Google once per pair of languages; that download contains none of your text.
-- **An AI provider you choose** (for example DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI or Alibaba Qwen): the text goes in an HTTPS request from your browser directly to the provider's API, with your own API key. The provider's privacy policy and terms then apply to it; please read them before choosing a provider. The settings page says, under the provider you pick, where the text goes.
+- **An AI provider you choose** (for example DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI or Alibaba Qwen): the text goes in an HTTPS request from your browser directly to the provider's API, with your own API key. The provider's privacy policy and terms then apply to it; please read them before choosing a provider. The settings page says, under the provider you pick, where the text goes, and nothing is sent to it until you tick the box there to agree.
 - **A local server** (Ollama, LM Studio, or another API URL on `localhost`): the text goes to that server on your computer.
 - **An API URL you enter yourself**: the text goes to that address, and Chrome asks you first whether Paragloss may reach it.
 

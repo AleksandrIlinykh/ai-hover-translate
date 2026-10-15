@@ -30,7 +30,8 @@
   const DETECT_TIMEOUT_MS = 300;
   const PAGE_SAMPLE_CHARS = 1000;
   const DEFAULT_LANG = 'en'; // until background answers with the language from the settings
-  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js: fixed in the settings
+  // setupProblem() in lib/providers.js and a missing agreement to send texts: fixed in the settings
+  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url', 'no_consent']);
 
   const cache = new Map(); // [mode, text, context] -> translation, for this page
   const sameLanguage = new Map(); // text -> whether it is already in the target language

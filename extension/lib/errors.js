@@ -12,6 +12,7 @@ const KEYS = {
   network: 'network',
   timeout: 'timeout',
   empty: 'empty',
+  no_consent: 'noConsent',
 };
 
 const say = (lang, key, params) => globalThis.paragloss.t(lang, key, params);

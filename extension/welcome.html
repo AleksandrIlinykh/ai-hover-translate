@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Welcome to Paragloss</title>
+  <style>
+    :root { color-scheme: light dark; font: 15px/1.55 system-ui, sans-serif; }
+    body { max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+    header img { image-rendering: pixelated; }
+    h1 { margin: 0; font-size: 28px; }
+    .tagline { margin: 0; opacity: 0.7; }
+    h2 { margin: 32px 0 8px; font-size: 18px; }
+    .hint { margin: 4px 0; font-size: 14px; opacity: 0.75; }
+    select, textarea { box-sizing: border-box; padding: 6px 8px; font: inherit; }
+    textarea { width: 100%; }
+    .practice { padding: 12px 14px; border-radius: 8px; background: rgba(127, 127, 127, 0.1); font-size: 16px; }
+    kbd { padding: 0 4px; border: 1px solid rgba(127, 127, 127, 0.5); border-radius: 4px; font: 13px/1.5 system-ui, sans-serif; }
+    #saved { margin-left: 8px; color: #1a7f37; }
+    #saved[hidden] { display: none; }
+    button { padding: 6px 16px; font: inherit; }
+    @media (prefers-color-scheme: dark) { #saved { color: #3fb950; } }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon-128.png" alt="" width="64" height="64">
+    <div>
+      <h1>Paragloss</h1>
+      <p class="tagline">A gloss for the paragraph you're stuck on.</p>
+    </div>
+  </header>
+
+  <h2>1. Your language</h2>
+  <label for="targetLang">Translate into</label>
+  <select id="targetLang"></select><span id="saved" hidden>Saved.</span>
+  <p class="hint">Paragloss also speaks it: its hints and buttons on pages are in this language.</p>
+
+  <h2>2. Read</h2>
+  <p class="hint">Click anywhere on this page once, so Chrome can get its translation model ready. Then hold <kbd class="readKey">Alt</kbd> over the paragraph below.</p>
+  <p id="practice" class="practice"></p>
+  <p class="hint">Select one to three words first to get a short dictionary entry.</p>
+
+  <h2>3. Write</h2>
+  <p class="hint">Hold <kbd class="readKey">Alt</kbd> and click the field below, or press <kbd id="writeKey">Alt+T</kbd> while typing in it: write in your language, then copy the translation.</p>
+  <textarea id="practiceField" rows="3"></textarea>
+
+  <section id="data">
+    <h2>What leaves your computer</h2>
+    <p>With Chrome's built-in translator, which Paragloss uses until you choose another one, nothing you translate leaves this computer.</p>
+    <p>If you pick an AI provider in the settings, the texts you translate or write in Paragloss, with a short context it keeps for each site, go straight to that provider with your own key, once you agree there. Paragloss has no server and no analytics. Read the <a href="https://github.com/AleksandrIlinykh/paragloss/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">privacy policy</a>.</p>
+  </section>
+
+  <p><button type="button" id="openSettings">Open the settings</button></p>
+
+  <!-- The content scripts, so the gestures work right here. -->
+  <script src="content/config.js"></script>
+  <script src="content/strings.js"></script>
+  <script src="content/block.js"></script>
+  <script src="content/selection.js"></script>
+  <script src="content/language.js"></script>
+  <script src="content/translator.js"></script>
+  <script src="content/notes-panel.js"></script>
+  <script src="content/popup.js"></script>
+  <script src="content/highlight.js"></script>
+  <script src="content/composer.js"></script>
+  <script src="content/compose-window.js"></script>
+  <script src="content/pup.js"></script>
+  <script src="content/hero.js"></script>
+  <script src="content/main.js"></script>
+  <script type="module" src="welcome.js"></script>
+</body>
+</html>

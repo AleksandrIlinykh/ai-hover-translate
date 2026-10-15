@@ -3,7 +3,7 @@
 (() => {
   const TRANSLATE_DELAY_MS = 1000; // after the typing stops
   const SAVE_DELAY_MS = 300;
-  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url']); // setupProblem() in lib/providers.js
+  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url', 'no_consent']); // fixed in the settings
   const ACTION_KEYS = { settings: 'openSettings', retry: 'retry', download: 'download' };
 
   const COMPOSER_CSS = `

@@ -4,7 +4,7 @@ import { buildComposeMessages, chooseComposeTarget, countLanguage } from './lib/
 import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
-import { LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
+import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
 
 const IDLE_TIMEOUT_MS = 30_000;
@@ -22,6 +22,11 @@ const COMPOSE_KEY = 'compose'; // { targets: { [site]: lang }, last: lang } in c
 
 // The settings hold API keys: only extension pages and this worker may read them, never content scripts.
 chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
+
+// A new user starts on the welcome page: the language, the gestures to try, and what leaves the computer.
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+});
 
 // Local servers such as Ollama turn away requests from an extension's origin. The extension's own requests to
 // localhost carry a local Origin instead; pages and other extensions are not affected.
@@ -211,7 +216,7 @@ async function updateNotes(site) {
   try {
     const settings = await loadSettings();
     const provider = activeProvider(settings);
-    if (provider.api !== 'browser' && !setupProblem(provider)) {
+    if (provider.api !== 'browser' && !setupProblem(provider) && settings.consent >= CONSENT_VERSION) {
       const messages = buildNotesMessages(await notesOf(site), passages, LANGUAGES[settings.targetLang]);
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(NOTES_TIMEOUT_MS)]);
       const response = await sendChat(provider, { messages, stream: false, purpose: 'notes' }, signal);
@@ -299,6 +304,10 @@ async function compose({ text, from, to, purpose }, site, signal, send) {
     send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
     return;
   }
+  if (settings.consent < CONSENT_VERSION) {
+    send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
+    return;
+  }
   // The check translates back without the notes, to show what the text says by itself.
   const messages =
     purpose === 'check'
@@ -318,6 +327,10 @@ async function translate(request, site, signal, send, onTranslated = () => {}) {
   const problem = setupProblem(provider);
   if (problem) {
     send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
+    return;
+  }
+  if (settings.consent < CONSENT_VERSION) {
+    send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
     return;
   }
 

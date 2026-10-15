@@ -33,8 +33,13 @@ export const test = base.extend({
         '--host-resolver-rules=MAP *.test 127.0.0.1',
       ],
     });
+    // Installing opens the welcome page; tests start from a page of their own, so it is closed (and remembered).
+    context.welcomed = await closeWelcome(context);
     await use(context);
     await context.close();
+  },
+  welcomed: async ({ context }, use) => {
+    await use(context.welcomed);
   },
   serviceWorker: async ({ context }, use) => {
     const [existing] = context.serviceWorkers();
@@ -44,16 +49,32 @@ export const test = base.extend({
     await use(new URL(serviceWorker.url()).host);
   },
   // Saves settings with one provider (DeepSeek unless given) pointed at the mock; a blank model means its default.
+  // The user has agreed to send texts to AI providers unless `consent` says 0.
   setSettings: async ({ serviceWorker, server }, use) => {
     await use(async (overrides = {}) => {
-      const { provider = 'deepseek', targetLang = 'ru', apiKey = 'test-key', model = '', baseUrl = server.url } = overrides;
-      const settings = { provider, targetLang, providers: { [provider]: { apiKey, model, baseUrl } } };
+      const { provider = 'deepseek', targetLang = 'ru', apiKey = 'test-key', model = '', baseUrl = server.url, consent = 1 } = overrides;
+      const settings = { provider, targetLang, providers: { [provider]: { apiKey, model, baseUrl } }, consent };
       await serviceWorker.evaluate((value) => chrome.storage.local.set({ settings: value }), settings);
     });
   },
 });
 
 export { expect };
+
+// The welcome page Paragloss opens on install: closed, and its address returned (null if it did not open in 5 s).
+async function closeWelcome(context) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const welcome = context.pages().find((page) => page.url().endsWith('/welcome.html'));
+    if (welcome) {
+      const url = welcome.url();
+      await welcome.close();
+      return url;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return null;
+}
 
 // What Paragloss says in `lang`, from the texts the extension itself uses. The tests translate into Russian, so its
 // hints, buttons and errors are in Russian; this keeps the test files in English.

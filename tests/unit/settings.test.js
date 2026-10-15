@@ -5,9 +5,16 @@ import { PROVIDERS } from '../../extension/lib/providers.js';
 import { DEFAULT_KEYS } from '../../extension/lib/keys.js';
 
 test('withDefaults returns the free built-in translator, the browser language, no provider entries and the default keys when nothing is stored', () => {
-  assert.deepEqual(withDefaults(undefined, 'win', 'ru-RU'), { provider: 'chrome', targetLang: 'ru', providers: {}, keys: DEFAULT_KEYS });
+  assert.deepEqual(withDefaults(undefined, 'win', 'ru-RU'), { provider: 'chrome', targetLang: 'ru', providers: {}, keys: DEFAULT_KEYS, consent: 0 });
   assert.equal(withDefaults(undefined, 'win', 'de-AT').targetLang, 'de');
   assert.deepEqual(DEFAULTS, { provider: 'chrome' });
+});
+
+test('withDefaults keeps the agreement to send texts to AI providers only as a version number', () => {
+  assert.equal(withDefaults({ consent: 1 }, 'win', 'en').consent, 1);
+  assert.equal(withDefaults({ consent: true }, 'win', 'en').consent, 0);
+  assert.equal(withDefaults({ consent: -1 }, 'win', 'en').consent, 0);
+  assert.equal(withDefaults({}, 'win', 'en').consent, 0);
 });
 
 test('the language to translate into starts as the browser language, or English when Paragloss does not offer it', () => {
@@ -35,6 +42,7 @@ test('withDefaults keeps the chosen provider and every provider entry, trimmed',
       deepseek: { apiKey: 'sk-d', model: '', baseUrl: 'https://example.com/v1' },
     },
     keys: DEFAULT_KEYS,
+    consent: 0,
   });
 });
 
@@ -45,6 +53,7 @@ test('withDefaults drops unknown providers, unknown fields and non-string values
     targetLang: 'ru',
     providers: { openai: { apiKey: '', model: '', baseUrl: '' } },
     keys: DEFAULT_KEYS,
+    consent: 0,
   });
 });
 
@@ -59,6 +68,7 @@ test('settings saved before providers existed become the DeepSeek entry', () => 
     targetLang: 'de',
     providers: { deepseek: { apiKey: 'sk-1', model: 'deepseek-v4-pro', baseUrl: 'https://example.com' } },
     keys: DEFAULT_KEYS,
+    consent: 0,
   });
 });
 
