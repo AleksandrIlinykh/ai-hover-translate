@@ -243,3 +243,4 @@ form.addEventListener('submit', async (event) => {
 });
 
 show(await loadSettings());
+element('fields').disabled = false;

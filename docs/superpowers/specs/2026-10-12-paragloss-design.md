@@ -134,7 +134,7 @@ Settings page (`options.html`), top to bottom:
 
 At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the store listing points to.
 
-Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
+The fields are disabled until the saved settings are shown, so a choice made on a slow machine before they arrive is not overwritten by them. Switching providers keeps what was typed for each one until the page is closed. Any status disappears when a field changes. For a URL outside `host_permissions`, Save, Test and Load models first ask Chrome for that host (`chrome.permissions.request`, straight from the click, before anything is awaited). If the user refuses, the settings are still saved: "Saved, but Chrome was not allowed to reach {host}, so requests to it will fail."
 
 ## Trigger (content/main.js)
 
@@ -462,5 +462,6 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   85. Alt+click in a rich text editor opens the window; a missing key shows in the window with "Open settings".
   86. With Chrome's translator the draft and the check are translated on the page, and nothing is sent.
   87. The toolbar popup (opened as a page) translates the draft and opens the settings from its gear.
+  88. Settings that arrive 800 ms late do not overwrite a provider picked meanwhile.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

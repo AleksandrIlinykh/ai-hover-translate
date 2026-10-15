@@ -261,3 +261,16 @@ test('the note under the provider says where the text goes, and follows the API 
   await page.locator('#baseUrl').fill('https://llm.example.com/v1');
   await expect(page.locator('#dataNote')).toContainText('is sent to Other OpenAI-compatible API at llm.example.com');
 });
+
+test('a provider picked while the saved settings are still loading is not overwritten by them', async ({ page, extensionId }) => {
+  await page.addInitScript(() => {
+    // A slow machine: the settings come 800 ms late.
+    const get = chrome.storage.local.get.bind(chrome.storage.local);
+    chrome.storage.local.get = (...args) => new Promise((resolve) => setTimeout(() => resolve(get(...args)), 800));
+  });
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('ollama');
+  await expect(page.locator('#baseUrl')).toHaveValue('http://localhost:11434/v1');
+  await page.waitForTimeout(1000);
+  await expect(page.locator('#provider')).toHaveValue('ollama');
+});
