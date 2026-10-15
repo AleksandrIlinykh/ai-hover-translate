@@ -239,13 +239,13 @@ export function dataNote(provider) {
   if (provider.api === 'browser') {
     return 'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.';
   }
-  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over will go to the API URL you enter.';
+  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over or write in Paragloss will go to the API URL you enter.';
   const { host, hostname } = new URL(provider.baseUrl);
   if (LOCAL_HOSTS.has(hostname)) {
-    return `The text you hold Alt over goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
+    return `The text you hold Alt over or write in Paragloss goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
   }
   return (
-    `The text you hold Alt over, with a few words around a selection, is sent to ${provider.name} at ${host} ` +
+    `The text you hold Alt over or write in Paragloss, with a few words around a selection, is sent to ${provider.name} at ${host} ` +
     'with your key; their privacy policy applies. Nothing else leaves your browser.'
   );
 }

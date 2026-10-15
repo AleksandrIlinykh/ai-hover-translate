@@ -3,12 +3,14 @@
     elementAt,
     inspectBlock,
     isOverText,
+    writableField,
     selectionAt,
     isShortPhrase,
     contextOf,
     blockTextOf,
     alreadyInLanguage,
     detectLanguage,
+    detectedBefore,
     languageCode,
     sourceLanguage,
     translateInBrowser,
@@ -16,6 +18,7 @@
     describeProblem,
     createPopup,
     createHighlight,
+    createComposeWindow,
   } = globalThis.paragloss;
 
   const TRIGGER_DELAY_MS = 200;
@@ -43,6 +46,7 @@
     onDropTopics: () => dropTopics(),
   });
   const highlight = createHighlight();
+  const composeWindow = createComposeWindow();
 
   let mouseX = null;
   let mouseY = null;
@@ -77,7 +81,7 @@
   // otherwise { target, text } or { target, reason } (target is a block element or a selection Range).
   function pickUnderMouse() {
     const element = elementAt(mouseX, mouseY);
-    if (element && popup.isOwn(element)) return undefined;
+    if (element && (popup.isOwn(element) || composeWindow.isOwn(element))) return undefined;
     const picked = selectionAt(mouseX, mouseY) ?? (element ? inspectBlock(element) : null);
     // Over a huge block's padding or margins rather than its text there is nothing to point at.
     if (picked?.reason === 'too-long' && !picked.selection && !isOverText(mouseX, mouseY)) return null;
@@ -86,6 +90,7 @@
 
   function hintFor(picked) {
     if (picked.reason === 'too-long') return HINTS[picked.selection ? 'too-long-selection' : 'too-long'];
+    if (picked.reason === 'editable' && writableField(picked.target)) return `Alt+click: write in ${languageNames.of(targetLang)}.`;
     if (picked.reason) return HINTS[picked.reason];
     if (sameLanguage.get(picked.text)) return `Already in ${languageNames.of(targetLang)}.`;
     return '';
@@ -258,7 +263,9 @@
       popup.setError('The translation was interrupted. Try again.', { action: 'retry' });
     });
     const { text, mode, context, topics: tags } = request;
-    current.postMessage({ text, mode, context, topics: tags });
+    // The passage's language, if the detector has looked at it, for the memory of what was read on the site.
+    const lang = sourceLanguage(detectedBefore(text));
+    current.postMessage({ text, mode, context, topics: tags, lang });
   }
 
   // The free engine: Chrome's translator runs right here, and nothing leaves the page.
@@ -281,6 +288,30 @@
     }
     popup.setText(result.text);
     remember(cache, cacheKey(request), result.text);
+    if (request.mode === 'text') {
+      chrome.runtime
+        .sendMessage({ type: 'remember-pair', source: request.text, translation: result.text, lang: result.source })
+        .catch(() => {});
+    }
+  }
+
+  // The compose window at a field: what to write is translated into the page's language, to copy.
+  async function openCompose(field) {
+    syncAddress();
+    let state = null;
+    try {
+      state = await chrome.runtime.sendMessage({ type: 'compose-open', pageLang: languageCode(document.documentElement.lang) });
+    } catch {
+      return; // the extension was updated; the page needs a reload
+    }
+    if (!state) return;
+    composeWindow.open(field, {
+      ...state,
+      topics: engine === 'api' ? topics : [],
+      onTargetChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-target', lang }).catch(() => {}),
+      onDraftChange: (draft) => chrome.runtime.sendMessage({ type: 'compose-draft', draft }).catch(() => {}),
+      onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),
+    });
   }
 
   // With the free translator, the first click or key press on a page in another language gets its model ready,
@@ -422,6 +453,23 @@
     else closePopup();
   });
 
+  // Alt+click on a field where one writes opens the compose window there.
+  addEventListener(
+    'click',
+    (event) => {
+      if (!event.altKey || event.ctrlKey || event.shiftKey || event.metaKey || !event.isTrusted) return;
+      const target = event.composedPath()[0];
+      if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
+      const field = writableField(target);
+      if (!field) return;
+      usedAlt = true; // releasing Alt must not focus Chrome's menu
+      highlight.hide();
+      closePopup();
+      openCompose(field);
+    },
+    true,
+  );
+
   addEventListener('pointerdown', prepareModel, true);
   addEventListener('keydown', prepareModel, true);
 
@@ -433,7 +481,12 @@
     true,
   );
 
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'compose-context') {
+      // The toolbar popup asks what this page knows: its topic and declared language.
+      sendResponse({ topics: engine === 'api' ? topics : [], pageLang: languageCode(document.documentElement.lang) });
+      return;
+    }
     if (message?.type !== 'settings-changed') return;
     cache.clear();
     sameLanguage.clear();

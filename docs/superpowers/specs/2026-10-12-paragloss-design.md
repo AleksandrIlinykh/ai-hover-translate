@@ -21,7 +21,7 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 ## Out of scope
 
 - Publishing to the Chrome Web Store, syncing settings across devices.
-- Translating inside iframes and form fields (`input`, `textarea`, `select`).
+- Translating inside iframes, and translating what is in form fields (`input`, `textarea`, `select`). Writing into a field goes through the compose window instead, and the window never puts text into the field: the user copies it.
 - Transcription, usage examples, full dictionary articles (short selections get a brief entry only).
 - Translating the whole page.
 - Sending the page title or whole neighbouring paragraphs to the model (only the words around a selected phrase and the page topic tags are sent, see "Context for the model").
@@ -38,9 +38,10 @@ A plain Manifest V3 extension with no build step: regular JS files that Chrome l
 paragloss/
   extension/            ← this folder is loaded into Chrome
     manifest.json
-    background.js       ES module: 'translate' port, API request, opening the settings
+    background.js       ES module: 'translate' and 'compose' ports, API request, memory of what was read, opening the settings
     lib/
       prompt.js         buildMessages(text, languageName, { mode, context, topics })
+      compose.js        buildComposeMessages(draft, fromName, toName, options), pickReferences(), rememberPair(), chooseComposeTarget()
       topics.js         buildTopicMessages(text), parseTopics(reply), cleanTopics(list)
       providers.js      PROVIDERS, chatRequest(), modelsRequest(), parseModels(), answerText(), setupProblem(), hostPattern()
       chat.js           sendChat(provider, payload, signal), readTextStream(body, onText, touch)
@@ -48,13 +49,17 @@ paragloss/
       errors.js         errorFromStatus(status, bodyText, provider), makeError(code, provider)
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored), activeProvider(settings), loadSettings()
     content/            classic scripts (not modules) sharing globalThis.paragloss
-      block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y)
+      block.js          elementAt(x, y), inspectBlock(element), isOverText(x, y), writableField(node)
       selection.js      selectionAt(x, y), isShortPhrase(text), wordsAround(text, start, end), blockTextOf(range), contextOf(range)
-      language.js       isAlreadyIn(results, lang), detectLanguage(text), alreadyInLanguage(text, lang)
+      language.js       isAlreadyIn(results, lang), detectLanguage(text), detectedBefore(text), alreadyInLanguage(text, lang)
       translator.js     languageCode(tag), sourceLanguage(results), translateInBrowser(text, lang, options), prepareInBrowser(source, lang), describeProblem(result, lang)
       popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics })
       highlight.js      createHighlight()
-      main.js           trigger, what to translate, talking to background, closing, page cache
+      composer.js       createComposer(options): the compose window, also used by the toolbar popup
+      compose-window.js createComposeWindow(): the compose window at a text field
+      main.js           trigger, what to translate, talking to background, closing, page cache, Alt+click on fields
+    compose.html        the toolbar popup: the compose window on its own
+    compose-page.js
     options.html
     options.js
   tests/
@@ -72,13 +77,14 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 ## Manifest
 
 - `manifest_version: 3`, `name: "Paragloss"`, `version: "0.1.0"`.
-- `permissions: ["storage", "declarativeNetRequestWithHostAccess"]`.
+- `permissions: ["storage", "activeTab", "declarativeNetRequestWithHostAccess"]`. `activeTab` lets the toolbar popup see which site the active tab is on; it adds no install warning.
 - `host_permissions`: the API hosts of every preset provider (`api.deepseek.com`, `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.mistral.ai`, `api.x.ai`, `*.aliyuncs.com`, all over https) plus `http://localhost/*` and `http://127.0.0.1/*` (any port). The content script already runs on `<all_urls>`, so they add no install warning. A unit test checks that every preset URL is covered.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
-- `action: { default_title: "Paragloss settings" }`; clicking the icon opens the settings.
+- `action: { default_title: "Paragloss: write in another language", default_popup: "compose.html" }`: the icon opens the compose window. The settings open from its gear and from the "Options" item Chrome adds to the icon's menu.
+- `commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y", mac: "Command+Shift+Y" } } }`: the same popup from the keyboard; the user can change the keys at `chrome://extensions/shortcuts`. Alt+Shift is avoided: on Windows it often switches the keyboard layout.
 
 ## Settings
 
@@ -247,6 +253,29 @@ Problems (`describeProblem`):
 | `unknown_language` | Could not tell which language this text is in. | Retry |
 | `failed` | The built-in translator failed: {error} | Retry |
 
+## Compose window (writing in the page's language)
+
+The reverse of reading: the user writes in their own language (the language they translate into, `targetLang`) and gets a translation into another one, to copy wherever they want. Paragloss never puts the text into a field or sends anything on the page by itself.
+
+Two ways in, one window (`createComposer` in `content/composer.js`):
+
+- **Alt+click on a field** where one writes prose (`writableField`): a textarea, an `input` of type text or search, or a rich text editor (the whole `contenteditable` editing host around the click). Never a disabled or read-only field, a password field, or one whose `autocomplete` asks for a password, a one-time code or card details (`cc-*`). Holding Alt over such a field shows the hint "Alt+click: write in {language}." instead of "Input fields are not translated.". Paragraphs inside editors still translate on Alt + hover; Alt+click in an editor opens the window. The window (`content/compose-window.js`) opens below the field, or above it when there is more room there, 440 px wide, and can be moved by its title row. Keys typed in it stop at its host, so the page's own shortcuts (GitHub, Jira, Slack) do not fire. Copy and close give the focus back to the field.
+- **The toolbar icon or Ctrl+Shift+Y**: the same window as the toolbar popup (`compose.html`), on any tab, including the new tab page and pages no extension can enter. It asks the active tab's content script for the page's topic tags and declared language (`{ type: 'compose-context' }`); without a content script there, it works without them. It has a gear for the settings; Copy and Esc close it.
+
+The window:
+
+- Title row: "{own language} →" and a select of the other languages (the target), what Paragloss knows about the site ("{n} passage(s) read here · {tags}") with a round "×" to translate without it, and "×" or the gear.
+- The draft (`textarea`, "Write in {language}"), focused on open. Below it, the translation, which follows the draft 500 ms after the typing stops; a newer draft cancels the request in flight. Nothing is sent during an IME composition.
+- Below the translation, after "Check", the translation back into the user's language ("Back in {language}: …"), to see whether the meaning held. Only on request, to keep the requests down.
+- The engine in use ("Chrome, on this computer" or the provider's name), "Check", and "Copy" (also Ctrl+Enter, which waits for a translation still on its way). Errors show in place of the translation with the same buttons as the popup: "Open settings", "Retry" or "Download".
+- The last draft is kept in the session (Esc keeps it; Copy clears it) and comes back in either window.
+
+The language to write in (`chooseComposeTarget`), never the user's own and never one outside `LANGUAGES`: the one chosen before on this site (kept in `chrome.storage.local` under `compose.targets`), else the most common language of the passages read on the site, else the page's `<html lang>`, else the last one chosen anywhere, else English. Nothing is read from around the field.
+
+What goes with the draft, and only what the user chose to translate before: with an AI provider, the page's topic tags and up to 3 passages read on this site with their translations, the ones sharing the most word stems with the draft (`pickReferences`: words of 4+ letters, their first 5 letters, newest first among equals, within 2400 characters, only passages in the target language or of unknown language). The prompt (`buildComposeMessages`) asks for clear, natural writing for work messages, comments and emails, keeps meaning, tone and line breaks, and lists the passages as references so the same terms come back. With Chrome's translator the draft is translated on the page or in the popup, from the user's language into the target one, without context; "Check" runs the other way.
+
+Memory of what was read: every finished translation of a paragraph (mode `text`) is kept by background in `chrome.storage.session` under `memory:{site}` (host with port): `{ source, translation, lang }`, the newest 30, without repeats, gone when the browser closes. `lang` is the passage's language when Chrome's detector has already looked at it (`detectedBefore`, from the "Already in" check), or the source language Chrome's translator used. Pages that translate with Chrome's translator send their pairs with `{ type: 'remember-pair' }`.
+
 ## Cache
 
 In `content/main.js`: a `Map` from `[mode, text, context, topics]` to translation, at most 100 entries (the oldest is evicted). Only successfully finished translations are stored. The cache is cleared when the settings change (the `settings-changed` message from background).
@@ -260,6 +289,8 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 - `{ type: 'chunk', text }`: the next piece of the translation;
 - `{ type: 'done' }`: the translation is finished;
 - `{ type: 'error', code, message }`: an error with a readable `message`.
+
+For the compose window, `chrome.runtime.connect({ name: 'compose' })` takes `{ text, from, to, purpose, topics, useMemory, site }` (`purpose` is `'write'` or `'check'`; `site` only from the toolbar popup, which is not a tab) and answers like `'translate'`. Messages: `{ type: 'compose-open', site?, pageLang }` → `{ languages, from, to, engine, providerName, memorySize, draft }`; `{ type: 'compose-target', site?, lang }` saves the chosen language; `{ type: 'compose-draft', draft }` keeps the draft; `{ type: 'remember-pair', source, translation, lang }` adds a passage read with Chrome's translator. The site of a message is the sender tab's host; extension pages name it themselves. The translate request also carries `lang`, the passage's language if known.
 
 A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, `{ type: 'topics', text }` is answered with `{ topics }` (see "Context for the model"), and `{ type: 'page-settings' }` with `{ targetLang, engine }`, where `engine` is `'browser'` for the free translator and `'api'` otherwise (see "Settings" and "Free translator").
 
@@ -333,6 +364,7 @@ Unit tests (`node --test`, no dependencies):
 - `topics.js`: the topic request and parsing the tags.
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
+- `compose.js`: the compose prompt with and without the topic and references; picking references by shared word stems, language, limit and budget; the memory's size and order; choosing the language to write in.
 - `settings.js`: `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek; `activeProvider` fills in the defaults.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
 - `providers.js`: the list of providers and that the manifest covers their hosts; where the text goes (`dataNote`); the request of each API (URL, headers, body, reasoning off, without extras, topic limits); the model list request and parsing; reading answers; the setup check; host patterns.
@@ -421,5 +453,14 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   76. A selected word is translated from the language of its paragraph; text whose language cannot be told, from the page's `<html lang>`.
   77. "Save" with the free translator gets the model from English ready and says so.
   78. The settings say under the provider where the text goes, following the API URL, and link to the privacy policy.
+  79. Alt over a text field says "Alt+click: write in Russian."; a password field keeps "Input fields are not translated." and opens nothing.
+  80. Alt+click on a field opens the compose window: "Russian →", English chosen from `<html lang>`, the draft focused, the provider's name.
+  81. The draft is translated once after the typing stops, with the compose prompt; Ctrl+Enter copies it (also right after typing), closes the window and focuses the field; "Check" shows the translation back in Russian.
+  82. Esc keeps the draft for the next window; keys typed in the window do not reach the page.
+  83. Another language is used at once and remembered for the site, after a reload too.
+  84. A passage read on the page goes with a related draft as a reference; the context's "×" sends the draft without it. The page topic tags go with the draft.
+  85. Alt+click in a rich text editor opens the window; a missing key shows in the window with "Open settings".
+  86. With Chrome's translator the draft and the check are translated on the page, and nothing is sent.
+  87. The toolbar popup (opened as a page) translates the draft and opens the settings from its gear.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

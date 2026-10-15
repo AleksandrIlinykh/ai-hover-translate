@@ -10,7 +10,7 @@ In medieval manuscripts a gloss was a translation written above the line. Paragl
 
 1. Open `chrome://extensions` and turn on "Developer mode".
 2. Click "Load unpacked" and pick the `extension/` folder.
-3. Click the extension icon and choose the language to translate into.
+3. Open the settings (right-click the extension icon, then "Options") and choose the language to translate into.
 4. Click "Save". Out of the box the extension uses Chrome's built-in translator: free, and nothing leaves your computer. The click lets Chrome download its model for English once.
 5. For translations that fit the context (page topic, dictionary entries), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), click "Test", then "Save".
 
@@ -59,6 +59,15 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
+
+## Writing in another language
+
+- Hold Alt over a text field and click (Alt+click): a window opens under it. Write in your own language at the top; the translation into the page's language appears below as you type. Click "Copy" (or press Ctrl+Enter) and paste it into the field.
+- To write for anywhere else, click the Paragloss icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
+- "Check" translates the result back into your language, to see whether the meaning held.
+- The language to write in follows the site (what you read there, or the page's language); pick another one in the title row and the site keeps it.
+- With an AI provider, the passages you translated on the site and the page topic help it use the same terms. The window shows that, and its "×" writes without them. Paragloss never reads the text around the field, and never types or sends anything on the page itself.
+- Settings are behind the gear in the toolbar window, or "Options" in the icon's right-click menu.
 
 After changing the extension files, click "Reload" on its card in `chrome://extensions` and reload open tabs.
 

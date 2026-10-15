@@ -2,6 +2,8 @@
   const BLOCK_DISPLAYS = new Set(['block', 'list-item', 'table-cell', 'table-caption', 'flex', 'grid', 'flow-root']);
   const MAX_CHARS = 3000;
   const LETTER = /\p{L}/u;
+  const TEXT_INPUTS = new Set(['', 'text', 'search']);
+  const SENSITIVE_AUTOCOMPLETE = /^(current-password|new-password|one-time-code|cc-)/;
 
   // Element under the point, looking inside open shadow roots (web components).
   function elementAt(x, y) {
@@ -47,9 +49,28 @@
     return [...range.getClientRects()].some((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
   }
 
+  // A field the user writes prose in, for the compose window: a textarea, a text or search input, or the whole
+  // rich text editor (contenteditable) around the node; null for anything else, and never for passwords,
+  // one-time codes or card numbers.
+  function writableField(start) {
+    const node = start?.nodeType === Node.TEXT_NODE ? start.parentElement : start;
+    if (!(node instanceof Element)) return null;
+    const field = node.closest('textarea, input');
+    if (field) {
+      if (field.disabled || field.readOnly) return null;
+      if (field instanceof HTMLInputElement && !TEXT_INPUTS.has((field.getAttribute('type') ?? '').toLowerCase())) return null;
+      const autocomplete = (field.getAttribute('autocomplete') ?? '').toLowerCase().split(/\s+/);
+      return autocomplete.some((token) => SENSITIVE_AUTOCOMPLETE.test(token)) ? null : field;
+    }
+    if (!(node instanceof HTMLElement) || !node.isContentEditable) return null;
+    let editor = node;
+    while (editor.parentElement?.isContentEditable) editor = editor.parentElement;
+    return editor;
+  }
+
   function blockText(block) {
     return block.innerText.trim().replace(/\n{3,}/g, '\n\n');
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { elementAt, inspectBlock, isOverText });
+  Object.assign((globalThis.paragloss ??= {}), { elementAt, inspectBlock, isOverText, writableField });
 })();

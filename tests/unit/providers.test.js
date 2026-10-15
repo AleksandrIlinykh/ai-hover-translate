@@ -206,17 +206,20 @@ test('dataNote says where the text goes for each kind of provider', () => {
   );
   assert.equal(
     dataNote(provider('deepseek')),
-    'The text you hold Alt over, with a few words around a selection, is sent to DeepSeek at api.deepseek.com ' +
+    'The text you hold Alt over or write in Paragloss, with a few words around a selection, is sent to DeepSeek at api.deepseek.com ' +
       'with your key; their privacy policy applies. Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('ollama')),
-    'The text you hold Alt over goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
+    'The text you hold Alt over or write in Paragloss goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('custom', { baseUrl: 'http://127.0.0.1:8080/v1' })),
-    'The text you hold Alt over goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
+    'The text you hold Alt over or write in Paragloss goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
       'Nothing else leaves your browser.',
   );
-  assert.equal(dataNote(provider('custom', { baseUrl: '' })), 'The text you hold Alt over will go to the API URL you enter.');
+  assert.equal(
+    dataNote(provider('custom', { baseUrl: '' })),
+    'The text you hold Alt over or write in Paragloss will go to the API URL you enter.',
+  );
 });

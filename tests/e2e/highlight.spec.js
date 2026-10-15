@@ -54,7 +54,8 @@ test('releasing Alt removes the outline but keeps the popup', async ({ page }) =
 
 for (const [selector, hint] of [
   ['#huge', 'Too much text. Select the part you need.'],
-  ['#input', 'Input fields are not translated.'],
+  ['#input', 'Alt+click: write in Russian.'],
+  ['#password', 'Input fields are not translated.'],
 ]) {
   test(`${selector} gets a grey outline with a hint and no request`, async ({ page, server }) => {
     await altHover(page, selector);
