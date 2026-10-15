@@ -308,8 +308,9 @@
     }
   }
 
-  // The compose window at a field: what to write is translated into the page's language, to copy.
-  async function openCompose(field) {
+  // The compose window at a field or by the mouse (`anchor`, see createComposeWindow): what to write is translated into
+  // the page's language, to copy.
+  async function openCompose(anchor) {
     syncAddress();
     let state = null;
     try {
@@ -318,7 +319,7 @@
       return; // the extension was updated; the page needs a reload
     }
     if (!state) return;
-    composeWindow.open(field, {
+    composeWindow.open(anchor, {
       ...state,
       topics: engine === 'api' ? topics : [],
       onTargetChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-target', lang }).catch(() => {}),
@@ -390,6 +391,32 @@
     triggerTimer = setTimeout(trigger, TRIGGER_DELAY_MS);
   }
 
+  // Alt+T writes. T is the physical key, so it works in any keyboard layout.
+  function isWriteKey(event) {
+    return event.code === 'KeyT' && event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey && event.isTrusted;
+  }
+
+  function focusedElement() {
+    let element = document.activeElement;
+    while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+    return element;
+  }
+
+  // The compose window at the field being typed in, else at the field under the mouse, else by the mouse;
+  // or, when it is open, closed.
+  function toggleCompose() {
+    if (composeWindow.isOpen()) {
+      composeWindow.dismiss();
+      return;
+    }
+    const focused = focusedElement();
+    const field = writableField(focused) ?? (mouseX === null ? null : writableField(elementAt(mouseX, mouseY)));
+    highlight.hide();
+    closePopup();
+    if (field) openCompose({ field });
+    else openCompose({ point: mouseX === null ? null : { x: mouseX, y: mouseY }, returnTo: focused });
+  }
+
   function releaseAlt() {
     altDown = false;
     clearTimeout(triggerTimer);
@@ -432,6 +459,13 @@
         combo = true; // Alt+Tab, Alt+←, … are not translation requests
         clearTimeout(triggerTimer);
         highlight.hide();
+      }
+      if (isWriteKey(event)) {
+        event.preventDefault(); // the page hears neither the T nor the letter it types
+        event.stopImmediatePropagation();
+        usedAlt = true;
+        if (!event.repeat) toggleCompose();
+        return;
       }
       if (event.key === 'Escape' && popup.isOpen()) closePopup();
     },
@@ -480,7 +514,7 @@
       usedAlt = true; // releasing Alt must not focus Chrome's menu
       highlight.hide();
       closePopup();
-      openCompose(field);
+      openCompose({ field });
     },
     true,
   );

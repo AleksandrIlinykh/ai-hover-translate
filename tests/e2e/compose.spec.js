@@ -201,3 +201,65 @@ test.describe('the toolbar popup', () => {
     await expect(options).toHaveURL(`chrome-extension://${extensionId}/options.html`);
   });
 });
+
+test.describe('Alt+T', () => {
+  // Alt+T as the keyboard sends it: the T is the physical key, whatever letter the layout puts on it.
+  async function altT(page, key = 't') {
+    const client = await page.context().newCDPSession(page);
+    const send = (type, event) => client.send('Input.dispatchKeyEvent', { type, ...event });
+    await send('rawKeyDown', { modifiers: 1, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
+    await send('rawKeyDown', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
+    await send('keyUp', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
+    await send('keyUp', { modifiers: 0, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
+    await client.detach();
+  }
+
+  test('opens the window at the field being typed in, and Esc gives the focus back to it', async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    await page.locator('#comment').click();
+    await page.mouse.move(60, 150);
+    await altT(page);
+    await expect(part(page, 'draft')).toBeFocused();
+    const [field, box] = await Promise.all([page.locator('#comment').boundingBox(), compose(page).boundingBox()]);
+    expect(Math.round(box.x)).toBe(Math.round(field.x));
+    const below = Math.abs(box.y - (field.y + field.height + 6)) < 1;
+    const above = Math.abs(box.y + box.height - (field.y - 6)) < 1;
+    expect(below || above).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(compose(page)).toHaveCount(0);
+    await expect(page.locator('#comment')).toBeFocused();
+  });
+
+  test('away from fields opens the window by the mouse, and the paragraph under it is not translated', async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    const p1 = await page.locator('#p1').boundingBox();
+    const mouse = { x: Math.round(p1.x + 40), y: Math.round(p1.y + 10) };
+    await page.mouse.move(mouse.x, mouse.y);
+    await altT(page);
+    await expect(part(page, 'draft')).toBeFocused();
+    const box = await compose(page).boundingBox();
+    expect([Math.round(box.x), Math.round(box.y)]).toEqual([mouse.x, mouse.y + 22]);
+    await page.waitForTimeout(500);
+    await expect(page.locator('#paragloss-root')).toHaveCount(0);
+    await expect(page.locator('#paragloss-hero')).toHaveCount(0);
+    expect(server.requests).toHaveLength(0);
+  });
+
+  test('Alt+T again closes the window', async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    await page.mouse.move(60, 150);
+    await altT(page);
+    await expect(part(page, 'draft')).toBeFocused();
+    await altT(page);
+    await expect(compose(page)).toHaveCount(0);
+  });
+
+  test('works in another keyboard layout, and the page does not hear the T', async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    await page.mouse.move(60, 150);
+    const before = await page.evaluate(() => window.pageKeys);
+    await altT(page, String.fromCharCode(0x435)); // the Cyrillic letter on the T key
+    await expect(part(page, 'draft')).toBeFocused();
+    expect(await page.evaluate(() => window.pageKeys)).toBe(before + 1); // only the Alt
+  });
+});

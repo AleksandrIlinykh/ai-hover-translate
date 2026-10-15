@@ -56,10 +56,10 @@ paragloss/
       popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose, onDropTopics })
       highlight.js      createHighlight()
       composer.js       createComposer(options): the compose window, also used by the toolbar popup
-      compose-window.js createComposeWindow(): the compose window at a text field
+      compose-window.js createComposeWindow(): the compose window at a text field or by the mouse
       pup.js            heroes.pup: the companion's frames
       hero.js           createHero(hero, spot): the companion by the mouse and on the popup
-      main.js           trigger, what to translate, talking to background, closing, page cache, Alt+click on fields
+      main.js           trigger, what to translate, talking to background, closing, page cache, Alt+click and Alt+T
     compose.html        the toolbar popup: the compose window on its own
     compose-page.js
     options.html
@@ -272,9 +272,10 @@ Problems (`describeProblem`):
 
 The reverse of reading: the user writes in their own language (the language they translate into, `targetLang`) and gets a translation into another one, to copy wherever they want. Paragloss never puts the text into a field or sends anything on the page by itself.
 
-Two ways in, one window (`createComposer` in `content/composer.js`):
+Three ways in, one window (`createComposer` in `content/composer.js`):
 
 - **Alt+click on a field** where one writes prose (`writableField`): a textarea, an `input` of type text or search, or a rich text editor (the whole `contenteditable` editing host around the click). Never a disabled or read-only field, a password field, or one whose `autocomplete` asks for a password, a one-time code or card details (`cc-*`). Holding Alt over such a field shows the hint "Alt+click: write in {language}." instead of "Input fields are not translated.". Paragraphs inside editors still translate on Alt + hover; Alt+click in an editor opens the window. The window (`content/compose-window.js`) opens below the field, or above it when there is more room there, 440 px wide, and can be moved by its title row. Keys typed in it stop at its host, so the page's own shortcuts (GitHub, Jira, Slack) do not fire. Copy and close give the focus back to the field.
+- **Alt+T**, with T as the physical key (`event.code === 'KeyT'`), so it works in any keyboard layout: the window opens at the field being typed in (the focused element, looking inside shadow roots), else at the field under the mouse, else 22 px below the tip of the mouse pointer (16 px for the arrow and the 6 px gap), or in the upper middle of the window when the mouse has not been over the page. Alt+T again closes it, as its "×" does. The page hears the Alt but not the T, and since T makes Alt a combination, the paragraph under the mouse is not translated. Copy and close give the focus back to what had it.
 - **The toolbar icon or Ctrl+Shift+Y**: the same window as the toolbar popup (`compose.html`), on any tab, including the new tab page and pages no extension can enter. It asks the active tab's content script for the page's topic tags and declared language (`{ type: 'compose-context' }`); without a content script there, it works without them. It has a gear for the settings; Copy and Esc close it.
 
 The window:
@@ -484,5 +485,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   91. The pup sits down once the translation is there, and hops onto the popup's top edge, 10 px from its left, when Alt is let go; with no room above the popup it sits under it.
   92. The pup dances on the popup while the translation is on its way, then sits down.
   93. The pup leaves with the popup; it never takes the mouse from the page; with reduced motion it stands still.
+  94. Alt+T opens the compose window at the field being typed in, even with the mouse elsewhere, and Esc gives the focus back to the field.
+  95. Alt+T away from fields opens the window 22 px below the mouse, and the paragraph under the mouse is neither translated nor sent, nor does the pup come.
+  96. Alt+T again closes the window.
+  97. Alt+T works with another letter on the T key (another layout), and the page hears only the Alt.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

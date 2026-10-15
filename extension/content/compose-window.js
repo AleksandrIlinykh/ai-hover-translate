@@ -1,10 +1,11 @@
-// The compose window at a text field on the page: below the field (above when there is no room), moved by its
-// title row, closed with its ×, Esc or Copy. Keys typed in it stay out of the page, so site shortcuts do not fire.
+// The compose window on the page, at a text field or by the mouse pointer: below it (above when there is no room),
+// moved by its title row, closed with its ×, Esc, Copy or Alt+T. Keys typed in it stay out of the page, so site shortcuts do not fire.
 (() => {
   const ROOT_ID = 'paragloss-compose';
   const WIDTH = 440;
   const GAP = 6;
   const MARGIN = 8;
+  const POINTER_HEIGHT = 16; // the window starts below the arrow of the mouse pointer
 
   // Inline !important beats any page rule, as for the translation popup.
   const HOST_STYLE = ['all: initial', 'position: absolute', 'top: 0', 'left: 0', 'display: block', 'z-index: 2147483647']
@@ -28,14 +29,21 @@
   function createComposeWindow() {
     let host = null;
     let composer = null;
+    let finish = null; // closes the window and gives the focus back
 
     function place(left, top) {
       host.style.setProperty('left', `${left + window.scrollX}px`, 'important');
       host.style.setProperty('top', `${top + window.scrollY}px`, 'important');
     }
 
-    function position(frame, field) {
-      const rect = field.getBoundingClientRect();
+    // Where to open without a field: below the mouse pointer, or in the upper middle of the window.
+    function pointRect(point) {
+      if (point) return { left: point.x, top: point.y, bottom: point.y + POINTER_HEIGHT };
+      const top = window.innerHeight / 4;
+      return { left: (document.documentElement.clientWidth - WIDTH) / 2, top, bottom: top };
+    }
+
+    function position(frame, rect) {
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
       frame.style.width = `${Math.min(WIDTH, viewportWidth - 2 * MARGIN)}px`;
@@ -80,10 +88,13 @@
       composer = null;
       host?.remove();
       host = null;
+      finish = null;
     }
 
-    // Opens the window at `field`; `options` go to createComposer. Copy and close give the focus back to the field.
-    function open(field, options) {
+    // Opens the window at `anchor`; `options` go to createComposer. { field } puts it at the field, and Copy and close
+    // give the focus back to the field. { point, returnTo } puts it below the point, the mouse pointer (none: in the
+    // upper middle of the window), and gives the focus back to `returnTo`.
+    function open({ field, point, returnTo = field }, options) {
       close();
       host = document.createElement('div');
       host.id = ROOT_ID;
@@ -98,7 +109,7 @@
       shadow.append(frame);
       const giveFocusBack = () => {
         close();
-        field.focus?.({ preventScroll: true });
+        returnTo?.focus?.({ preventScroll: true });
       };
       composer = globalThis.paragloss.createComposer({
         ...options,
@@ -110,13 +121,16 @@
       });
       composer.element.querySelector('.head').addEventListener('pointerdown', (event) => startDrag(event, frame));
       document.documentElement.append(host);
-      position(frame, field);
+      position(frame, field ? field.getBoundingClientRect() : pointRect(point));
       composer.focus();
+      finish = giveFocusBack;
     }
 
     return {
       open,
       close,
+      // Closes the window as its × does.
+      dismiss: () => finish?.(),
       isOpen: () => host !== null,
       isOwn: (node) => host !== null && (node === host || node?.getRootNode?.() === host.shadowRoot),
     };
