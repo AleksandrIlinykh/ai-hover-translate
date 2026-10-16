@@ -340,9 +340,9 @@ A small pixel character keeps the reader company, so that SpotSlate has a face. 
 Each site (the host with port, as for the site context) can have a mode of its own, kept in `chrome.storage.local` under `sites` as `{ [site]: { off, local, noContext } }`; sites with the default mode (all false) are not kept.
 
 - **The switch**, the first and most visible thing in the toolbar window: "SpotSlate on {site}", on by default. Off, SpotSlate does nothing on the site: holding the read key outlines and translates nothing and brings no dog, Alt+T and Alt+click reach the page as if SpotSlate were not there, and no model is got ready; a note says "Off on this site: SpotSlate does nothing here.". Pages where SpotSlate cannot run (no site) have no switch.
-- Under it, with an AI provider and the switch on, two small switches, one line each: "Only Chrome's translator, nothing is sent" (`local`: on this site Chrome's translator translates, also in the compose window, and nothing is sent, as with the free translator) and "Don't learn this site's context" (`noContext`: no context is learned, sent or shown there; the Context button is hidden). The second shows only while the AI works on the site: with Chrome's translator there is no context at all.
+- Under it, with an AI provider and the switch on, two small switches, one line each, both on by default: "Translate with AI ({provider})" (off is `local`: on this site Chrome's translator translates, also in the compose window, and nothing is sent, as with the free translator) and "Learn this site's context" (off is `noContext`: no context is learned, sent or shown there; the Context button is hidden). The second shows only while the AI works on the site: with Chrome's translator there is no context at all.
 - Any mode other than the default forgets the site's context.
-- The settings list the sites with a mode of their own ("Off", "Only on this computer", "No site context") with a Reset button each.
+- The settings list the sites with a mode of their own ("Off", "Without AI: Chrome's translator", "No site context") with a Reset button each.
 - Messages: `{ type: 'site-mode', site? }` → the mode; `{ type: 'set-site-mode', site?, mode }` saves it, only from SpotSlate's own pages, and answers the mode as stored; background then sends `{ type: 'site-mode-changed', site, siteMode }` to the site's tabs (the ones it knows, as for the context) and to its pages, so the change takes effect at once. `page-settings` also answers the sender's `siteMode`; `compose-open` answers `siteMode` and `aiProvider`, and its `engine` is `'browser'` for a site kept on this computer.
 - Background holds to the mode too: a translation or a draft from a site that is off or kept on this computer is answered with `engine_changed`, so the page switches to Chrome's translator; no context is learned or sent for a site with any mode but the default.
 
@@ -633,9 +633,9 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   131. Letting Alt go after a hold of 300 ms or more is kept from Chrome (`defaultPrevented`); a quick tap is not.
   132. A translation request whose text is not a string or is blank sends nothing; a longer one is cut to 3000 characters.
   134. The site context and the words around a phrase arrive in the reference turn, not in the system prompt.
-  135. The toolbar window starts with the site's switch, on, naming the site, with the two options under it.
+  135. The toolbar window starts with the site's switch, on, naming the site, with "Translate with AI (DeepSeek)" and "Learn this site's context" on under it.
   136. Switched off, the site gets nothing at once: no popup, dog or outline, Alt+T reaches the page, nothing is sent; switched on again it works, without a reload.
-  137. Only on this computer, the site is translated by Chrome, the compose window says so, and nothing is sent.
+  137. With the AI switched off for a site, Chrome translates it, the compose window says so, the context switch hides, and nothing is sent.
   138. Not learning a site's context clears it, sends none, and hides the Context button.
   139. The settings list the sites with a mode of their own; Reset brings one back.
 

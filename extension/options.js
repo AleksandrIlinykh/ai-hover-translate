@@ -312,7 +312,7 @@ async function showSites() {
     .sort()
     .map((site) => {
       const mode = siteModeOf(sites, site);
-      const what = mode.off ? ['Off'] : [mode.local && 'Only on this computer', mode.noContext && 'No site context'].filter(Boolean);
+      const what = mode.off ? ['Off'] : [mode.local && "Without AI: Chrome's translator", mode.noContext && 'No site context'].filter(Boolean);
       const row = document.createElement('li');
       const host = Object.assign(document.createElement('span'), { className: 'site-host', textContent: site });
       const label = Object.assign(document.createElement('span'), { className: 'site-mode', textContent: what.join(', ') });

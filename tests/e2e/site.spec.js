@@ -21,8 +21,9 @@ test('the toolbar window starts with a switch for the site, on, naming it', asyn
   await expect(toolbar.locator('body > :first-child')).toHaveClass(/site/);
   await expect(toolbar.locator('.site-switch')).toBeChecked();
   await expect(toolbar.locator('.site-name')).toHaveText(say('siteSwitch', { site: site(server) }));
-  await expect(toolbar.locator('.site-local')).toBeVisible();
-  await expect(toolbar.locator('.site-no-context')).toBeVisible();
+  await expect(toolbar.locator('.site-ai')).toBeChecked();
+  await expect(toolbar.locator('.ai-label')).toHaveText(say('siteAi', { provider: 'DeepSeek' }));
+  await expect(toolbar.locator('.site-context')).toBeChecked();
 });
 
 test('switched off, the site gets nothing from SpotSlate at once, and switched on again it does', async ({ page, context, serviceWorker, extensionId, server }) => {
@@ -31,7 +32,7 @@ test('switched off, the site gets nothing from SpotSlate at once, and switched o
   await toolbar.locator('.site-switch').uncheck();
   await expect(toolbar.locator('.site-switch')).not.toBeChecked();
   await expect(toolbar.locator('.site-off')).toHaveText(say('siteOff'));
-  await expect(toolbar.locator('.site-local')).toBeHidden();
+  await expect(toolbar.locator('.site-ai')).toBeHidden();
   await page.bringToFront();
   await page.evaluate(() => {
     window.pageAltT = 0;
@@ -55,12 +56,12 @@ test('switched off, the site gets nothing from SpotSlate at once, and switched o
   await expect(popupText(page)).toContainText('[RU] Second paragraph');
 });
 
-test('only on this computer, the site is translated by Chrome and nothing is sent', async ({ page, context, serviceWorker, extensionId, server }) => {
+test('without the AI on a site, it is translated by Chrome and nothing is sent', async ({ page, context, serviceWorker, extensionId, server }) => {
   await page.goto(`${server.url}/page.html`);
   await inContentScript(page, fakeBuiltInAI());
   const toolbar = await toolbarFor(page, context, serviceWorker, extensionId);
-  await toolbar.locator('.site-local').check();
-  await expect(toolbar.locator('.site-no-context')).toBeHidden(); // no AI here, so no context to learn
+  await toolbar.locator('.site-ai').uncheck();
+  await expect(toolbar.locator('.site-context')).toBeHidden(); // no AI here, so no context to learn
   await page.bringToFront();
   await altHover(page, '#p1');
   await expect(popupText(page)).toContainText('[ru on device] The quick brown fox');
@@ -86,7 +87,7 @@ test('not learning a site context clears it, sends none and hides the button', a
   await page.keyboard.up('Alt');
   await page.keyboard.press('Escape');
   const toolbar = await toolbarFor(page, context, serviceWorker, extensionId);
-  await toolbar.locator('.site-no-context').check();
+  await toolbar.locator('.site-context').uncheck();
   expect(await serviceWorker.evaluate((key) => chrome.storage.session.get(key), `notes:${site(server)}`)).toEqual({});
   await page.bringToFront();
   await altHover(page, '#long2');
