@@ -33,6 +33,7 @@
         "content/language.js",
         "content/translator.js",
         "content/notes-panel.js",
+        "content/lang-picker.js",
         "content/popup.js",
         "content/highlight.js",
         "content/correction.js",

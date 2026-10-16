@@ -54,11 +54,13 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - "Context" under the translation shows what SpotSlate knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes; each new popup opens with it folded away.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not, but what you select in one is, with Alt over it or Alt+click on it. Nothing else of the field is sent, and password fields never are.
 - A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
-- Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
+- Click the popup to pin it: it stays while you move the mouse away. Close it with a click outside, Esc or the "×" on its title bar.
+- The code on the left of the popup's title bar ("→ RU") is the language you translate into: click it to pick another one, for every site, as in the settings. The gear opens the settings.
 - Drag the popup by its title bar to put it where you like, and resize it by any edge or corner: it then stays at that place on screen while you scroll, handy for reading a long paragraph.
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
 - "Report" opens a GitHub issue about a bad translation with the setup filled in, and copies the text for you: paste it there only if it is not confidential.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
+- One SpotSlate window at a time: a translation popup puts the compose window away (your draft stays), and the compose window closes the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
 - SpotSlate speaks the language you translate into: its hints, buttons, errors and windows follow the "Translate into" setting.
 - Spot, a little pixel shiba, keeps you company: it dances next to the mouse while you hold Alt, sits down when the translation is ready, and hops onto the popup when you let Alt go. It never gets in the way of the mouse, and stands still if your system asks for reduced motion.

@@ -68,7 +68,15 @@ function pageSettings(settings) {
     engine: activeProvider(settings).api === 'browser' ? 'browser' : 'api',
     providerName: activeProvider(settings).name,
     keys: { read, readName: readKeyName(read, currentPlatform()), write },
+    languages: Object.keys(LANGUAGES),
   };
+}
+
+// The language to translate into, chosen in a popup's title bar: the same setting as on the settings page.
+async function setTargetLang(lang) {
+  if (typeof lang !== 'string' || !Object.hasOwn(LANGUAGES, lang)) return;
+  const { settings = {} } = await chrome.storage.local.get('settings');
+  if (settings.targetLang !== lang) await chrome.storage.local.set({ settings: { ...settings, targetLang: lang } });
 }
 
 chrome.storage.onChanged.addListener(async (changes, area) => {
@@ -169,6 +177,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message?.type === 'compose-target') {
     saveComposeTarget(siteOf(sender, message.site), message.lang);
+  }
+  if (message?.type === 'set-target-lang') {
+    setTargetLang(message.lang);
   }
   if (message?.type === 'compose-source') {
     saveComposeSource(siteOf(sender, message.site), message.lang);

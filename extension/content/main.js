@@ -41,6 +41,7 @@
     onDownload: () => retry(), // the click lets Chrome download the model
     onClose: () => closePopup(),
     onReport: (translation) => report(translation),
+    onTargetChange: (lang) => chrome.runtime.sendMessage({ type: 'set-target-lang', lang }).catch(() => {}),
   });
   const highlight = createHighlight();
   const composeWindow = createComposeWindow();
@@ -68,6 +69,7 @@
   let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
   let modelAsked = false; // whether this page has asked Chrome to get its translation model ready
   let settingsKnown = false; // whether background has answered with the settings below
+  let languages = null; // the languages SpotSlate translates into, in the order of the settings
   // The key held to read ('Alt' or 'Control') with its name on this platform, and the shortcut to write
   // (see lib/keys.js); background sends the ones in the settings.
   let keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
@@ -83,6 +85,7 @@
       keys = answer?.keys ?? keys;
       providerName = answer?.providerName ?? '';
       siteMode = answer?.siteMode ?? siteMode;
+      languages = answer?.languages ?? languages;
       settingsKnown = true;
       applySettings();
       if (readDown) updatePreview();
@@ -104,7 +107,7 @@
   // no Context button without an AI or without a site context, and nothing at all on a site that is off.
   function applySettings() {
     engine = siteMode.local ? 'browser' : settingsEngine;
-    popup.setLanguage(targetLang);
+    popup.setLanguage(targetLang, languages);
     popup.setContext(engine === 'api' && !siteMode.noContext, providerName);
     if (!siteMode.off) return;
     releaseReadKey();
@@ -193,6 +196,7 @@
 
   function show(picked) {
     closePopup();
+    if (composeWindow.isOpen()) composeWindow.leave(); // one window at a time; the draft stays for next time
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
     // Nothing around a selection in a field is taken: it may hold anything, so only what the user selected goes.
     const around = picked.selection && !picked.field;
@@ -302,6 +306,7 @@
       return; // the extension was updated; the page needs a reload
     }
     if (!state) return;
+    closePopup(); // one window at a time
     composeWindow.open(anchor, {
       ...state,
       onSourceChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-source', lang }).catch(() => {}),
@@ -469,7 +474,7 @@
         if (!event.repeat) toggleCompose();
         return;
       }
-      if (event.key === 'Escape' && popup.isOpen()) closePopup();
+      if (event.key === 'Escape' && popup.isOpen() && !popup.isPickerOpen()) closePopup(); // Esc closes the list first
     },
     true,
   );
@@ -556,7 +561,7 @@
         trigger();
         return;
       }
-      if (popup.isOpen() && !popup.isPinned() && !popup.isOwn(event.target)) closePopup();
+      if (popup.isOpen() && !popup.isOwn(event.target)) closePopup(); // pinned or not
       // A click elsewhere on the page puts the compose window away; SpotSlate's popup is part of the writing.
       if (composeWindow.isOpen() && event.isTrusted && !composeWindow.isOwn(event.target) && !popup.isOwn(event.target)) {
         composeWindow.leave();
@@ -580,11 +585,14 @@
     if (message?.type !== 'settings-changed') return;
     cache.clear();
     sameLanguage.clear();
+    const before = targetLang;
     targetLang = message.targetLang || DEFAULT_LANG;
     settingsEngine = message.engine || 'api';
     keys = message.keys ?? keys;
     providerName = message.providerName ?? '';
+    languages = message.languages ?? languages;
     applySettings();
     modelAsked = false;
+    if (targetLang !== before) retry(); // the open popup shows its text in the new language
   });
 })();

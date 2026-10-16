@@ -217,10 +217,30 @@ test.describe('free built-in translator', () => {
   test('pages are told which engine translates, and the keys', async ({ page, setSettings }) => {
     const keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
     const siteMode = { off: false, local: false, noContext: false }; // an extension page is on no site
+    const languages = ['ru', 'en', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'uk', 'tr', 'zh', 'ja', 'ko']; // for the pickers
     await setSettings({ targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', providerName: 'DeepSeek', keys, siteMode });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', providerName: 'DeepSeek', keys, siteMode, languages });
     await setSettings({ provider: 'chrome', targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', providerName: 'Chrome built-in translator', keys, siteMode });
+    expect(await pageSettings(page)).toEqual({
+      targetLang: 'de',
+      engine: 'browser',
+      providerName: 'Chrome built-in translator',
+      keys,
+      siteMode,
+      languages,
+    });
+  });
+
+  test('the language to translate into can be set from a page, only to one SpotSlate knows', async ({ page, serviceWorker, setSettings }) => {
+    await setSettings({ targetLang: 'de' });
+    const stored = () => serviceWorker.evaluate(async () => (await chrome.storage.local.get('settings')).settings);
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'set-target-lang', lang: 'xx' }));
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'set-target-lang', lang: { toString: () => 'fr' } }));
+    await page.waitForTimeout(200);
+    expect((await stored()).targetLang).toBe('de');
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'set-target-lang', lang: 'fr' }));
+    await expect.poll(async () => (await stored()).targetLang).toBe('fr');
+    expect((await stored()).providers.deepseek.apiKey).toBe('test-key'); // the rest of the settings stays
   });
 
   test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {

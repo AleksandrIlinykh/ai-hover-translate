@@ -9,7 +9,7 @@
 
   const COMPOSER_CSS = `
     .composer {
-      color-scheme: light dark; /* the lists, when open, in the same theme as the window */
+      color-scheme: light dark; /* the scroll bars and the text field in the same theme as the window */
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -22,13 +22,11 @@
       text-align: left;
     }
     .head { display: flex; align-items: center; gap: 6px; min-height: 26px; user-select: none; }
-    .arrow { font-weight: 600; }
-    .source option, .target option { background: #ffffff; color: #1f2328; }
+    .arrow { font-weight: 600; opacity: 0.7; }
     .grip { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; margin-left: -6px; height: 22px; opacity: 0.35; cursor: grab; }
     .grip:hover { opacity: 0.55; }
     .grip svg { display: block; fill: currentColor; }
 
-    .source, .target { min-width: 0; font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid #d0d7de; border-radius: 6px; padding: 1px 4px; }
     .spacer { flex: 1; }
     .tool {
       flex: none; height: 22px; padding: 0 6px; border: 1px solid transparent; border-radius: 4px;
@@ -68,8 +66,7 @@
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .composer { background: #161b22; color: #e6edf3; }
-      .source, .target, .draft, .button { border-color: #30363d; }
-      .source option, .target option { background: #161b22; color: #e6edf3; }
+      .draft, .button { border-color: #30363d; }
       .removed { color: #ff7b72; }
       .added { color: #7ee787; background: #033a16; }
       .result { background: #0d1117; }
@@ -155,29 +152,36 @@
     onClose = () => {},
     onOpenSettings = () => {},
   }) {
-    const { createNotesPanel, NOTES_CSS, t, languageName } = globalThis.spotslate;
+    const { createNotesPanel, NOTES_CSS, PICKER_CSS, createLanguagePicker, t, languageName } = globalThis.spotslate;
     const ui = from; // the window speaks the user's own language
     const say = (key, params) => t(ui, key, params);
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(COMPOSER_CSS);
     const notesSheet = new CSSStyleSheet();
     notesSheet.replaceSync(NOTES_CSS);
-    styleRoot.adoptedStyleSheets = [...styleRoot.adoptedStyleSheets, notesSheet, sheet];
+    const pickerSheet = new CSSStyleSheet();
+    pickerSheet.replaceSync(PICKER_CSS);
+    styleRoot.adoptedStyleSheets = [...styleRoot.adoptedStyleSheets, notesSheet, pickerSheet, sheet];
     const nameOf = (code) => languageName(code, ui, { capitalized: true });
 
     const root = element('div', 'composer');
     const head = element('div', 'head');
-    const languageSelect = (className, label, value) => {
-      const select = element('select', className);
-      select.setAttribute('aria-label', say(label));
-      for (const code of Object.keys(languages)) select.add(new Option(nameOf(code), code));
-      select.value = value;
-      return select;
-    };
-    const source = languageSelect('source', 'draftLanguage', initialSource);
-    const target = languageSelect('target', 'resultLanguage', to);
+    const languagePicker = (className, label, value, onChange) =>
+      createLanguagePicker({ className, codes: Object.keys(languages), value, label: () => say(label), titleOf: nameOf, onChange });
+    const source = languagePicker('source', 'draftLanguage', initialSource, (code) => {
+      onSourceChange(code);
+      showMode();
+      shown = ''; // a translation and a correction are different things
+      translateNow();
+    });
+    const target = languagePicker('target', 'resultLanguage', to, (code) => {
+      onTargetChange(code);
+      showMode();
+      shown = ''; // it is in the language before
+      translateNow();
+    });
     if (draggable) head.append(globalThis.spotslate.createGrip());
-    head.append(source, element('span', 'arrow', '→'), target, element('span', 'spacer'));
+    head.append(source.element, element('span', 'arrow', '→'), target.element, element('span', 'spacer'));
     if (showSettings) {
       const settings = element('button', 'tool settings', '⚙');
       settings.type = 'button';
@@ -478,18 +482,6 @@
         event.preventDefault();
         closeWindow();
       }
-    });
-    source.addEventListener('change', () => {
-      onSourceChange(source.value);
-      showMode();
-      shown = ''; // a translation and a correction are different things
-      translateNow();
-    });
-    target.addEventListener('change', () => {
-      onTargetChange(target.value);
-      showMode();
-      shown = ''; // it is in the language before
-      translateNow();
     });
     contextButton.addEventListener('click', () => setContextOpen(!notesPanel.isOpen()));
     actionButton.addEventListener('click', () => {

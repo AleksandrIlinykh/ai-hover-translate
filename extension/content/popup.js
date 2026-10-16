@@ -50,7 +50,9 @@
       touch-action: none;
     }
     .popup.is-dragging .bar { cursor: grabbing; }
-    .bar .grip { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; margin-right: auto; height: 22px; opacity: 0.35; cursor: grab; }
+    .bar .grip { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; height: 22px; opacity: 0.35; cursor: grab; }
+    .bar .arrow { margin: 0 4px 0 2px; font-weight: 600; opacity: 0.7; cursor: grab; }
+    .bar .lang { margin-right: auto; }
     .grip:hover { opacity: 0.55; }
     .grip svg { display: block; fill: currentColor; }
     .popup.is-dragging .grip { cursor: grabbing; }
@@ -150,8 +152,9 @@
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   // With an AI provider a footer row has the Context button, which opens the site context panel under the popup.
   // onReport() is called when the user reports a bad translation; it gets the popup's text.
-  function createPopup({ onOpenSettings, onRetry, onDownload, onClose, onReport }) {
-    const { createNotesPanel, NOTES_CSS } = globalThis.spotslate;
+  // `onTargetChange(lang)` follows a choice of another language to translate into in the title bar.
+  function createPopup({ onOpenSettings, onRetry, onDownload, onClose, onReport, onTargetChange }) {
+    const { createNotesPanel, NOTES_CSS, PICKER_CSS, STRINGS, createLanguagePicker, languageName, t } = globalThis.spotslate;
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
@@ -160,7 +163,10 @@
     sheet.replaceSync(POPUP_CSS);
     const notesSheet = new CSSStyleSheet();
     notesSheet.replaceSync(NOTES_CSS);
-    shadow.adoptedStyleSheets = [sheet, notesSheet];
+    const pickerSheet = new CSSStyleSheet();
+    pickerSheet.replaceSync(PICKER_CSS);
+    shadow.adoptedStyleSheets = [sheet, notesSheet, pickerSheet];
+    let lang = 'en'; // what the popup speaks: the language the user translates into
 
     const button = (className, label, onClick) => {
       const element = document.createElement('button');
@@ -176,8 +182,21 @@
     bar.className = 'bar';
     const reportButton = button('tool report', '', () => report());
     const copyButton = button('tool copy', '', () => copy());
+    const settingsButton = button('tool gear', '\u2699', () => onOpenSettings());
     const closeButton = button('tool close', '×', () => onClose());
-    bar.append(createGrip(), reportButton, copyButton, closeButton);
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = '\u2192';
+    const picker = createLanguagePicker({
+      className: 'lang',
+      codes: Object.keys(STRINGS),
+      value: lang,
+      label: () => t(lang, 'resultLanguage'),
+      titleOf: (code) => languageName(code, lang, { capitalized: true }),
+      onChange: (code) => onTargetChange(code),
+      onOpen: () => popupEl.classList.add('is-pinned'), // the list may reach past the popup, which must stay
+    });
+    bar.append(createGrip(), arrow, picker.element, reportButton, copyButton, settingsButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
@@ -210,7 +229,6 @@
     shadow.append(popupEl, notesSlot);
 
     let block = null;
-    let lang = 'en'; // what the popup speaks: the language the user translates into
     let side = 'above';
     let frame = 0;
     let offset = { x: 0, y: 0 }; // popup position relative to the block, in viewport pixels
@@ -224,6 +242,9 @@
       reportButton.textContent = t(lang, 'report');
       reportButton.title = t(lang, 'reportTitle');
       closeButton.setAttribute('aria-label', t(lang, 'close'));
+      settingsButton.title = t(lang, 'settings');
+      settingsButton.setAttribute('aria-label', t(lang, 'settings'));
+      picker.refresh();
       for (const [key, element] of Object.entries(actions)) element.textContent = t(lang, key);
       contextButton.textContent = t(lang, 'context');
       contextButton.title = t(lang, 'contextTitle');
@@ -427,11 +448,14 @@
         schedulePosition();
       },
       writeClipboard,
-      // Everything the popup says is in `next`, the language the user translates into.
-      setLanguage(next) {
+      // Everything the popup says is in `next`, the language the user translates into, which its title bar picks
+      // from `languages`.
+      setLanguage(next, languages = null) {
         lang = next;
+        picker.setValue(next, languages);
         label();
       },
+      isPickerOpen: () => picker.isOpen(),
       // With an AI provider the footer offers the site context; `providerName` goes into the panel's note.
       setContext(available, providerName = '') {
         foot.hidden = !available;

@@ -120,6 +120,7 @@
         styleRoot: shadow,
         notesContainer: shadow,
         showClose: true,
+        showSettings: true,
         draggable: true,
         onCopied: giveFocusBack,
         onClose: giveFocusBack,

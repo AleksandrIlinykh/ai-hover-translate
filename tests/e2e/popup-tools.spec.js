@@ -43,6 +43,32 @@ test.describe('with a working key', () => {
     await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
   });
 
+  test('the title bar picks the language to translate into, for every site: the text again, the popup in it', async ({ page, server, serviceWorker }) => {
+    await expect(tool(page, 'lang').locator('.picker-button')).toHaveText('RU');
+    await tool(page, 'lang').locator('.picker-button').click();
+    await tool(page, 'lang').locator('.picker-option[data-code="de"]').click();
+    const stored = () => serviceWorker.evaluate(async () => (await chrome.storage.local.get('settings')).settings.targetLang);
+    await expect.poll(stored).toBe('de');
+    await expect.poll(() => server.requests.length).toBe(2);
+    expect(server.requests[1].body.messages[0].content).toContain('German');
+    await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+    await expect(tool(page, 'lang').locator('.picker-button')).toHaveText('DE');
+    await expect(tool(page, 'copy')).toHaveText(say('copy', {}, 'de'));
+  });
+
+  test('the title bar has the settings button, as every window does', async ({ page, context, extensionId }) => {
+    const [options] = await Promise.all([context.waitForEvent('page'), tool(page, 'gear').click()]);
+    await expect(options).toHaveURL(`chrome-extension://${extensionId}/options.html`);
+  });
+
+  test('Esc with the language list open closes the list, not the popup', async ({ page }) => {
+    await tool(page, 'lang').locator('.picker-button').click();
+    await expect(tool(page, 'lang').locator('.picker-list')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(tool(page, 'lang').locator('.picker-list')).toBeHidden();
+    await expect(popupRoot(page)).toHaveCount(1);
+  });
+
   test('clicking the popup pins it, so it stays when the mouse leaves', async ({ page }) => {
     await pin(page);
     await page.mouse.move(5, 700);
@@ -50,11 +76,13 @@ test.describe('with a working key', () => {
     await expect(popupRoot(page)).toHaveCount(1);
   });
 
-  test('a pinned popup ignores clicks outside and closes with its close button', async ({ page }) => {
+  test('a click outside closes the popup, a pinned one too', async ({ page }) => {
     await pin(page);
     await page.mouse.click(5, 700);
-    await page.waitForTimeout(400);
-    await expect(popupRoot(page)).toHaveCount(1);
+    await expect(popupRoot(page)).toHaveCount(0);
+  });
+
+  test('the close button closes the popup', async ({ page }) => {
     await tool(page, 'close').click();
     await expect(popupRoot(page)).toHaveCount(0);
   });

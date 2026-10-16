@@ -1,4 +1,4 @@
-import { test, expect, altHover, moveTo, popupText, inContentScript, fakeBuiltInAI, say, languageLabel } from './fixtures.js';
+import { test, expect, altHover, moveTo, popupText, inContentScript, fakeBuiltInAI, say, languageLabel, chooseLanguage } from './fixtures.js';
 
 const DRAFT = 'privet mir'; // the user's own language, in the Latin script the project's files keep to
 const compose = (page) => page.locator('#spotslate-compose');
@@ -45,9 +45,10 @@ test.beforeEach(async ({ setSettings }) => {
 
 test('Alt+click on a text field opens the compose window from the user language into the page language', async ({ page, server }) => {
   await openOnComment(page, server);
-  await expect(part(page, 'source')).toHaveValue('ru');
-  await expect(part(page, 'source').locator('option:checked')).toHaveText(languageLabel('ru'));
-  await expect(part(page, 'target')).toHaveValue('en');
+  await expect(part(page, 'source')).toHaveAttribute('data-value', 'ru');
+  await expect(part(page, 'source').locator('.picker-button')).toHaveText('RU');
+  await expect(part(page, 'source').locator('.picker-button')).toHaveAttribute('title', languageLabel('ru'));
+  await expect(part(page, 'target')).toHaveAttribute('data-value', 'en');
   await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writePlaceholder'));
   await expect(part(page, 'engine')).toHaveText('DeepSeek');
   await expect(part(page, 'context-toggle')).toBeVisible();
@@ -115,7 +116,7 @@ test('another language does not keep the translation in the one before', async (
   await openOnComment(page, server);
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`, { timeout: 6000 });
-  await part(page, 'target').selectOption('de');
+  await chooseLanguage(compose(page), 'target', 'de');
   await expect(part(page, 'translation')).toHaveText('…');
 });
 
@@ -188,13 +189,13 @@ test('another target language is used at once and remembered for the site', asyn
   await openOnComment(page, server);
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
-  await part(page, 'target').selectOption('de');
+  await chooseLanguage(compose(page), 'target', 'de');
   await expect.poll(() => server.requests.length).toBe(2);
   expect(systemOf(server.requests[1])).toContain('from Russian into German');
   await part(page, 'close').click();
   await page.reload();
   await altClick(page, '#comment');
-  await expect(part(page, 'target')).toHaveValue('de');
+  await expect(part(page, 'target')).toHaveAttribute('data-value', 'de');
 });
 
 test('the site context shows in the window and goes with the draft, and Check goes without it', async ({ page, server }) => {
@@ -266,7 +267,7 @@ test.describe('the same language on both sides', () => {
 
   async function writeIn(page, server, lang) {
     await openOnComment(page, server);
-    await part(page, 'source').selectOption(lang);
+    await chooseLanguage(compose(page), 'source', lang);
     await part(page, 'draft').focus();
   }
 
@@ -306,7 +307,7 @@ test.describe('the same language on both sides', () => {
     await writeIn(page, server, 'en');
     await write(page, MISTAKE);
     await expect(part(page, 'added')).toHaveText('the');
-    await part(page, 'source').selectOption('de');
+    await chooseLanguage(compose(page), 'source', 'de');
     await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writeOtherPlaceholder'));
     await expect(part(page, 'translation')).toHaveText(`[RU] ${MISTAKE}`);
     await expect(part(page, 'fixes')).toBeEmpty();
@@ -314,11 +315,11 @@ test.describe('the same language on both sides', () => {
     await part(page, 'close').click();
     await page.reload();
     await altClick(page, '#comment');
-    await expect(part(page, 'source')).toHaveValue('de');
+    await expect(part(page, 'source')).toHaveAttribute('data-value', 'de');
     await page.keyboard.press('Escape');
     await page.goto(`http://other.test:${new URL(server.url).port}/page.html`);
     await altClick(page, '#comment');
-    await expect(part(page, 'source')).toHaveValue('ru');
+    await expect(part(page, 'source')).toHaveAttribute('data-value', 'ru');
     await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writePlaceholder'));
   });
 
@@ -328,7 +329,7 @@ test.describe('the same language on both sides', () => {
     await page.goto(`${server.url}/page.html`);
     await inContentScript(page, fakeBuiltInAI());
     await altClick(page, '#comment');
-    await part(page, 'source').selectOption('en');
+    await chooseLanguage(compose(page), 'source', 'en');
     await part(page, 'draft').focus();
     await write(page, MISTAKE);
     await expect(part(page, 'translation')).toHaveText(say('checkNeedsAi'));
@@ -343,22 +344,22 @@ test.describe('the same language on both sides', () => {
     const tabId = await serviceWorker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0].id, page.url());
     const toolbar = await context.newPage();
     await toolbar.goto(`chrome-extension://${extensionId}/compose.html?tab=${tabId}`);
-    await toolbar.locator('.source').selectOption('en');
+    await chooseLanguage(toolbar, 'source', 'en');
     await toolbar.locator('.draft').pressSequentially(MISTAKE, { delay: 20 });
     await expect(toolbar.locator('.added')).toHaveText('the');
     await expect(toolbar.locator('.fixes')).toHaveText('teh \u2192 the: spelling');
     await toolbar.close();
     await page.bringToFront();
     await altClick(page, '#comment');
-    await expect(part(page, 'source')).toHaveValue('en');
+    await expect(part(page, 'source')).toHaveAttribute('data-value', 'en');
   });
 });
 
 test.describe('the toolbar popup', () => {
   test('opens the same window with a settings button and translates the draft', async ({ page, extensionId, server, context }) => {
     await page.goto(`chrome-extension://${extensionId}/compose.html`);
-    await expect(page.locator('.source')).toHaveValue('ru');
-    await expect(page.locator('.target')).toHaveValue('en');
+    await expect(page.locator('.source')).toHaveAttribute('data-value', 'ru');
+    await expect(page.locator('.target')).toHaveAttribute('data-value', 'en');
     await expect(page.locator('.draft')).toBeFocused();
     await page.locator('.draft').pressSequentially(DRAFT, { delay: 20 });
     await expect(page.locator('.translation')).toHaveText(`[RU] ${DRAFT}`);
@@ -434,19 +435,33 @@ test.describe('a click elsewhere', () => {
     await expect(part(page, 'draft')).toHaveValue(DRAFT);
   });
 
-  test("on SpotSlate's own popup keeps the window, which Alt+T opened by the mouse", async ({ page, server }) => {
+});
+
+test.describe('one window at a time', () => {
+  test('a translation popup puts the compose window away, the draft kept', async ({ page, server }) => {
     await page.goto(`${server.url}/page.html`);
     const p2 = await page.locator('#p2').boundingBox();
     await page.mouse.move(p2.x + 40, p2.y + 10);
     await altT(page);
     await expect(part(page, 'draft')).toBeFocused();
+    await write(page, DRAFT);
     await altHover(page, '#p1');
     await expect(popupText(page)).toContainText('[RU]');
     await page.keyboard.up('Alt');
-    await popupText(page).click();
-    await expect(compose(page)).toHaveCount(1);
-    await page.locator('#comment').click();
     await expect(compose(page)).toHaveCount(0);
+    await altClick(page, '#comment');
+    await expect(part(page, 'draft')).toHaveValue(DRAFT);
+    await expect(popupText(page)).toHaveCount(0);
+  });
+
+  test('the compose window puts the translation popup away', async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    await altHover(page, '#p1');
+    await expect(popupText(page)).toContainText('[RU]');
+    await page.keyboard.up('Alt');
+    await altT(page);
+    await expect(part(page, 'draft')).toBeFocused();
+    await expect(popupText(page)).toHaveCount(0);
   });
 });
 
@@ -477,16 +492,84 @@ test.describe('the window frame', () => {
     test(`the language lists open in the ${scheme} theme, the text readable on them`, async ({ page, server }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await openOnComment(page, server);
-      const look = await part(page, 'source').evaluate((select) => {
-        const option = getComputedStyle(select.options[0]);
-        return { scheme: getComputedStyle(select).colorScheme, color: option.color, background: option.backgroundColor };
-      });
-      expect(look.scheme).toBe('light dark');
-      expect(look).toMatchObject(
+      await part(page, 'source').locator('.picker-button').click();
+      const list = part(page, 'source').locator('.picker-list');
+      await expect(list).toBeVisible();
+      const look = await list.evaluate((element) => ({
+        color: getComputedStyle(element.querySelector('.picker-option')).color,
+        background: getComputedStyle(element).backgroundColor,
+      }));
+      expect(look).toEqual(
         scheme === 'dark'
           ? { color: 'rgb(230, 237, 243)', background: 'rgb(22, 27, 34)' }
           : { color: 'rgb(31, 35, 40)', background: 'rgb(255, 255, 255)' },
       );
     });
   }
+
+  test('the title row is as in every window: the grip, the languages by code, settings and close', async ({ page, server, context, extensionId }) => {
+    await openOnComment(page, server);
+    for (const name of ['grip', 'settings', 'close']) await expect(part(page, name)).toBeVisible();
+    await expect(part(page, 'source').locator('.picker-button')).toHaveText('RU');
+    await expect(part(page, 'target').locator('.picker-button')).toHaveText('EN');
+    await expect(part(page, 'target').locator('.picker-button')).toHaveAttribute('title', languageLabel('en'));
+    const [options] = await Promise.all([context.waitForEvent('page'), part(page, 'settings').click()]);
+    await expect(options).toHaveURL(`chrome-extension://${extensionId}/options.html`);
+  });
+
+  test('a language list shows every language by its code and its own name, the current one ticked', async ({ page, server }) => {
+    await openOnComment(page, server);
+    await part(page, 'target').locator('.picker-button').click();
+    await expect(part(page, 'target').locator('.picker-option')).toHaveCount(13);
+    await expect(part(page, 'target').locator('.picker-option[data-code="de"]')).toHaveText(/^DE\s*Deutsch/);
+    await expect(part(page, 'target').locator('.picker-option[data-code="uk"]')).toContainText('\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430');
+    await expect(part(page, 'target').locator('.picker-option[aria-selected="true"]')).toHaveAttribute('data-code', 'en');
+  });
+
+  test('a language list scrolls and stays open, and follows its button when the page scrolls', async ({ page, server }) => {
+    await openOnComment(page, server);
+    const button = part(page, 'target').locator('.picker-button');
+    const list = part(page, 'target').locator('.picker-list');
+    await button.click();
+    await expect(list).toBeVisible();
+    const box = await list.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 120);
+    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await list.evaluate((element) => element.scrollBy(0, 1000)); // as the scroll bar would
+    const pageScroll = await page.evaluate(() => scrollY);
+    await page.mouse.wheel(0, 300); // at its end: the page must not scroll instead
+    await page.waitForTimeout(300);
+    await expect(list).toBeVisible();
+    expect(await page.evaluate(() => scrollY)).toBe(pageScroll);
+    const offset = async () => (await list.boundingBox()).y - (await button.boundingBox()).y;
+    const before = await offset();
+    await page.evaluate(() => scrollBy(0, -40));
+    await expect.poll(offset).toBeCloseTo(before, 0);
+    await expect(list).toBeVisible();
+  });
+
+  test('a language list works from the keyboard, and Esc closes the list only', async ({ page, server }) => {
+    await openOnComment(page, server);
+    await write(page, DRAFT);
+    await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
+    const list = part(page, 'target').locator('.picker-list');
+    await part(page, 'target').locator('.picker-button').focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(list).toBeVisible();
+    await expect(part(page, 'target').locator('.picker-option[data-code="en"]')).toBeFocused();
+    await page.keyboard.press('f');
+    await expect(part(page, 'target').locator('.picker-option[data-code="fr"]')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(list).toBeHidden();
+    await expect(compose(page)).toHaveCount(1);
+    await expect(part(page, 'target').locator('.picker-button')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown'); // from English to German
+    await page.keyboard.press('Enter');
+    await expect(list).toBeHidden();
+    await expect(part(page, 'target')).toHaveAttribute('data-value', 'de');
+    await expect.poll(() => server.requests.length).toBe(2);
+    expect(systemOf(server.requests[1])).toContain('from Russian into German');
+  });
 });

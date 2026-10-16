@@ -84,6 +84,12 @@ export const popupRoot = (page) => page.locator('#spotslate-root');
 export const popupText = (page) => popupRoot(page).locator('.text');
 export const popupBox = (page) => popupRoot(page).locator('.popup');
 
+// Picks `code` with the mouse in a language list of SpotSlate's (content/lang-picker.js) named `which` within `scope`.
+export async function chooseLanguage(scope, which, code) {
+  await scope.locator(`.${which} .picker-button`).click();
+  await scope.locator(`.${which} .picker-option[data-code="${code}"]`).click();
+}
+
 export async function moveTo(page, selector, offset = { x: 5, y: 5 }) {
   const target = page.locator(selector);
   await target.scrollIntoViewIfNeeded();

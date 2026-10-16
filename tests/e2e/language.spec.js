@@ -43,8 +43,9 @@ test('the compose window is in that language, with the language names in it too'
   await page.mouse.up();
   await page.keyboard.up('Alt');
   const compose = page.locator('#spotslate-compose');
-  await expect(compose.locator('.source option:checked')).toHaveText('Deutsch');
-  await expect(compose.locator('.target option:checked')).toHaveText('Englisch');
+  await expect(compose.locator('.source .picker-button')).toHaveText('DE');
+  await expect(compose.locator('.source .picker-button')).toHaveAttribute('title', 'Deutsch');
+  await expect(compose.locator('.target .picker-button')).toHaveAttribute('title', 'Englisch');
   await expect(compose.locator('.draft')).toHaveAttribute('placeholder', 'Schreiben Sie in Ihrer Sprache');
   await expect(compose.locator('.check')).toHaveText('Prüfen');
   await expect(compose.locator('.copy')).toHaveText('Kopieren');
