@@ -5,6 +5,10 @@
 (() => {
   const STRINGS = {
     en: {
+      siteSwitch: 'SpotSlate on {site}',
+      siteOff: 'Off on this site: SpotSlate does nothing here.',
+      siteLocal: "Only on this computer: Chrome's translator, nothing is sent",
+      siteNoContext: "Don't learn this site's context",
       copy: 'Copy',
       copied: 'Copied',
       close: 'Close',
@@ -66,6 +70,10 @@
         'Built automatically from the texts you translated on this site. It goes with each translation to {provider}, so the meaning fits the subject.',
     },
     ru: {
+      siteSwitch: 'SpotSlate на {site}',
+      siteOff: 'Выключен на этом сайте: SpotSlate здесь ничего не делает.',
+      siteLocal: 'Только на этом компьютере: переводчик Chrome, ничего не отправляется',
+      siteNoContext: 'Не запоминать контекст этого сайта',
       copy: 'Копировать',
       copied: 'Скопировано',
       close: 'Закрыть',
@@ -127,6 +135,10 @@
         'Собран автоматически из текстов, которые вы перевели на этом сайте. Уходит с каждым переводом в {provider}, чтобы смысл соответствовал теме.',
     },
     de: {
+      siteSwitch: 'SpotSlate auf {site}',
+      siteOff: 'Auf dieser Website aus: SpotSlate tut hier nichts.',
+      siteLocal: 'Nur auf diesem Computer: der Übersetzer von Chrome, nichts wird gesendet',
+      siteNoContext: 'Den Kontext dieser Website nicht lernen',
       copy: 'Kopieren',
       copied: 'Kopiert',
       close: 'Schließen',
@@ -188,6 +200,10 @@
         'Automatisch aus den Texten erstellt, die Sie auf dieser Website übersetzt haben. Er geht mit jeder Übersetzung an {provider}, damit die Bedeutung zum Thema passt.',
     },
     fr: {
+      siteSwitch: 'SpotSlate sur {site}',
+      siteOff: 'Désactivé sur ce site : SpotSlate ne fait rien ici.',
+      siteLocal: "Seulement sur cet ordinateur : le traducteur de Chrome, rien n'est envoyé",
+      siteNoContext: 'Ne pas apprendre le contexte de ce site',
       copy: 'Copier',
       copied: 'Copié',
       close: 'Fermer',
@@ -249,6 +265,10 @@
         'Construit automatiquement à partir des textes que vous avez traduits sur ce site. Il accompagne chaque traduction envoyée à {provider}, pour que le sens colle au sujet.',
     },
     es: {
+      siteSwitch: 'SpotSlate en {site}',
+      siteOff: 'Desactivado en este sitio: SpotSlate no hace nada aquí.',
+      siteLocal: 'Solo en este ordenador: el traductor de Chrome, no se envía nada',
+      siteNoContext: 'No aprender el contexto de este sitio',
       copy: 'Copiar',
       copied: 'Copiado',
       close: 'Cerrar',
@@ -310,6 +330,10 @@
         'Se crea automáticamente con los textos que has traducido en este sitio. Acompaña cada traducción que se envía a {provider}, para que el sentido encaje con el tema.',
     },
     it: {
+      siteSwitch: 'SpotSlate su {site}',
+      siteOff: 'Disattivato su questo sito: SpotSlate qui non fa nulla.',
+      siteLocal: 'Solo su questo computer: il traduttore di Chrome, non viene inviato nulla',
+      siteNoContext: 'Non imparare il contesto di questo sito',
       copy: 'Copia',
       copied: 'Copiato',
       close: 'Chiudi',
@@ -371,6 +395,10 @@
         'Creato automaticamente dai testi che hai tradotto su questo sito. Accompagna ogni traduzione inviata a {provider}, perché il senso corrisponda al tema.',
     },
     pt: {
+      siteSwitch: 'SpotSlate em {site}',
+      siteOff: 'Desligado neste site: o SpotSlate não faz nada aqui.',
+      siteLocal: 'Só neste computador: o tradutor do Chrome, nada é enviado',
+      siteNoContext: 'Não aprender o contexto deste site',
       copy: 'Copiar',
       copied: 'Copiado',
       close: 'Fechar',
@@ -432,6 +460,10 @@
         'Criado automaticamente a partir dos textos que você traduziu neste site. Vai com cada tradução para o {provider}, para que o sentido combine com o assunto.',
     },
     pl: {
+      siteSwitch: 'SpotSlate na {site}',
+      siteOff: 'Wyłączony na tej witrynie: SpotSlate nic tu nie robi.',
+      siteLocal: 'Tylko na tym komputerze: tłumacz Chrome, nic nie jest wysyłane',
+      siteNoContext: 'Nie ucz się kontekstu tej witryny',
       copy: 'Kopiuj',
       copied: 'Skopiowano',
       close: 'Zamknij',
@@ -493,6 +525,10 @@
         'Tworzony automatycznie z tekstów przetłumaczonych przez ciebie na tej witrynie. Trafia z każdym tłumaczeniem do {provider}, aby sens pasował do tematu.',
     },
     uk: {
+      siteSwitch: 'SpotSlate на {site}',
+      siteOff: 'Вимкнено на цьому сайті: SpotSlate тут нічого не робить.',
+      siteLocal: 'Лише на цьому комп’ютері: перекладач Chrome, нічого не надсилається',
+      siteNoContext: 'Не запам’ятовувати контекст цього сайту',
       copy: 'Копіювати',
       copied: 'Скопійовано',
       close: 'Закрити',
@@ -554,6 +590,10 @@
         'Створено автоматично з текстів, які ви переклали на цьому сайті. Іде з кожним перекладом до {provider}, щоб зміст відповідав темі.',
     },
     tr: {
+      siteSwitch: '{site} üzerinde SpotSlate',
+      siteOff: 'Bu sitede kapalı: SpotSlate burada bir şey yapmaz.',
+      siteLocal: 'Yalnızca bu bilgisayarda: Chrome çevirmeni, hiçbir şey gönderilmez',
+      siteNoContext: 'Bu sitenin bağlamını öğrenme',
       copy: 'Kopyala',
       copied: 'Kopyalandı',
       close: 'Kapat',
@@ -615,6 +655,10 @@
         'Bu sitede çevirdiğiniz metinlerden otomatik olarak oluşturulur. Anlamın konuya uyması için her çeviriyle birlikte {provider} sağlayıcısına gider.',
     },
     zh: {
+      siteSwitch: '在 {site} 上使用 SpotSlate',
+      siteOff: '已在此网站关闭：SpotSlate 在这里不做任何事。',
+      siteLocal: '仅在这台电脑上：使用 Chrome 翻译器，不发送任何内容',
+      siteNoContext: '不学习此网站的上下文',
       copy: '复制',
       copied: '已复制',
       close: '关闭',
@@ -675,6 +719,10 @@
       notesNote: '根据你在这个网站上翻译过的文字自动生成。它会随每次翻译一起发送给 {provider}，让意思贴合主题。',
     },
     ja: {
+      siteSwitch: '{site} で SpotSlate を使う',
+      siteOff: 'このサイトではオフ：SpotSlate はここでは何もしません。',
+      siteLocal: 'このコンピューターだけ：Chrome の翻訳機能を使い、何も送信しません',
+      siteNoContext: 'このサイトのコンテキストを学習しない',
       copy: 'コピー',
       copied: 'コピーしました',
       close: '閉じる',
@@ -735,6 +783,10 @@
       notesNote: 'このサイトで翻訳したテキストから自動で作られます。意味がテーマに合うよう、翻訳のたびに {provider} に送られます。',
     },
     ko: {
+      siteSwitch: '{site}에서 SpotSlate 사용',
+      siteOff: '이 사이트에서 꺼짐: SpotSlate가 여기서 아무 작업도 하지 않습니다.',
+      siteLocal: '이 컴퓨터에서만: Chrome 번역기 사용, 아무것도 보내지 않음',
+      siteNoContext: '이 사이트의 컨텍스트를 학습하지 않음',
       copy: '복사',
       copied: '복사됨',
       close: '닫기',

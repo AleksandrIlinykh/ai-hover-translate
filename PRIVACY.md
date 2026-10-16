@@ -34,7 +34,7 @@ SpotSlate sends nothing anywhere else: no analytics, telemetry, crash reports or
 
 - Settings, including API keys, are kept in the browser's extension storage (`chrome.storage.local`) on your computer. Only the extension's own pages and its background script can read them; web pages, and the extension's own scripts running on them, cannot. They are not synced to other devices.
 - Translations made with an AI provider are cached in the browser's session storage (`chrome.storage.session`) until the browser closes, so the same text is not sent twice. Each open page also keeps its recent translations in memory until it is closed.
-- The browser's session storage also keeps, until the browser closes: the context of each site you translated on with an AI provider (until you click "Clear"), how many texts in each language you read on each site (no text, only the counts, to choose the language to write in), and your last draft on each site. The language you chose to write in on a site is kept in the extension storage, with the site's name.
+- The browser's session storage also keeps, until the browser closes: the context of each site you translated on with an AI provider (until you click "Clear"), how many texts in each language you read on each site (no text, only the counts, to choose the language to write in), and your last draft on each site. The modes you set for sites in the toolbar window (off, only on this computer, no context) are kept in the extension storage with the sites' names. The language you chose to write in on a site is kept in the extension storage, with the site's name.
 - SpotSlate sets no cookies.
 - To delete everything, remove the extension, or clear its fields in the settings and save.
 

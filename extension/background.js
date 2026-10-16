@@ -6,6 +6,7 @@ import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
 import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
+import { DEFAULT_SITE_MODE, siteModeOf, withSiteMode } from './lib/sites.js';
 
 const REPOSITORY = 'https://github.com/AleksandrIlinykh/spotslate';
 const IDLE_TIMEOUT_MS = 30_000;
@@ -20,6 +21,7 @@ const MAX_DRAFT = 3000;
 const NOTES_PREFIX = 'notes:'; // + site: the site context, in chrome.storage.session
 const LANGS_PREFIX = 'langs:'; // + site: { [lang]: count } of the texts read there, for the compose window
 const DRAFT_PREFIX = 'draft:'; // + site ('' off any site): the last draft written there, in chrome.storage.session
+const SITES_KEY = 'sites'; // { [site]: mode } in chrome.storage.local, see lib/sites.js
 const COMPOSE_KEY = 'compose'; // { targets: { [site]: lang }, last: lang } in chrome.storage.local
 
 // The settings hold API keys: only extension pages and this worker may read them, never content scripts.
@@ -118,10 +120,10 @@ chrome.runtime.onConnect.addListener((port) => {
     };
     const site = siteOf(port.sender);
     watch(site, port.sender);
-    translate(request, site, controller.signal, send, (translation) => {
+    translate(request, site, controller.signal, send, (translation, siteMode) => {
       if (!site || request.mode !== 'text') return;
       countRead(site, lang);
-      learn(site, request.text, translation);
+      if (!siteMode.noContext) learn(site, request.text, translation);
     });
   });
 });
@@ -129,13 +131,26 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'open-options') chrome.runtime.openOptionsPage();
   if (message?.type === 'page-settings') {
-    loadSettings().then((settings) => sendResponse(pageSettings(settings)));
+    const site = siteOf(sender);
+    watch(site, sender);
+    Promise.all([loadSettings(), modeOf(site)]).then(([settings, siteMode]) => sendResponse({ ...pageSettings(settings), siteMode }));
     return true;
+  }
+  if (message?.type === 'site-mode') {
+    modeOf(siteOf(sender, message.site)).then(sendResponse);
+    return true;
+  }
+  if (message?.type === 'set-site-mode') {
+    // Only SpotSlate's own pages (the toolbar window, the settings) change a site's mode.
+    const site = sender.url?.startsWith(chrome.runtime.getURL('')) ? siteOf(sender, message.site) : null;
+    if (site) setSiteMode(site, message.mode).then(sendResponse);
+    return Boolean(site);
   }
   if (message?.type === 'notes') {
     const site = siteOf(sender, message.site);
     watch(site, sender);
-    notesOf(site).then((text) => sendResponse({ site, text, updating: Boolean(site && stateOf(site).controller) }));
+    modeOf(site)
+      .then((siteMode) => (siteMode.noContext ? '' : notesOf(site))).then((text) => sendResponse({ site, text, updating: Boolean(site && stateOf(site).controller) }));
     return true; // the answer comes later
   }
   if (message?.type === 'clear-notes') {
@@ -243,7 +258,9 @@ async function updateNotes(site) {
   try {
     const settings = await loadSettings();
     const provider = activeProvider(settings);
-    if (provider.api !== 'browser' && !setupProblem(provider) && settings.consent >= CONSENT_VERSION) {
+    const siteMode = await modeOf(site);
+    const allowed = !siteMode.off && !siteMode.local && !siteMode.noContext;
+    if (provider.api !== 'browser' && !setupProblem(provider) && settings.consent >= CONSENT_VERSION && allowed) {
       const messages = buildNotesMessages(await notesOf(site), passages, LANGUAGES[settings.targetLang]);
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(NOTES_TIMEOUT_MS)]);
       const response = await sendChat(provider, { messages, stream: false, purpose: 'notes' }, signal);
@@ -269,6 +286,27 @@ async function clearNotes(site) {
   announce(site, '', false);
 }
 
+// What the user chose for a site (see lib/sites.js); the default for no site.
+async function modeOf(site) {
+  if (!site) return { ...DEFAULT_SITE_MODE };
+  const { [SITES_KEY]: sites } = await chrome.storage.local.get(SITES_KEY);
+  return siteModeOf(sites, site);
+}
+
+// Saves a site's mode and tells the site's tabs and SpotSlate's pages at once. A site that stops learning its context
+// forgets what it learned.
+async function setSiteMode(site, mode) {
+  const { [SITES_KEY]: sites } = await chrome.storage.local.get(SITES_KEY);
+  const next = withSiteMode(sites, site, mode);
+  await chrome.storage.local.set({ [SITES_KEY]: next });
+  const siteMode = siteModeOf(next, site);
+  if (siteMode.noContext || siteMode.local || siteMode.off) await clearNotes(site);
+  const message = { type: 'site-mode-changed', site, siteMode };
+  chrome.runtime.sendMessage(message).catch(() => {});
+  for (const tabId of siteTabs.get(site) ?? []) chrome.tabs.sendMessage(tabId, message).catch(() => siteTabs.get(site)?.delete(tabId));
+  return siteMode;
+}
+
 // The languages of the texts read on a site, counted; no text is kept.
 async function countRead(site, lang) {
   const key = LANGS_PREFIX + site;
@@ -285,6 +323,7 @@ async function countRead(site, lang) {
 async function composeState(site, pageLang) {
   const settings = await loadSettings();
   const provider = activeProvider(settings);
+  const siteMode = await modeOf(site);
   const { [LANGS_PREFIX + site]: readCounts = {} } = site ? await chrome.storage.session.get(LANGS_PREFIX + site) : {};
   const { [COMPOSE_KEY]: saved = {} } = await chrome.storage.local.get(COMPOSE_KEY);
   const draftKey = DRAFT_PREFIX + (site ?? '');
@@ -301,10 +340,12 @@ async function composeState(site, pageLang) {
     languages: LANGUAGES,
     from,
     to,
-    engine: provider.api === 'browser' ? 'browser' : 'api',
+    engine: provider.api === 'browser' || siteMode.local ? 'browser' : 'api',
+    aiProvider: provider.api !== 'browser',
     providerName: provider.name,
     site,
-    notes: await notesOf(site),
+    siteMode,
+    notes: siteMode.noContext ? '' : await notesOf(site),
     draft,
   };
 }
@@ -335,11 +376,17 @@ async function compose({ text, from, to, purpose }, site, signal, send) {
     send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
     return;
   }
+  const siteMode = await modeOf(site);
+  if (siteMode.off || siteMode.local) {
+    // The page did not hear yet that this site is off or kept on this computer.
+    send({ type: 'error', ...settingsChanged(settings.targetLang) });
+    return;
+  }
   // The check translates back without the notes, to show what the text says by itself.
   const messages =
     purpose === 'check'
       ? buildMessages(draft, LANGUAGES[to])
-      : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes: await notesOf(site) });
+      : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes: siteMode.noContext ? '' : await notesOf(site) });
   await stream(provider, messages, signal, send, settings.targetLang);
 }
 
@@ -360,20 +407,27 @@ async function translate(request, site, signal, send, onTranslated = () => {}) {
     send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
     return;
   }
+  const siteMode = await modeOf(site);
+  if (siteMode.off || siteMode.local) {
+    // The page did not hear yet that this site is off or kept on this computer.
+    send({ type: 'error', ...settingsChanged(settings.targetLang) });
+    return;
+  }
 
   const key = await cacheKey(provider, settings.targetLang, request);
   const cached = (await chrome.storage.session.get(key))[key];
   if (cached !== undefined) {
     send({ type: 'chunk', text: cached });
     send({ type: 'done' });
-    onTranslated(cached);
+    onTranslated(cached, siteMode);
     return;
   }
 
-  const messages = buildMessages(request.text, LANGUAGES[settings.targetLang], { ...request, notes: await notesOf(site) });
+  const notes = siteMode.noContext ? '' : await notesOf(site);
+  const messages = buildMessages(request.text, LANGUAGES[settings.targetLang], { ...request, notes });
   const translation = await stream(provider, messages, signal, send, settings.targetLang);
   if (translation) {
-    onTranslated(translation);
+    onTranslated(translation, siteMode);
     await remember(key, translation);
   }
 }

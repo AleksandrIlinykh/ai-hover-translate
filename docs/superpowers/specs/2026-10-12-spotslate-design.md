@@ -47,6 +47,7 @@ spotslate/
       chat.js           sendChat(provider, payload, signal), readTextStream(body, onText, touch)
       sse.js            createSseParser(), deltaFromPayload(payload)
       errors.js         errorFromStatus(status, bodyText, provider), makeError(code, provider)
+      sites.js          DEFAULT_SITE_MODE, siteModeOf(sites, site), withSiteMode(sites, site, mode): the mode of each site
       settings.js       DEFAULTS, LANGUAGES, withDefaults(stored, platform), activeProvider(settings), loadSettings()
       keys.js           DEFAULT_KEYS, READ_KEYS, shortcutProblem(shortcut, platform), checkedKeys(), formatShortcut(), readKeyName(), shortcutFromEvent(), currentPlatform()
     content/            classic scripts (not modules) sharing globalThis.spotslate
@@ -335,6 +336,17 @@ A small pixel character keeps the reader company, so that SpotSlate has a face. 
 
 "Report" on the popup's title bar copies the text and its translation to the clipboard ("Text copied" for 1.2 s) and asks background (`{ type: 'report', mode }`) to open a new GitHub issue from the form `.github/ISSUE_TEMPLATE/translation.yml`, with its "Setup" field filled in: the SpotSlate version, the engine (Chrome's built-in translator, or the provider and model), the language translated into, a paragraph or a dictionary entry, and the browser's user agent. The issue never gets the text, the page or the API URL (which may name an internal server): the text may be confidential, so the form asks to paste it only if it is not. Nothing is sent until the user submits the form on GitHub.
 
+## Site modes (lib/sites.js)
+
+Each site (the host with port, as for the site context) can have a mode of its own, kept in `chrome.storage.local` under `sites` as `{ [site]: { off, local, noContext } }`; sites with the default mode (all false) are not kept.
+
+- **The switch**, the first and most visible thing in the toolbar window: "SpotSlate on {site}", on by default. Off, SpotSlate does nothing on the site: holding the read key outlines and translates nothing and brings no dog, Alt+T and Alt+click reach the page as if SpotSlate were not there, and no model is got ready; a note says "Off on this site: SpotSlate does nothing here.". Pages where SpotSlate cannot run (no site) have no switch.
+- Under it, with an AI provider and the switch on, two options: "Only on this computer" (`local`: on this site Chrome's translator translates, also in the compose window, and nothing is sent, as with the free translator) and "Don't learn this site's context" (`noContext`: no context is learned, sent or shown there; the Context button is hidden). The second is greyed out under the first, which learns nothing anyway.
+- Any mode other than the default forgets the site's context.
+- The settings list the sites with a mode of their own ("Off", "Only on this computer", "No site context") with a Reset button each.
+- Messages: `{ type: 'site-mode', site? }` → the mode; `{ type: 'set-site-mode', site?, mode }` saves it, only from SpotSlate's own pages, and answers the mode as stored; background then sends `{ type: 'site-mode-changed', site, siteMode }` to the site's tabs (the ones it knows, as for the context) and to its pages, so the change takes effect at once. `page-settings` also answers the sender's `siteMode`; `compose-open` answers `siteMode` and `aiProvider`, and its `engine` is `'browser'` for a site kept on this computer.
+- Background holds to the mode too: a translation or a draft from a site that is off or kept on this computer is answered with `engine_changed`, so the page switches to Chrome's translator; no context is learned or sent for a site with any mode but the default.
+
 ## Feedback on removal
 
 Background sets Chrome's uninstall URL (`chrome.runtime.setUninstallURL`) to the GitHub issue form `.github/ISSUE_TEMPLATE/uninstall.yml` with the version filled in: why it was removed (checkboxes), what would have kept it, the version. Nothing else goes with it; answering needs a GitHub account.
@@ -474,6 +486,7 @@ Unit tests (`node --test`, no dependencies):
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
+- `sites.js`: the default mode; stored modes read with every value checked; setting one keeps the others, and the default leaves the list.
 - `settings.js`: the starting language from the browser's, or English; the agreement kept only as a version number; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
 - `pack.mjs`: the zip holds every file of `extension/`, unchanged, with the manifest at the top.
 - `manifest.json`: the icons exist at every declared size; every content script exists; the welcome page loads them in the manifest order.
@@ -622,5 +635,10 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   132. A translation request whose text is not a string or is blank sends nothing; a longer one is cut to 3000 characters.
   133. The note under an AI provider names the read key: "The text you hold Ctrl over" with Ctrl.
   134. The site context and the words around a phrase arrive in the reference turn, not in the system prompt.
+  135. The toolbar window starts with the site's switch, on, naming the site, with the two options under it.
+  136. Switched off, the site gets nothing at once: no popup, dog or outline, Alt+T reaches the page, nothing is sent; switched on again it works, without a reload.
+  137. Only on this computer, the site is translated by Chrome, the compose window says so, and nothing is sent.
+  138. Not learning a site's context clears it, sends none, and hides the Context button.
+  139. The settings list the sites with a mode of their own; Reset brings one back.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

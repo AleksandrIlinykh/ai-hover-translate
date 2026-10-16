@@ -1,4 +1,5 @@
 import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings, withDefaults } from './lib/settings.js';
+import { DEFAULT_SITE_MODE, siteModeOf } from './lib/sites.js';
 import { PROVIDERS, dataNote, hostPattern, modelsRequest, parseModels, setupProblem } from './lib/providers.js';
 import { readTextStream, sendChat } from './lib/chat.js';
 import { buildMessages } from './lib/prompt.js';
@@ -318,6 +319,34 @@ form.addEventListener('submit', async (event) => {
   if (provider.api === 'browser') await prepareBrowserModel(settings.targetLang);
 });
 
+// The sites with a mode of their own, each with a button that brings it back to the default.
+async function showSites() {
+  const { sites = {} } = await chrome.storage.local.get('sites');
+  const rows = Object.keys(sites)
+    .sort()
+    .map((site) => {
+      const mode = siteModeOf(sites, site);
+      const what = mode.off ? ['Off'] : [mode.local && 'Only on this computer', mode.noContext && 'No site context'].filter(Boolean);
+      const row = document.createElement('li');
+      const host = Object.assign(document.createElement('span'), { className: 'site-host', textContent: site });
+      const label = Object.assign(document.createElement('span'), { className: 'site-mode', textContent: what.join(', ') });
+      const reset = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Reset' });
+      reset.addEventListener('click', async () => {
+        await chrome.runtime.sendMessage({ type: 'set-site-mode', site, mode: DEFAULT_SITE_MODE });
+        showSites();
+      });
+      row.append(host, label, reset);
+      return row;
+    });
+  element('sites').replaceChildren(...rows);
+  element('sitesEmpty').hidden = rows.length > 0;
+}
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === 'site-mode-changed') showSites();
+});
+
+showSites();
 showToolbarKey();
 show(await loadSettings());
 element('fields').disabled = false;

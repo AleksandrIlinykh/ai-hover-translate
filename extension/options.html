@@ -20,6 +20,12 @@
     .consent { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; font-weight: 400; }
     .consent[hidden] { display: none; }
     .consent input { width: auto; }
+    #sites { margin: 8px 0 0; padding: 0; list-style: none; }
+    #sites li { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(127, 127, 127, 0.25); }
+    #sites .site-host { font-weight: 600; }
+    #sites .site-mode { margin-right: auto; font-size: 13px; opacity: 0.75; }
+    #sites button { padding: 2px 12px; }
+    #sitesEmpty[hidden] { display: none; }
     #writeKey { cursor: pointer; caret-color: transparent; }
     #status.error, #keysProblem { color: #c62828; }
     @media (prefers-color-scheme: dark) { #status.error, #keysProblem { color: #ef9a9a; } }
@@ -82,6 +88,10 @@
     </div>
     </fieldset>
   </form>
+  <h2>Sites</h2>
+  <p class="hint">The switch at the top of the toolbar window turns SpotSlate off for a site, or keeps a site on this computer, or without a context. The sites with a mode of their own:</p>
+  <ul id="sites"></ul>
+  <p class="hint" id="sitesEmpty">None yet: SpotSlate works the same everywhere.</p>
   <p class="hint footer">
     <a href="https://github.com/AleksandrIlinykh/spotslate/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy policy</a>
   </p>

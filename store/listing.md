@@ -68,7 +68,7 @@ The icon comes from the package (`icons/icon-128.png`).
 
 **Permission justifications:**
 
-- `storage`: keeps the settings (language, provider, the user's API keys, keys) on the computer, and in the browser session the translation cache, the context of each site and the last draft.
+- `storage`: keeps the settings (language, provider, the user's API keys, keys, the modes set for sites) on the computer, and in the browser session the translation cache, the context of each site and the last draft.
 - `activeTab`: when the user opens the compose window from the toolbar, it tells which site the active tab is on, so the window can use that site's context.
 - `declarativeNetRequestWithHostAccess`: sets a local `Origin` header on SpotSlate's own requests to `localhost` and `127.0.0.1`, so that local AI servers such as Ollama accept them. No other requests are touched.
 - Host permissions (the APIs of DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI and Alibaba Qwen, and `localhost`): to send the text the user asks to translate to the provider the user chose, with the user's key.

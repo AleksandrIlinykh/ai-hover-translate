@@ -216,10 +216,11 @@ test.describe('free built-in translator', () => {
 
   test('pages are told which engine translates, and the keys', async ({ page, setSettings }) => {
     const keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
+    const siteMode = { off: false, local: false, noContext: false }; // an extension page is on no site
     await setSettings({ targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', providerName: 'DeepSeek', keys });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'api', providerName: 'DeepSeek', keys, siteMode });
     await setSettings({ provider: 'chrome', targetLang: 'de' });
-    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', providerName: 'Chrome built-in translator', keys });
+    expect(await pageSettings(page)).toEqual({ targetLang: 'de', engine: 'browser', providerName: 'Chrome built-in translator', keys, siteMode });
   });
 
   test('a request for the API while the free translator is chosen asks the page to try again', async ({ page, server, setSettings }) => {

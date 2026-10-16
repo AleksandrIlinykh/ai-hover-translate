@@ -62,6 +62,10 @@
   let sample = ''; // text to tell the language of the open popup's text by, for Chrome's translator
   let targetLang = DEFAULT_LANG;
   let engine = 'api'; // 'api' (background calls an AI provider) or 'browser' (Chrome's translator, on this page)
+  let settingsEngine = 'api'; // the engine the settings choose; `engine` is it unless the site is kept on this computer
+  let providerName = '';
+  // What the user chose for this site in the toolbar window (lib/sites.js): off, only on this computer, no context.
+  let siteMode = { off: false, local: false, noContext: false };
   let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
   let modelAsked = false; // whether this page has asked Chrome to get its translation model ready
   // The key held to read ('Alt' or 'Control') with its name on this platform, and the shortcut to write
@@ -73,10 +77,11 @@
     .sendMessage({ type: 'page-settings' })
     .then((answer) => {
       targetLang = answer?.targetLang || DEFAULT_LANG;
-      engine = answer?.engine || 'api';
+      settingsEngine = answer?.engine || 'api';
       keys = answer?.keys ?? keys;
-      popup.setLanguage(targetLang);
-      popup.setContext(engine === 'api', answer?.providerName);
+      providerName = answer?.providerName ?? '';
+      siteMode = answer?.siteMode ?? siteMode;
+      applySettings();
     })
     .catch(() => {});
 
@@ -89,6 +94,18 @@
     // Over a huge block's padding or margins rather than its text there is nothing to point at.
     if (picked?.reason === 'too-long' && !picked.selection && !isOverText(mouseX, mouseY)) return null;
     return picked;
+  }
+
+  // The settings and the site's mode at work on this page: Chrome's translator when the site is kept on this computer,
+  // no Context button without an AI or without a site context, and nothing at all on a site that is off.
+  function applySettings() {
+    engine = siteMode.local ? 'browser' : settingsEngine;
+    popup.setLanguage(targetLang);
+    popup.setContext(engine === 'api' && !siteMode.noContext, providerName);
+    if (!siteMode.off) return;
+    releaseReadKey();
+    closePopup();
+    composeWindow.close();
   }
 
   // Where the companion is: by the mouse while the read key is held, then on the popup's edge until it closes. It dances
@@ -289,7 +306,7 @@
   // With the free translator, the first click or key press on a page in another language gets its model ready,
   // since Chrome downloads a model only right after one (Alt does not count). By the time Alt is held it usually is.
   function prepareModel(event) {
-    if (modelAsked || engine !== 'browser' || !event.isTrusted) return;
+    if (modelAsked || engine !== 'browser' || siteMode.off || !event.isTrusted) return;
     setTimeout(async () => {
       if (modelAsked || !navigator.userActivation?.isActive) return;
       modelAsked = true;
@@ -418,7 +435,7 @@
     (event) => {
       if (!event.isTrusted) return;
       if (event.key === keys.read) {
-        if (event.repeat) return;
+        if (event.repeat || siteMode.off) return;
         readDown = true;
         readDownAt = event.timeStamp;
         // Another modifier already held (Ctrl+Alt+…, the Alt+Shift layout switch) is not a translation request.
@@ -436,7 +453,7 @@
         clearTimeout(triggerTimer);
         highlight.hide();
       }
-      if (isWriteKey(event)) {
+      if (!siteMode.off && isWriteKey(event)) {
         event.preventDefault(); // the page hears neither the T nor the letter it types
         event.stopImmediatePropagation();
         usedReadKey = true;
@@ -451,7 +468,7 @@
   addEventListener(
     'keyup',
     (event) => {
-      if (!event.isTrusted || event.key !== keys.read) return;
+      if (!event.isTrusted || siteMode.off || event.key !== keys.read) return;
       releaseReadKey();
       // Chrome on Windows focuses its "⋮" menu when Alt is let go alone. After a translation, or a hold long enough to
       // have been meant for SpotSlate, it must not; a quick tap is left to Chrome, which opens its menu that way.
@@ -482,7 +499,7 @@
   addEventListener(
     'click',
     (event) => {
-      if (!readHeld(event) || otherModifiers(event) || !event.isTrusted) return;
+      if (siteMode.off || !readHeld(event) || otherModifiers(event) || !event.isTrusted) return;
       const target = event.composedPath()[0];
       if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
       const field = writableField(target);
@@ -500,7 +517,7 @@
   addEventListener(
     'contextmenu',
     (event) => {
-      if (keys.read !== 'Control' || !event.ctrlKey || event.button !== 0 || !event.isTrusted) return;
+      if (siteMode.off || keys.read !== 'Control' || !event.ctrlKey || event.button !== 0 || !event.isTrusted) return;
       const target = event.composedPath()[0];
       if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
       const field = writableField(target);
@@ -531,14 +548,20 @@
       sendResponse({ pageLang: languageCode(document.documentElement.lang) });
       return;
     }
+    if (message?.type === 'site-mode-changed') {
+      if (message.site !== location.host) return; // this tab has moved on to another site
+      siteMode = message.siteMode;
+      applySettings();
+      return;
+    }
     if (message?.type !== 'settings-changed') return;
     cache.clear();
     sameLanguage.clear();
     targetLang = message.targetLang || DEFAULT_LANG;
-    engine = message.engine || 'api';
+    settingsEngine = message.engine || 'api';
     keys = message.keys ?? keys;
-    popup.setLanguage(targetLang);
-    popup.setContext(engine === 'api', message.providerName);
+    providerName = message.providerName ?? '';
+    applySettings();
     modelAsked = false;
   });
 })();

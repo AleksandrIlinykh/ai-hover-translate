@@ -63,6 +63,10 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - SpotSlate speaks the language you translate into: its hints, buttons, errors and windows follow the "Translate into" setting.
 - Spot, a little pixel shiba, keeps you company: it dances next to the mouse while you hold Alt, sits down when the translation is ready, and hops onto the popup when you let Alt go. It never gets in the way of the mouse, and stands still if your system asks for reduced motion.
 
+## On a site of your own
+
+The toolbar window starts with a switch for the site you are on: turn SpotSlate off there (where Alt means something else, as in Figma), or keep the site on this computer (only Chrome's translator, nothing sent) or without a context, for confidential wikis. It takes effect at once; the settings list such sites, with a Reset button each.
+
 ## Writing in another language
 
 - Hold Alt over a text field and click (Alt+click): a window opens under it. Write in your own language at the top; the translation into the page's language appears below a second after you stop typing. While it is on its way, the one before stays, with an ellipsis after it. Click "Copy" (or press Ctrl+Enter) and paste it into the field.
