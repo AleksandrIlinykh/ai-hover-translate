@@ -11,8 +11,27 @@
   const inside = (rect, x, y) =>
     x >= rect.left - TOLERANCE && x <= rect.right + TOLERANCE && y >= rect.top - TOLERANCE && y <= rect.bottom + TOLERANCE;
 
-  // The user's text selection when the point is over it, as { target: Range, text, selection: true }.
+  // The user's text selection when the point is over it, as { target: Range, text, selection: true }; or, in the
+  // focused text field, which keeps its selection apart from the page's, { target: field, text, selection: true,
+  // field: true } when the point is over the field.
   function selectionAt(x, y) {
+    return fieldSelectionAt(x, y) ?? pageSelectionAt(x, y);
+  }
+
+  // Only the selected part of a field is ever taken, and never from a password, one-time code or card field.
+  function fieldSelectionAt(x, y) {
+    let field = document.activeElement;
+    while (field?.shadowRoot?.activeElement) field = field.shadowRoot.activeElement;
+    if (!globalThis.spotslate.isTextField(field)) return null;
+    const { selectionStart: start, selectionEnd: end } = field;
+    if (start === null || start === end || !inside(field.getBoundingClientRect(), x, y)) return null;
+    const text = field.value.slice(start, end).trim().replace(/\n{3,}/g, '\n\n');
+    if (!LETTER.test(text)) return null;
+    const picked = { target: field, text, selection: true, field: true };
+    return text.length > MAX_CHARS ? { ...picked, reason: 'too-long' } : picked;
+  }
+
+  function pageSelectionAt(x, y) {
     const selection = getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
     const range = selection.getRangeAt(0);

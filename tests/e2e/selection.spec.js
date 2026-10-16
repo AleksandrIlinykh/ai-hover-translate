@@ -50,9 +50,63 @@ test('a selection inside an editor is translated', async ({ page, server }) => {
   expect(server.requests[0].body.messages.at(-1).content).toBe('paragraph');
 });
 
-test('a selection inside a form field is not translated', async ({ page, server }) => {
-  await page.locator('#input').selectText();
+// Types `text` into the comment field and selects characters [start, end) of it.
+async function selectInField(page, text, start, end) {
+  await page.locator('#comment').fill(text);
+  await page.locator('#comment').evaluate((field, [from, to]) => field.setSelectionRange(from, to), [start, end]);
+}
+
+async function altClickAt(page, rect) {
+  await page.mouse.move(rect.x + Math.min(20, rect.width / 2), rect.y + Math.min(10, rect.height / 2), { steps: 3 });
+  await page.keyboard.down('Alt');
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+}
+
+test('a selection inside a form field is translated, and nothing around it is sent', async ({ page, server }) => {
+  await selectInField(page, 'Please review the build logs today', 7, 17);
+  await altOver(page, await page.locator('#comment').boundingBox());
+  await expect(popupText(page)).toHaveText('[RU] review the');
+  const [{ body }] = server.requests;
+  expect(body.messages.at(-1).content).toBe('review the');
+  expect(JSON.stringify(body)).not.toContain('build logs');
+  expect(JSON.stringify(body)).not.toContain('Please');
+});
+
+test('a longer selection in a text input is translated as text', async ({ page, server }) => {
+  await page.locator('#input').fill('The build failed again on the main branch tonight');
+  await page.locator('#input').evaluate((field) => field.setSelectionRange(4, 41));
   await altOver(page, await page.locator('#input').boundingBox());
+  await expect(popupText(page)).toHaveText('[RU] build failed again on the main branch');
+  expect(server.requests[0].body.messages[0].content).toContain('professional translator');
+});
+
+test('Alt+click on a selection in a field translates it, keeps it selected and opens no compose window', async ({ page }) => {
+  await selectInField(page, 'Please review the build logs today', 7, 17);
+  await altClickAt(page, await page.locator('#comment').boundingBox());
+  await expect(popupText(page)).toHaveText('[RU] review the');
+  await expect(page.locator('#spotslate-compose')).toHaveCount(0);
+  expect(await page.locator('#comment').evaluate((field) => [field.selectionStart, field.selectionEnd])).toEqual([7, 17]);
+});
+
+test('Alt+click on a selection in an editor translates it and opens no compose window', async ({ page }) => {
+  await page.locator('#editor-p1').scrollIntoViewIfNeeded();
+  await altClickAt(page, await select(page, '#editor-p1', 6, 15));
+  await expect(popupText(page)).toHaveText('[RU] paragraph');
+  await expect(page.locator('#spotslate-compose')).toHaveCount(0);
+});
+
+test('without a selection, Alt+click on a field still opens the compose window', async ({ page }) => {
+  await page.locator('#comment').fill('Please review');
+  await altClickAt(page, await page.locator('#comment').boundingBox());
+  await expect(page.locator('#spotslate-compose')).toHaveCount(1);
+  await expect(popupText(page)).toHaveCount(0);
+});
+
+test('a selection in a password field is never translated', async ({ page, server }) => {
+  await page.locator('#password').selectText();
+  await altOver(page, await page.locator('#password').boundingBox());
   await page.waitForTimeout(500);
   await expect(popupText(page)).toHaveCount(0);
   expect(server.requests).toHaveLength(0);

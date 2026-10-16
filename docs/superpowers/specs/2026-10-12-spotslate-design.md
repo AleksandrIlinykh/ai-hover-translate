@@ -21,7 +21,7 @@ A Chrome extension for reading sites in a foreign language: hold Alt, hover over
 ## Out of scope
 
 - Publishing to the Chrome Web Store, syncing settings across devices.
-- Translating inside iframes, and translating what is in form fields (`input`, `textarea`, `select`). Writing into a field goes through the compose window instead, and the window never puts text into the field: the user copies it.
+- Translating inside iframes, and translating what is in form fields (`input`, `textarea`, `select`), except what the user selects there. Writing into a field goes through the compose window instead, and the window never puts text into the field: the user copies it.
 - Transcription, usage examples, full dictionary articles (short selections get a brief entry only).
 - Translating the whole page.
 - Sending the page title or whole neighbouring paragraphs to the model (only the words around a selected phrase and the site context are sent, see "Context for the model").
@@ -224,7 +224,7 @@ While Alt is held (and it is not a combo), the block that would be translated is
 - It is a separate `<div id="spotslate-highlight">` overlay in `document.documentElement`, not a style change on the block. Inline `!important` styles (like the popup host) and `pointer-events: none`, so it never catches the mouse or hides the element under it from `elementFromPoint`.
 - Updated on Alt keydown and on every `mousemove`/`scroll` while Alt is held (once per animation frame). Over our own popup the current outline stays. Empty space (no text under the mouse) means no outline.
 - **Muted outline with a hint** where Alt + hover would not translate: a grey (`#8c959f`) dashed border, `rgba(140, 149, 159, 0.12)` fill and a small label above the box (inside its top-left corner when the box touches the top of the window). The label also has `pointer-events: none`, so it can never be picked as text itself. Hints:
-  - form field (`input`, `textarea`, `select`): "Input fields are not translated."
+  - form field (`input`, `textarea`, `select`) with nothing selected in it: "Input fields are not translated."
   - block longer than `MAX_CHARS`: "Too much text. Select the part you need."
   - selection longer than `MAX_CHARS`: "Too much text. Select a shorter part."
   - text already in the target language: "Already in {language}." (English language name from `Intl.DisplayNames`).
@@ -235,6 +235,8 @@ While Alt is held (and it is not a combo), the block that would be translated is
 `main.js` picks one target under the mouse, in this order (our own popup is skipped first):
 
 1. **The user's selection**, when the mouse is over one of its lines (`selectionAt(x, y)`, 2 px tolerance). The target is a copy of the selection `Range`; the popup and the outline position themselves against its rectangle. Only the selected text is sent. Selections inside rich text editors count like any other. A selection longer than `MAX_CHARS` gets the muted outline instead.
+   The focused text field (`isTextField`: a textarea or a text or search input, never one for a password, a one-time code or a card) keeps its selection apart from the page's: when the mouse is over the field, its selected part is the text and the field the target (`field: true`). Nothing else of the field is taken: no words around it as dictionary context, and Chrome's translator detects the language from the selection alone. The same field with another part selected is a new text.
+   Alt+click on a selection, in a field, an editor or anywhere, translates it as Alt over it does and opens no compose window: SpotSlate takes the `mousedown`, so the selection stays (on a Mac, the Ctrl+click menu is left alone there).
 2. **The block under the mouse** (`inspectBlock(element)`):
    1. The element is inside `input`, `textarea` or `select`: not translated, reason `editable`. Rich text editors (`contenteditable`, e.g. Confluence in edit mode, where the whole page is one) are not special: the paragraph under the mouse inside them is translated like any other, and the editor content is never changed.
    2. Walk up from the element (stopping before `body`/`html`). The first element whose `display` is one of `block`, `list-item`, `table-cell`, `table-caption`, `flex`, `grid`, `flow-root` and whose `innerText` has at least one letter (`\p{L}`) is the candidate.
@@ -572,7 +574,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   54. The same word in another sentence is translated again, not taken from the cache.
   55. (Replaced by the site context.)
   56. A paragraph inside a contenteditable editor with several paragraphs is translated on its own; a one-block contenteditable is translated whole.
-  57. A selection inside an editor is translated; a selection inside a form field is not.
+  57. A selection inside an editor is translated, and so is one inside a text field, with nothing around it sent; never one in a password field.
   58. A content script cannot read `chrome.storage.local`: run in the extension's isolated world over CDP, the read is refused and the stored key does not show up.
   59. Anthropic gets a Messages API request with its headers, `system` apart and `max_tokens`; its text deltas are streamed; it builds the site context too.
   60. A local server gets no `Authorization` header and `Origin: http://127.0.0.1`.
@@ -663,5 +665,6 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   146. A click on SpotSlate's popup keeps the compose window open, also the one Alt+T opened by the mouse.
   147. A dim grip at the left of the popup's title bar, and in the top left corner of the compose window on a page, moves it by exactly the mouse distance; the toolbar popup has none.
   148. The compose window's language lists open in the window's theme, dark or light, with readable text.
+  149. Alt+click on a selection in a field or an editor translates it, keeps it selected and opens no compose window; without a selection Alt+click on a field opens the window.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

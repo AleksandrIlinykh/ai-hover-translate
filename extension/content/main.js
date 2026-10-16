@@ -140,7 +140,8 @@
   async function trigger() {
     if (!readDown || combo || mouseX === null) return;
     const picked = pickUnderMouse();
-    if (!picked || picked.reason || sameTarget(picked.target, popup.getBlock())) return;
+    // The same field with another part of it selected is another text.
+    if (!picked || picked.reason || (sameTarget(picked.target, popup.getBlock()) && picked.text === shown?.text)) return;
     usedReadKey = true;
     const ticket = ++triggerTicket;
     const skip = await isAlreadyInTargetLanguage(picked.text);
@@ -188,9 +189,11 @@
   function show(picked) {
     closePopup();
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
-    shown = { text: picked.text, mode, context: mode === 'dictionary' ? contextOf(picked.target) : '' };
+    // Nothing around a selection in a field is taken: it may hold anything, so only what the user selected goes.
+    const around = picked.selection && !picked.field;
+    shown = { text: picked.text, mode, context: mode === 'dictionary' && around ? contextOf(picked.target) : '' };
     // Chrome's translator needs the source language: a few selected words tell too little, their paragraph more.
-    sample = (picked.selection && blockTextOf(picked.target)) || picked.text;
+    sample = (around && blockTextOf(picked.target)) || picked.text;
     popup.open(picked.target);
     hero.wake();
     load();
@@ -502,6 +505,7 @@
       if (siteMode.off || !readHeld(event) || otherModifiers(event) || !event.isTrusted) return;
       const target = event.composedPath()[0];
       if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
+      if (selectionAt(event.clientX, event.clientY)) return; // the user's selection is translated instead
       const field = writableField(target);
       if (!field) return;
       usedReadKey = true; // releasing Alt must not focus Chrome's menu
@@ -520,6 +524,7 @@
       if (siteMode.off || keys.read !== 'Control' || !event.ctrlKey || event.button !== 0 || !event.isTrusted) return;
       const target = event.composedPath()[0];
       if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
+      if (selectionAt(event.clientX, event.clientY)) return; // translated already, as the key went down over it
       const field = writableField(target);
       if (!field) return;
       event.preventDefault();
@@ -537,6 +542,14 @@
   addEventListener(
     'mousedown',
     (event) => {
+      // Alt+click on the user's selection translates it, as Alt over it does; the click must not undo the selection.
+      const own = popup.isOwn(event.target) || composeWindow.isOwn(event.target);
+      const onSelection = event.isTrusted && event.button === 0 && readHeld(event) && !otherModifiers(event) && !own;
+      if (onSelection && !siteMode.off && selectionAt(event.clientX, event.clientY)) {
+        event.preventDefault();
+        trigger();
+        return;
+      }
       if (popup.isOpen() && !popup.isPinned() && !popup.isOwn(event.target)) closePopup();
       // A click elsewhere on the page puts the compose window away; SpotSlate's popup is part of the writing.
       if (composeWindow.isOpen() && event.isTrusted && !composeWindow.isOwn(event.target) && !popup.isOwn(event.target)) {
