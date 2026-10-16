@@ -502,6 +502,7 @@
         draftEl.setSelectionRange(draftEl.value.length, draftEl.value.length);
       },
       close: closeWindow,
+      keepDraft: saveDraft,
       destroy,
     };
   }

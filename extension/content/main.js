@@ -538,6 +538,10 @@
     'mousedown',
     (event) => {
       if (popup.isOpen() && !popup.isPinned() && !popup.isOwn(event.target)) closePopup();
+      // A click elsewhere on the page puts the compose window away; SpotSlate's popup is part of the writing.
+      if (composeWindow.isOpen() && event.isTrusted && !composeWindow.isOwn(event.target) && !popup.isOwn(event.target)) {
+        composeWindow.leave();
+      }
     },
     true,
   );

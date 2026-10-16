@@ -1,5 +1,5 @@
 // The compose window on the page, at a text field or by the mouse pointer: below it (above when there is no room),
-// moved by its title row, closed with its ×, Esc, Copy or Alt+T. Keys typed in it stay out of the page, so site shortcuts do not fire.
+// moved by its title row, closed with its ×, Esc, Copy, Alt+T or a click elsewhere on the page. Keys typed in it stay out of the page, so site shortcuts do not fire.
 (() => {
   const ROOT_ID = 'spotslate-compose';
   const WIDTH = 440;
@@ -135,6 +135,11 @@
       close,
       // Closes the window as its × does.
       dismiss: () => finish?.(),
+      // Closes it after a click elsewhere: the draft is kept, and the focus stays where the click put it.
+      leave() {
+        composer?.keepDraft();
+        close();
+      },
       isOpen: () => host !== null,
       isOwn: (node) => host !== null && (node === host || node?.getRootNode?.() === shadow),
     };

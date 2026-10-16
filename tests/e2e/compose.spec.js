@@ -24,6 +24,17 @@ async function openOnComment(page, server) {
   await expect(part(page, 'draft')).toBeFocused();
 }
 
+// Alt+T as the keyboard sends it: the T is the physical key, whatever letter the layout puts on it.
+async function altT(page, key = 't') {
+  const client = await page.context().newCDPSession(page);
+  const send = (type, event) => client.send('Input.dispatchKeyEvent', { type, ...event });
+  await send('rawKeyDown', { modifiers: 1, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
+  await send('rawKeyDown', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
+  await send('keyUp', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
+  await send('keyUp', { modifiers: 0, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
+  await client.detach();
+}
+
 async function write(page, text) {
   await part(page, 'draft').pressSequentially(text, { delay: 20 });
 }
@@ -358,17 +369,6 @@ test.describe('the toolbar popup', () => {
 });
 
 test.describe('Alt+T', () => {
-  // Alt+T as the keyboard sends it: the T is the physical key, whatever letter the layout puts on it.
-  async function altT(page, key = 't') {
-    const client = await page.context().newCDPSession(page);
-    const send = (type, event) => client.send('Input.dispatchKeyEvent', { type, ...event });
-    await send('rawKeyDown', { modifiers: 1, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
-    await send('rawKeyDown', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
-    await send('keyUp', { modifiers: 1, key, code: 'KeyT', windowsVirtualKeyCode: 84 });
-    await send('keyUp', { modifiers: 0, key: 'Alt', code: 'AltLeft', windowsVirtualKeyCode: 18 });
-    await client.detach();
-  }
-
   test('opens the window at the field being typed in, and Esc gives the focus back to it', async ({ page, server }) => {
     await page.goto(`${server.url}/page.html`);
     await page.locator('#comment').click();
@@ -416,5 +416,36 @@ test.describe('Alt+T', () => {
     await altT(page, String.fromCharCode(0x435)); // the Cyrillic letter on the T key
     await expect(part(page, 'draft')).toBeFocused();
     expect(await page.evaluate(() => window.pageKeys)).toBe(before + 1); // only the Alt
+  });
+});
+
+test.describe('a click elsewhere', () => {
+  test('puts the window away with the draft kept, and the focus stays where the click went', async ({ page, server, context }) => {
+    await openOnComment(page, server);
+    await write(page, DRAFT);
+    const other = await context.newPage(); // going to another tab and back leaves the window open
+    await other.close();
+    await page.bringToFront();
+    await expect(compose(page)).toHaveCount(1);
+    await page.locator('#comment').click();
+    await expect(compose(page)).toHaveCount(0);
+    await expect(page.locator('#comment')).toBeFocused();
+    await altClick(page, '#comment');
+    await expect(part(page, 'draft')).toHaveValue(DRAFT);
+  });
+
+  test("on SpotSlate's own popup keeps the window, which Alt+T opened by the mouse", async ({ page, server }) => {
+    await page.goto(`${server.url}/page.html`);
+    const p2 = await page.locator('#p2').boundingBox();
+    await page.mouse.move(p2.x + 40, p2.y + 10);
+    await altT(page);
+    await expect(part(page, 'draft')).toBeFocused();
+    await altHover(page, '#p1');
+    await expect(popupText(page)).toContainText('[RU]');
+    await page.keyboard.up('Alt');
+    await popupText(page).click();
+    await expect(compose(page)).toHaveCount(1);
+    await page.locator('#comment').click();
+    await expect(compose(page)).toHaveCount(0);
   });
 });
