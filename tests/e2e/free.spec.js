@@ -24,7 +24,7 @@ async function altOverPhrase(page, selector, phrase) {
 // A click on the page away from any text.
 const clickAside = (page) => page.mouse.click(5, 5);
 // English to Russian, as the popup names it: in Russian.
-const PAIR = `${globalThis.paragloss.languageName('en', 'ru')} \u2192 ${globalThis.paragloss.languageName('ru', 'ru')}`;
+const PAIR = `${globalThis.spotslate.languageName('en', 'ru')} \u2192 ${globalThis.spotslate.languageName('ru', 'ru')}`;
 
 test.beforeEach(async ({ setSettings }) => {
   await setSettings({ provider: 'chrome', apiKey: '' });

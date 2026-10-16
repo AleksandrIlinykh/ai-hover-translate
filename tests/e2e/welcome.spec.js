@@ -3,7 +3,7 @@ import { test, expect, moveTo, popupRoot, popupText, say } from './fixtures.js';
 const welcomeUrl = (extensionId) => `chrome-extension://${extensionId}/welcome.html`;
 const stored = async (serviceWorker) => (await serviceWorker.evaluate(() => chrome.storage.local.get('settings'))).settings;
 
-test('installing Paragloss opens the welcome page', async ({ extensionId, welcomed }) => {
+test('installing SpotSlate opens the welcome page', async ({ extensionId, welcomed }) => {
   expect(welcomed).toBe(welcomeUrl(extensionId));
 });
 
@@ -21,7 +21,7 @@ test('the welcome page says what leaves the computer and links to the privacy po
   await expect(page.locator('#data')).toContainText('nothing you translate leaves this computer');
   await expect(page.getByRole('link', { name: 'privacy policy' })).toHaveAttribute(
     'href',
-    'https://github.com/AleksandrIlinykh/paragloss/blob/main/PRIVACY.md',
+    'https://github.com/AleksandrIlinykh/spotslate/blob/main/PRIVACY.md',
   );
 });
 

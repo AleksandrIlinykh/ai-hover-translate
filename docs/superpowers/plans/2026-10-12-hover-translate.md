@@ -1,6 +1,6 @@
 # Hover Translate Implementation Plan
 
-> The first implementation plan, kept as written. The project has been renamed Paragloss since, and much has changed; the current design is in `docs/superpowers/specs/2026-10-12-paragloss-design.md`.
+> The first implementation plan, kept as written. The project has been renamed Paragloss and then SpotSlate since, and much has changed; the current design is in `docs/superpowers/specs/2026-10-12-spotslate-design.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

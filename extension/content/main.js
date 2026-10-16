@@ -22,7 +22,7 @@
     createHero,
     heroes,
     t,
-  } = globalThis.paragloss;
+  } = globalThis.spotslate;
 
   const TRIGGER_DELAY_MS = 200;
   const LEAVE_GRACE_MS = 300;
@@ -97,7 +97,7 @@
     return null;
   }
 
-  // Hints are worded in the language the user translates into, like everything Paragloss says on the page.
+  // Hints are worded in the language the user translates into, like everything SpotSlate says on the page.
   function hintFor(picked) {
     if (picked.reason === 'too-long') return t(targetLang, picked.selection ? 'hintTooLongSelection' : 'hintTooLong');
     if (picked.reason === 'editable') {

@@ -1,6 +1,6 @@
 import { test, expect, altHover, moveTo, popupRoot, popupText } from './fixtures.js';
 
-// With German as the language to translate into, Paragloss speaks German on the page.
+// With German as the language to translate into, SpotSlate speaks German on the page.
 test.beforeEach(async ({ setSettings }) => {
   await setSettings({ targetLang: 'de' });
 });
@@ -9,11 +9,11 @@ test('the hints over the page are in the language the page is translated into', 
   await page.goto(`${server.url}/page.html`);
   await moveTo(page, '#comment');
   await page.keyboard.down('Alt');
-  await expect(page.locator('#paragloss-highlight')).toContainText('Alt+Klick: in Ihrer Sprache schreiben.');
+  await expect(page.locator('#spotslate-highlight')).toContainText('Alt+Klick: in Ihrer Sprache schreiben.');
   await page.keyboard.up('Alt');
   await moveTo(page, '#password');
   await page.keyboard.down('Alt');
-  await expect(page.locator('#paragloss-highlight')).toContainText('Eingabefelder werden nicht übersetzt.');
+  await expect(page.locator('#spotslate-highlight')).toContainText('Eingabefelder werden nicht übersetzt.');
 });
 
 test('the popup, its errors and the context panel are in that language', async ({ page, server, setSettings }) => {
@@ -42,7 +42,7 @@ test('the compose window is in that language, with the language names in it too'
   await page.mouse.down();
   await page.mouse.up();
   await page.keyboard.up('Alt');
-  const compose = page.locator('#paragloss-compose');
+  const compose = page.locator('#spotslate-compose');
   await expect(compose.locator('.pair')).toHaveText('Deutsch →');
   await expect(compose.locator('.target option:checked')).toHaveText('Englisch');
   await expect(compose.locator('.draft')).toHaveAttribute('placeholder', 'Schreiben Sie in Ihrer Sprache');

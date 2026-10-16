@@ -5,7 +5,7 @@ export const DEFAULTS = Object.freeze({
   provider: 'chrome',
 });
 
-// The version of what Paragloss sends to AI providers that the user has agreed to (`consent` in the settings).
+// The version of what SpotSlate sends to AI providers that the user has agreed to (`consent` in the settings).
 // Raising it after a change in what is sent asks everyone to agree again before anything goes out.
 export const CONSENT_VERSION = 1;
 
@@ -43,7 +43,7 @@ function providerEntry(id, stored) {
 // given another navigator.language).
 const browserLanguage = () => globalThis.chrome?.i18n?.getUILanguage?.() ?? globalThis.navigator?.language;
 
-// The language to translate into until the user picks one: the browser's own language when Paragloss offers it,
+// The language to translate into until the user picks one: the browser's own language when SpotSlate offers it,
 // else English.
 export function defaultTargetLang(uiLanguage = browserLanguage()) {
   const code = typeof uiLanguage === 'string' ? uiLanguage.split('-')[0].toLowerCase() : '';

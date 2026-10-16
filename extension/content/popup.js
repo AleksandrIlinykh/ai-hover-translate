@@ -1,5 +1,5 @@
 (() => {
-  const ROOT_ID = 'paragloss-root';
+  const ROOT_ID = 'spotslate-root';
   const GAP = 6;
   const MARGIN = 8;
   const SHIFT_X = 32;
@@ -126,11 +126,11 @@
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   // With an AI provider a footer row has the Context button, which opens the site context panel under the popup.
   function createPopup({ onOpenSettings, onRetry, onDownload, onClose }) {
-    const { createNotesPanel, NOTES_CSS } = globalThis.paragloss;
+    const { createNotesPanel, NOTES_CSS } = globalThis.spotslate;
     const host = document.createElement('div');
     host.id = ROOT_ID;
     host.style.cssText = HOST_STYLE;
-    const shadow = host.attachShadow({ mode: globalThis.paragloss.SHADOW_MODE });
+    const shadow = host.attachShadow({ mode: globalThis.spotslate.SHADOW_MODE });
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(POPUP_CSS);
     const notesSheet = new CSSStyleSheet();
@@ -193,7 +193,7 @@
 
     // The buttons in `lang`.
     function label() {
-      const { t } = globalThis.paragloss;
+      const { t } = globalThis.spotslate;
       copyButton.textContent = t(lang, 'copy');
       closeButton.setAttribute('aria-label', t(lang, 'close'));
       for (const [key, element] of Object.entries(actions)) element.textContent = t(lang, key);
@@ -231,7 +231,7 @@
         document.execCommand('copy');
         area.remove();
       }
-      copyButton.textContent = globalThis.paragloss.t(lang, 'copied');
+      copyButton.textContent = globalThis.spotslate.t(lang, 'copied');
       setTimeout(label, COPIED_MS);
     }
 
@@ -432,5 +432,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createPopup });
+  Object.assign((globalThis.spotslate ??= {}), { createPopup });
 })();

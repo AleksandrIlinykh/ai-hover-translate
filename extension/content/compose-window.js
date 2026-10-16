@@ -1,7 +1,7 @@
 // The compose window on the page, at a text field or by the mouse pointer: below it (above when there is no room),
 // moved by its title row, closed with its ×, Esc, Copy or Alt+T. Keys typed in it stay out of the page, so site shortcuts do not fire.
 (() => {
-  const ROOT_ID = 'paragloss-compose';
+  const ROOT_ID = 'spotslate-compose';
   const WIDTH = 440;
   const GAP = 6;
   const MARGIN = 8;
@@ -103,7 +103,7 @@
       host.id = ROOT_ID;
       host.style.cssText = HOST_STYLE;
       for (const type of ['keydown', 'keyup', 'keypress']) host.addEventListener(type, (event) => event.stopPropagation());
-      shadow = host.attachShadow({ mode: globalThis.paragloss.SHADOW_MODE });
+      shadow = host.attachShadow({ mode: globalThis.spotslate.SHADOW_MODE });
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(FRAME_CSS);
       shadow.adoptedStyleSheets = [sheet];
@@ -114,7 +114,7 @@
         close();
         returnTo?.focus?.({ preventScroll: true });
       };
-      composer = globalThis.paragloss.createComposer({
+      composer = globalThis.spotslate.createComposer({
         ...options,
         container: frame,
         styleRoot: shadow,
@@ -140,5 +140,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createComposeWindow });
+  Object.assign((globalThis.spotslate ??= {}), { createComposeWindow });
 })();

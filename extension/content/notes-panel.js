@@ -1,4 +1,4 @@
-// The site context panel under the translation popup and the compose window: what Paragloss knows about the site,
+// The site context panel under the translation popup and the compose window: what SpotSlate knows about the site,
 // built from the texts translated there. It reads like a card under a film: the text cannot be selected or edited,
 // only cleared. It asks background for the notes when opened and follows their changes while it exists.
 (() => {
@@ -71,7 +71,7 @@
   // background uses their tab's. `providerName` goes into the note; `lang` is the language it speaks, the one the user
   // translates into. The panel starts closed.
   function createNotesPanel({ site: claimedSite = null, providerName = '', lang: startLang = 'en' } = {}) {
-    const { t } = globalThis.paragloss;
+    const { t } = globalThis.spotslate;
     const panel = element('div', 'notes');
     panel.hidden = true;
     const title = element('span', 'notes-title');
@@ -146,5 +146,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createNotesPanel, NOTES_CSS });
+  Object.assign((globalThis.spotslate ??= {}), { createNotesPanel, NOTES_CSS });
 })();

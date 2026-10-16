@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../extension/content/pup.js';
 
-const { heroes } = globalThis.paragloss;
+const { heroes } = globalThis.spotslate;
 
 test('the pup has a dance and a rest, each a loop of frames', () => {
   const { animations } = heroes.pup;

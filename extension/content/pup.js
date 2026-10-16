@@ -1,4 +1,4 @@
-// Pup, the companion: a pixel shiba drawn from parts. Each animation is a loop of frames; a frame is a list of
+// Spot, the companion: a pixel shiba drawn from parts. Each animation is a loop of frames; a frame is a list of
 // rows, one character per cell, '.' for transparent and the rest from `palette`.
 (() => {
   const WIDTH = 16;
@@ -56,7 +56,7 @@
   }
 
   const pup = {
-    name: 'Pup',
+    name: 'Spot',
     width: WIDTH,
     height: HEIGHT,
     palette: { k: '#3a2a1e', o: '#f0a04b', d: '#c9772e', w: '#fff6e8', p: '#ff8aa0' },
@@ -77,6 +77,6 @@
     },
   };
 
-  const paragloss = (globalThis.paragloss ??= {});
-  paragloss.heroes = { ...paragloss.heroes, pup };
+  const spotslate = (globalThis.spotslate ??= {});
+  spotslate.heroes = { ...spotslate.heroes, pup };
 })();

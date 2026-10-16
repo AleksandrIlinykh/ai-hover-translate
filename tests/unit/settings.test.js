@@ -17,7 +17,7 @@ test('withDefaults keeps the agreement to send texts to AI providers only as a v
   assert.equal(withDefaults({}, 'win', 'en').consent, 0);
 });
 
-test('the language to translate into starts as the browser language, or English when Paragloss does not offer it', () => {
+test('the language to translate into starts as the browser language, or English when SpotSlate does not offer it', () => {
   assert.equal(defaultTargetLang('ja'), 'ja');
   assert.equal(defaultTargetLang('pt-BR'), 'pt');
   assert.equal(defaultTargetLang('zh-CN'), 'zh');

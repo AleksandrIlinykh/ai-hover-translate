@@ -1,6 +1,6 @@
 import { test, expect, altHover, popupBox, popupText } from './fixtures.js';
 
-const hero = (page) => page.locator('#paragloss-hero');
+const hero = (page) => page.locator('#spotslate-hero');
 
 // The pup's box, rounded to whole pixels.
 async function heroBox(page) {
@@ -97,7 +97,7 @@ test('the pup never takes the mouse from the page', async ({ page, server }) => 
   await page.mouse.move(60, 150);
   await page.keyboard.down('Alt');
   await expect.poll(() => heroBox(page)).toMatchObject({ x: 72, y: 166 });
-  expect(await page.evaluate(() => document.elementFromPoint(88, 182)?.id ?? '')).not.toBe('paragloss-hero');
+  expect(await page.evaluate(() => document.elementFromPoint(88, 182)?.id ?? '')).not.toBe('spotslate-hero');
 });
 
 test('with reduced motion the pup stands still', async ({ page, server }) => {

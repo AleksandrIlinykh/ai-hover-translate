@@ -72,7 +72,7 @@ test("Chrome's own Ctrl+Shift shortcuts are refused with what they do, others ar
   assert.equal(problem('Ctrl+Shift+T'), 'Ctrl+Shift+T reopens a closed tab.');
   assert.equal(problem('Ctrl+Shift+N'), 'Ctrl+Shift+N opens an incognito window.');
   assert.equal(problem('Ctrl+Shift+I'), 'Ctrl+Shift+I opens the developer tools.');
-  assert.equal(problem('Ctrl+Shift+Y'), 'Ctrl+Shift+Y opens the Paragloss window at the toolbar.');
+  assert.equal(problem('Ctrl+Shift+Y'), 'Ctrl+Shift+Y opens the SpotSlate window at the toolbar.');
   assert.equal(problem('Ctrl+Shift+U', 'linux'), 'Ctrl+Shift+U starts typing a Unicode character.');
   assert.equal(problem('Ctrl+Shift+K'), null);
   assert.equal(problem('Ctrl+Shift+5'), null);

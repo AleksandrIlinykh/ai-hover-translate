@@ -50,7 +50,7 @@ test('opens on the free translator and the browser language, with nothing to fil
   );
   await expect(page.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
     'href',
-    'https://github.com/AleksandrIlinykh/paragloss/blob/main/PRIVACY.md',
+    'https://github.com/AleksandrIlinykh/spotslate/blob/main/PRIVACY.md',
   );
   await expect(page.locator('#provider option')).toHaveCount(13);
   await expect(page.locator('#provider optgroup')).toHaveCount(4);
@@ -278,7 +278,7 @@ test('the note under the provider says where the text goes, and follows the API 
   await page.locator('#provider').selectOption('anthropic');
   await expect(page.locator('#dataNote')).toContainText('is sent to Anthropic Claude at api.anthropic.com with your key');
   await page.locator('#provider').selectOption('custom');
-  await expect(page.locator('#dataNote')).toHaveText('The text you hold Alt over or write in Paragloss will go to the API URL you enter.');
+  await expect(page.locator('#dataNote')).toHaveText('The text you hold Alt over or write in SpotSlate will go to the API URL you enter.');
   await page.locator('#baseUrl').fill('https://llm.example.com/v1');
   await expect(page.locator('#dataNote')).toContainText('is sent to Other OpenAI-compatible API at llm.example.com');
 });

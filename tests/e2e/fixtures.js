@@ -10,7 +10,7 @@ export const EXTENSION_PATH = path.resolve(path.dirname(fileURLToPath(import.met
 
 // The extension keeps its shadow roots closed, so pages cannot read or press anything in them; tests reach inside
 // through a copy whose content/config.js opens them. security.spec.js checks that the real one keeps them closed.
-const TEST_EXTENSION_PATH = path.join(os.tmpdir(), `paragloss-e2e-${process.pid}`);
+const TEST_EXTENSION_PATH = path.join(os.tmpdir(), `spotslate-e2e-${process.pid}`);
 fs.rmSync(TEST_EXTENSION_PATH, { recursive: true, force: true });
 fs.cpSync(EXTENSION_PATH, TEST_EXTENSION_PATH, { recursive: true });
 const config = path.join(TEST_EXTENSION_PATH, 'content/config.js');
@@ -61,7 +61,7 @@ export const test = base.extend({
 
 export { expect };
 
-// The welcome page Paragloss opens on install: closed, and its address returned (null if it did not open in 5 s).
+// The welcome page SpotSlate opens on install: closed, and its address returned (null if it did not open in 5 s).
 async function closeWelcome(context) {
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
@@ -76,12 +76,12 @@ async function closeWelcome(context) {
   return null;
 }
 
-// What Paragloss says in `lang`, from the texts the extension itself uses. The tests translate into Russian, so its
+// What SpotSlate says in `lang`, from the texts the extension itself uses. The tests translate into Russian, so its
 // hints, buttons and errors are in Russian; this keeps the test files in English.
-export const say = (key, params = {}, lang = 'ru') => globalThis.paragloss.t(lang, key, params);
-export const languageLabel = (code, lang = 'ru') => globalThis.paragloss.languageName(code, lang, { capitalized: true });
+export const say = (key, params = {}, lang = 'ru') => globalThis.spotslate.t(lang, key, params);
+export const languageLabel = (code, lang = 'ru') => globalThis.spotslate.languageName(code, lang, { capitalized: true });
 
-export const popupRoot = (page) => page.locator('#paragloss-root');
+export const popupRoot = (page) => page.locator('#spotslate-root');
 export const popupText = (page) => popupRoot(page).locator('.text');
 export const popupBox = (page) => popupRoot(page).locator('.popup');
 
@@ -104,7 +104,7 @@ export async function inContentScript(page, expression) {
   const worlds = [];
   client.on('Runtime.executionContextCreated', ({ context }) => worlds.push(context));
   await client.send('Runtime.enable');
-  const world = worlds.find((context) => context.auxData?.type === 'isolated' && context.name === 'Paragloss');
+  const world = worlds.find((context) => context.auxData?.type === 'isolated' && context.name === 'SpotSlate');
   const { result } = await client.send('Runtime.evaluate', { expression, contextId: world.id, awaitPromise: true, returnByValue: true });
   await client.detach();
   return result.value;

@@ -1,5 +1,5 @@
 (() => {
-  const ROOT_ID = 'paragloss-highlight';
+  const ROOT_ID = 'spotslate-highlight';
   const PAD = 3;
   const HINT_ROOM = 28; // space needed above the box to put the hint outside it
 
@@ -77,5 +77,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createHighlight });
+  Object.assign((globalThis.spotslate ??= {}), { createHighlight });
 })();

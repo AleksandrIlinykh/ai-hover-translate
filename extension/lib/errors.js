@@ -1,4 +1,4 @@
-// The errors Paragloss shows, worded in `lang`: the language the user translates into on pages, English on the settings
+// The errors SpotSlate shows, worded in `lang`: the language the user translates into on pages, English on the settings
 // page. The texts are in content/strings.js.
 import '../content/strings.js';
 
@@ -15,7 +15,7 @@ const KEYS = {
   no_consent: 'noConsent',
 };
 
-const say = (lang, key, params) => globalThis.paragloss.t(lang, key, params);
+const say = (lang, key, params) => globalThis.spotslate.t(lang, key, params);
 
 export function makeError(code, provider, lang = 'en') {
   return { code, message: say(lang, KEYS[code], { name: provider.name }) };

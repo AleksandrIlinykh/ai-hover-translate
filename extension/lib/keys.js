@@ -30,7 +30,7 @@ const CHROME_CTRL_SHIFT = {
   T: 'reopens a closed tab',
   V: 'pastes plain text',
   W: 'closes the window',
-  Y: 'opens the Paragloss window at the toolbar',
+  Y: 'opens the SpotSlate window at the toolbar',
   Z: 'redoes',
 };
 const CHROME_ALT = { F: 'opens the Chrome menu', E: 'opens the Chrome menu', D: 'goes to the address bar' };

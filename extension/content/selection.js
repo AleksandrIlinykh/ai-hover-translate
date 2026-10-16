@@ -52,14 +52,14 @@
 
   // The whole text of the block a selection is in; '' when it spans blocks.
   function blockTextOf(range) {
-    const block = globalThis.paragloss.inspectBlock(range.startContainer)?.target;
+    const block = globalThis.spotslate.inspectBlock(range.startContainer)?.target;
     if (!(block instanceof Element) || !block.contains(range.endContainer)) return '';
     return block.textContent;
   }
 
   // The words around a selected phrase, from the text of its block.
   function contextOf(range) {
-    const block = globalThis.paragloss.inspectBlock(range.startContainer)?.target;
+    const block = globalThis.spotslate.inspectBlock(range.startContainer)?.target;
     if (!(block instanceof Element) || !block.contains(range.endContainer)) return '';
     const head = document.createRange();
     head.selectNodeContents(block);
@@ -69,5 +69,5 @@
     return wordsAround(text, start, start + range.toString().length);
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { selectionAt, isShortPhrase, wordsAround, blockTextOf, contextOf });
+  Object.assign((globalThis.spotslate ??= {}), { selectionAt, isShortPhrase, wordsAround, blockTextOf, contextOf });
 })();

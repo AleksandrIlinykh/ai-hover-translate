@@ -1,7 +1,7 @@
 import { test, expect, altHover, moveTo, popupText, inContentScript, fakeBuiltInAI, say, languageLabel } from './fixtures.js';
 
 const DRAFT = 'privet mir'; // the user's own language, in the Latin script the project's files keep to
-const compose = (page) => page.locator('#paragloss-compose');
+const compose = (page) => page.locator('#spotslate-compose');
 const part = (page, name) => compose(page).locator(`.${name}`);
 const systemOf = (request) => request.body.messages[0].content;
 const userOf = (request) => request.body.messages.at(-1).content;
@@ -63,7 +63,7 @@ test('an ellipsis shows from the first key until the whole translation is there,
   await openOnComment(page, server);
   // Every text the translation shows, from now on.
   await page.evaluate(() => {
-    const translation = document.querySelector('#paragloss-compose').shadowRoot.querySelector('.translation');
+    const translation = document.querySelector('#spotslate-compose').shadowRoot.querySelector('.translation');
     window.shownTexts = [];
     new MutationObserver(() => window.shownTexts.push(translation.textContent)).observe(translation, {
       childList: true,
@@ -297,8 +297,8 @@ test.describe('Alt+T', () => {
     const box = await compose(page).boundingBox();
     expect([Math.round(box.x), Math.round(box.y)]).toEqual([mouse.x, mouse.y + 22]);
     await page.waitForTimeout(500);
-    await expect(page.locator('#paragloss-root')).toHaveCount(0);
-    await expect(page.locator('#paragloss-hero')).toHaveCount(0);
+    await expect(page.locator('#spotslate-root')).toHaveCount(0);
+    await expect(page.locator('#spotslate-hero')).toHaveCount(0);
     expect(server.requests).toHaveLength(0);
   });
 

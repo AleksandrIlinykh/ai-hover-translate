@@ -54,7 +54,7 @@ function png(width, height, rgba) {
   ]);
 }
 
-const pup = globalThis.paragloss.heroes.pup;
+const pup = globalThis.spotslate.heroes.pup;
 const [frame] = pup.animations.idle.frames;
 const rgb = (hex) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 

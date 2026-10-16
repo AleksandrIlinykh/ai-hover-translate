@@ -2,7 +2,7 @@
 // popup after. Its frames come from a hero definition (content/pup.js). It never takes the mouse: hovering and clicks
 // go through it to the page.
 (() => {
-  const ROOT_ID = 'paragloss-hero';
+  const ROOT_ID = 'spotslate-hero';
   const SCALE = 2; // css pixels per cell
   const POINTER_GAP = { x: 12, y: 16 }; // below and right of the tip of the mouse pointer, clear of the arrow
   const PERCH_INSET = 10; // from the popup's left edge
@@ -98,7 +98,7 @@
       host = document.createElement('div');
       host.id = ROOT_ID;
       host.style.cssText = HOST_STYLE;
-      const shadow = host.attachShadow({ mode: globalThis.paragloss.SHADOW_MODE });
+      const shadow = host.attachShadow({ mode: globalThis.spotslate.SHADOW_MODE });
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(spriteCss(hero));
       shadow.adoptedStyleSheets = [sheet];
@@ -183,5 +183,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createHero });
+  Object.assign((globalThis.spotslate ??= {}), { createHero });
 })();

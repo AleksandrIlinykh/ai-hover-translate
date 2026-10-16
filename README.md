@@ -1,10 +1,10 @@
-# Paragloss
+# SpotSlate
 
-[![Tests](https://github.com/AleksandrIlinykh/paragloss/actions/workflows/test.yml/badge.svg)](https://github.com/AleksandrIlinykh/paragloss/actions/workflows/test.yml)
+[![Tests](https://github.com/AleksandrIlinykh/spotslate/actions/workflows/test.yml/badge.svg)](https://github.com/AleksandrIlinykh/spotslate/actions/workflows/test.yml)
 
-A gloss for the paragraph you're stuck on. Hold **Alt** and hover over a paragraph to see its translation above it: free with Chrome's built-in translator, or from the AI model you choose.
+Translate on the spot. Hold **Alt** and hover over a paragraph to see its translation above it: free with Chrome's built-in translator, or from the AI model you choose.
 
-In medieval manuscripts a gloss was a translation written above the line. Paragloss does the same for any paragraph on the web, and leaves the page as it was.
+SpotSlate is for deliberate, in-context translation of just the part you need: right where you are reading, without leaving the page or breaking its flow. The page stays as it was.
 
 ## Install
 
@@ -42,7 +42,7 @@ Chrome 138 and later (and Edge) can translate on the computer itself. The extens
 
 ## Where your text goes
 
-The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and every translation on a site carries the short site context Paragloss built from what you translated there (see below). The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
+The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in translator, nothing leaves your computer. With an AI provider, only the text you hold Alt over (or select) is sent, straight from your browser to the provider you chose, under your own key. For a dictionary entry, up to 8 words around the selection go with it, and every translation on a site carries the short site context SpotSlate built from what you translated there (see below). The extension has no server and no analytics. Web pages cannot read your key: the settings are open only to the extension's own pages and its service worker.
 
 ## Usage
 
@@ -50,8 +50,8 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is as wide as the paragraph, between 320 and 720 px, from the moment it opens.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).
-- With an AI provider, Paragloss learns what each site is about: after each text you translate there, the model rewrites a short context of one or two paragraphs (the subject, what its terms and abbreviations mean and how to render them, which names to keep), and every later translation on the site carries it. Terms come out the same way every time, and ambiguous words take the meaning they have on that site.
-- "Context" under the translation shows what Paragloss knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes; each new popup opens with it folded away.
+- With an AI provider, SpotSlate learns what each site is about: after each text you translate there, the model rewrites a short context of one or two paragraphs (the subject, what its terms and abbreviations mean and how to render them, which names to keep), and every later translation on the site carries it. Terms come out the same way every time, and ambiguous words take the meaning they have on that site.
+- "Context" under the translation shows what SpotSlate knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes; each new popup opens with it folded away.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not.
 - A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
@@ -59,17 +59,17 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
-- Paragloss speaks the language you translate into: its hints, buttons, errors and windows follow the "Translate into" setting.
-- A little pixel pup keeps you company: it dances next to the mouse while you hold Alt, sits down when the translation is ready, and hops onto the popup when you let Alt go. It never gets in the way of the mouse, and stands still if your system asks for reduced motion.
+- SpotSlate speaks the language you translate into: its hints, buttons, errors and windows follow the "Translate into" setting.
+- Spot, a little pixel shiba, keeps you company: it dances next to the mouse while you hold Alt, sits down when the translation is ready, and hops onto the popup when you let Alt go. It never gets in the way of the mouse, and stands still if your system asks for reduced motion.
 
 ## Writing in another language
 
 - Hold Alt over a text field and click (Alt+click): a window opens under it. Write in your own language at the top; the translation into the page's language appears below a second after you stop typing. While it is on its way, the one before stays, with an ellipsis after it. Click "Copy" (or press Ctrl+Enter) and paste it into the field.
 - Or press Alt+T: the same window opens at the field you are typing in, or next to the mouse. Alt+T again closes it. It works in any keyboard layout.
-- To write for anywhere else, click the Paragloss icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
+- To write for anywhere else, click the SpotSlate icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
 - "Check" translates the result back into your language, to see whether the meaning held.
 - The language to write in follows the site (what you read there, or the page's language); pick another one in the title row and the site keeps it.
-- With an AI provider, the site context goes with your draft, so it uses the site's terms; "Context" in the window shows it. "Check" translates back without it. Paragloss never reads the text around the field, and never types or sends anything on the page itself.
+- With an AI provider, the site context goes with your draft, so it uses the site's terms; "Context" in the window shows it. "Check" translates back without it. SpotSlate never reads the text around the field, and never types or sends anything on the page itself.
 - Settings are behind the gear in the toolbar window, or "Options" in the icon's right-click menu.
 
 After changing the extension files, click "Reload" on its card in `chrome://extensions` and reload open tabs.
@@ -89,10 +89,10 @@ After changing the extension files, click "Reload" on its card in `chrome://exte
 
 GitHub Actions runs both on every push and pull request (`.github/workflows/test.yml`).
 
-Design: `docs/superpowers/specs/2026-10-12-paragloss-design.md`.
+Design: `docs/superpowers/specs/2026-10-12-spotslate-design.md`.
 
 ## License
 
 Copyright (C) 2026 Aleksandr Ilinykh
 
-Paragloss is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
+SpotSlate is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.

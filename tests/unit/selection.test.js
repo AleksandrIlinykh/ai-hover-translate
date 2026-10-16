@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../extension/content/selection.js';
 
-const { wordsAround } = globalThis.paragloss;
+const { wordsAround } = globalThis.spotslate;
 
 // The words around the first occurrence of `phrase` in `text`.
 const around = (text, phrase) => {

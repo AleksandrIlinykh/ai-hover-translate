@@ -24,7 +24,7 @@ if (site) {
 const state = await chrome.runtime.sendMessage({ type: 'compose-open', site, pageLang: page?.pageLang ?? null });
 const send = (message) => chrome.runtime.sendMessage(message).catch(() => {});
 
-globalThis.paragloss
+globalThis.spotslate
   .createComposer({
     ...state,
     container: document.body,

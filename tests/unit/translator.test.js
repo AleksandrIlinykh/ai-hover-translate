@@ -4,7 +4,7 @@ import '../../extension/content/strings.js';
 import '../../extension/content/translator.js';
 
 const { languageCode, sourceLanguage, translateInBrowser, prepareInBrowser, describeProblem, forgetTranslators } =
-  globalThis.paragloss;
+  globalThis.spotslate;
 
 // A stand-in for Chrome's Translator: `availability` for every pair, and a log of what was created.
 function fakeTranslator(availability) {
@@ -49,14 +49,14 @@ function slowTranslator() {
 
 // The detector: German for long texts, unknown for short ones.
 function fakeDetector() {
-  globalThis.paragloss.detectLanguage = async (text) => [
+  globalThis.spotslate.detectLanguage = async (text) => [
     { detectedLanguage: text.length > 20 ? 'de' : 'und', confidence: 0.9 },
   ];
 }
 
 beforeEach(() => {
   delete globalThis.Translator;
-  delete globalThis.paragloss.detectLanguage;
+  delete globalThis.spotslate.detectLanguage;
   forgetTranslators();
   setActivation(false);
 });

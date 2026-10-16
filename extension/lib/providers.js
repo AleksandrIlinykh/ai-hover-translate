@@ -73,7 +73,7 @@ export const PROVIDERS = Object.freeze({
     keyRequired: true,
     keyUrl: 'https://openrouter.ai/settings/keys',
     extras: { reasoning: { effort: 'none' } },
-    headers: { 'HTTP-Referer': 'https://github.com/AleksandrIlinykh/paragloss', 'X-Title': 'Paragloss' },
+    headers: { 'HTTP-Referer': 'https://github.com/AleksandrIlinykh/spotslate', 'X-Title': 'SpotSlate' },
     hint: 'Hundreds of models from many vendors under one key. Load the list and pick one.',
   },
   groq: {
@@ -239,13 +239,13 @@ export function dataNote(provider) {
   if (provider.api === 'browser') {
     return 'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.';
   }
-  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over or write in Paragloss will go to the API URL you enter.';
+  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over or write in SpotSlate will go to the API URL you enter.';
   const { host, hostname } = new URL(provider.baseUrl);
   if (LOCAL_HOSTS.has(hostname)) {
-    return `The text you hold Alt over or write in Paragloss goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
+    return `The text you hold Alt over or write in SpotSlate goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
   }
   return (
-    'The text you hold Alt over or write in Paragloss, with a few words around a selection and the context Paragloss keeps for the site, ' +
+    'The text you hold Alt over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ' +
     `is sent to ${provider.name} at ${host} with your key; their privacy policy applies. Nothing else leaves your browser.`
   );
 }

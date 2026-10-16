@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import '../../extension/content/strings.js';
 import { LANGUAGES } from '../../extension/lib/settings.js';
 
-const { STRINGS, t, languageName } = globalThis.paragloss;
+const { STRINGS, t, languageName } = globalThis.spotslate;
 const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map(([, name]) => name).sort();
 
-test('every language Paragloss translates into has every text, with the same placeholders as English', () => {
+test('every language SpotSlate translates into has every text, with the same placeholders as English', () => {
   assert.deepEqual(Object.keys(STRINGS).sort(), Object.keys(LANGUAGES).sort());
   for (const [lang, table] of Object.entries(STRINGS)) {
     assert.deepEqual(Object.keys(table).sort(), Object.keys(STRINGS.en).sort(), lang);

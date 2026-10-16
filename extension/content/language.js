@@ -46,5 +46,5 @@
     return isAlreadyIn(await detectLanguage(text), targetLang);
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { isAlreadyIn, detectLanguage, detectedBefore, alreadyInLanguage });
+  Object.assign((globalThis.spotslate ??= {}), { isAlreadyIn, detectLanguage, detectedBefore, alreadyInLanguage });
 })();

@@ -143,8 +143,8 @@ test('a local server without a key gets no Authorization header', () => {
 
 test('OpenRouter is told which app is calling', () => {
   const { headers } = chatRequest(provider('openrouter'), { messages, stream: true }).init;
-  assert.equal(headers['HTTP-Referer'], 'https://github.com/AleksandrIlinykh/paragloss');
-  assert.equal(headers['X-Title'], 'Paragloss');
+  assert.equal(headers['HTTP-Referer'], 'https://github.com/AleksandrIlinykh/spotslate');
+  assert.equal(headers['X-Title'], 'SpotSlate');
 });
 
 test('the model list is asked with the same key headers', () => {
@@ -206,20 +206,20 @@ test('dataNote says where the text goes for each kind of provider', () => {
   );
   assert.equal(
     dataNote(provider('deepseek')),
-    'The text you hold Alt over or write in Paragloss, with a few words around a selection and the context Paragloss keeps for the site, ' +
+    'The text you hold Alt over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ' +
       'is sent to DeepSeek at api.deepseek.com with your key; their privacy policy applies. Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('ollama')),
-    'The text you hold Alt over or write in Paragloss goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
+    'The text you hold Alt over or write in SpotSlate goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('custom', { baseUrl: 'http://127.0.0.1:8080/v1' })),
-    'The text you hold Alt over or write in Paragloss goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
+    'The text you hold Alt over or write in SpotSlate goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
       'Nothing else leaves your browser.',
   );
   assert.equal(
     dataNote(provider('custom', { baseUrl: '' })),
-    'The text you hold Alt over or write in Paragloss will go to the API URL you enter.',
+    'The text you hold Alt over or write in SpotSlate will go to the API URL you enter.',
   );
 });

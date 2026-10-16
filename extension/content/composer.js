@@ -73,7 +73,7 @@
   // Resolves to { text }, { error: { message, action, code } }, or { aborted: true }.
   // Messages are worded in `from`, the user's language.
   function translateByApi({ text, from, to, purpose, site, onChunk, signal, ui }) {
-    const { t } = globalThis.paragloss;
+    const { t } = globalThis.spotslate;
     return new Promise((resolve) => {
       let port;
       try {
@@ -108,7 +108,7 @@
 
   // With Chrome's translator, right where the window is.
   async function translateInPlace({ text, from, to, onProgress, ui }) {
-    const { translateInBrowser, describeProblem } = globalThis.paragloss;
+    const { translateInBrowser, describeProblem } = globalThis.spotslate;
     const result = await translateInBrowser(text, to, { sourceLang: from, onProgress });
     return result.text === undefined ? { error: describeProblem(result, to, ui) } : { text: result.text };
   }
@@ -135,7 +135,7 @@
     onClose = () => {},
     onOpenSettings = () => {},
   }) {
-    const { createNotesPanel, NOTES_CSS, t, languageName } = globalThis.paragloss;
+    const { createNotesPanel, NOTES_CSS, t, languageName } = globalThis.spotslate;
     const ui = from; // the window speaks the user's own language
     const say = (key, params) => t(ui, key, params);
     const sheet = new CSSStyleSheet();
@@ -442,5 +442,5 @@
     };
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { createComposer });
+  Object.assign((globalThis.spotslate ??= {}), { createComposer });
 })();

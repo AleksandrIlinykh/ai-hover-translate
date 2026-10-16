@@ -72,5 +72,5 @@
     return block.innerText.trim().replace(/\n{3,}/g, '\n\n');
   }
 
-  Object.assign((globalThis.paragloss ??= {}), { elementAt, inspectBlock, isOverText, writableField });
+  Object.assign((globalThis.spotslate ??= {}), { elementAt, inspectBlock, isOverText, writableField });
 })();

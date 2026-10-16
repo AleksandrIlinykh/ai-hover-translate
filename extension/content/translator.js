@@ -65,7 +65,7 @@
     if (!globalThis.Translator) return { problem: 'unsupported' };
     let source = sourceLang;
     if (!source) {
-      const results = await globalThis.paragloss.detectLanguage?.(sample);
+      const results = await globalThis.spotslate.detectLanguage?.(sample);
       if (!results && !fallbackLang) return { problem: 'unsupported' };
       source = sourceLanguage(results) ?? languageCode(fallbackLang);
       if (!source) return { problem: 'unknown_language' };
@@ -96,7 +96,7 @@
   // What went wrong with Chrome's translator into `targetLang`, worded in `ui` (the language the user translates into on
   // pages, English on the settings page), and the button that helps.
   function describeProblem({ problem, source, detail }, targetLang, ui = targetLang) {
-    const { t, languageName } = globalThis.paragloss;
+    const { t, languageName } = globalThis.spotslate;
     const pair = () => `${languageName(source, ui)} \u2192 ${languageName(targetLang, ui)}`;
     switch (problem) {
       case 'needs_download':
@@ -117,7 +117,7 @@
     pairs.clear();
   }
 
-  Object.assign((globalThis.paragloss ??= {}), {
+  Object.assign((globalThis.spotslate ??= {}), {
     languageCode,
     sourceLanguage,
     translateInBrowser,
