@@ -81,6 +81,7 @@ globalThis.spotslate
     site,
     showSettings: true,
     onOpenSettings: () => chrome.runtime.openOptionsPage(),
+    onSourceChange: (lang) => send({ type: 'compose-source', site, lang }),
     onTargetChange: (lang) => send({ type: 'compose-target', site, lang }),
     onDraftChange: (draft) => send({ type: 'compose-draft', draft }),
     onCopied: () => window.close(),

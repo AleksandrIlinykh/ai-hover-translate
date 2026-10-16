@@ -73,7 +73,8 @@ The toolbar window starts with a switch for the site you are on: turn SpotSlate 
 - Or press Alt+T: the same window opens at the field you are typing in, or next to the mouse. Alt+T again closes it. It works in any keyboard layout.
 - To write for anywhere else, click the SpotSlate icon or press Ctrl+Shift+Y (change it at `chrome://extensions/shortcuts`): the same window opens from the toolbar.
 - "Check" translates the result back into your language, to see whether the meaning held.
-- The language to write in follows the site (what you read there, or the page's language); pick another one in the title row and the site keeps it.
+- The language to write in follows the site (what you read there, or the page's language); pick another one in the title row and the site keeps it. The language you write in, on the left, is yours unless you pick another.
+- Practising a language? Pick it on both sides (German → German): with an AI provider, the window corrects your mistakes instead of translating, shows what changed, and explains each correction in your language. "Copy" takes the corrected text. The site keeps this choice too.
 - With an AI provider, the site context goes with your draft, so it uses the site's terms; "Context" in the window shows it. "Check" translates back without it. SpotSlate never reads the text around the field, and never types or sends anything on the page itself.
 - Settings are behind the gear in the toolbar window, or "Options" in the icon's right-click menu.
 

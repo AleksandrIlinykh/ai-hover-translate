@@ -28,6 +28,7 @@ What to fill in when submitting SpotSlate. The package is `dist/spotslate-<versi
 > WRITE
 > - Alt+click a text field, or press Alt+T while typing: write in your own language and get the text in the page's language, to copy.
 > - "Check" translates it back, so you can see whether the meaning held.
+> - Practising a language? Write in it with the same language on both sides, and an AI provider corrects your mistakes and explains each one.
 >
 > STAY CONSISTENT
 > - With an AI provider, SpotSlate keeps a short note about each site's subject, its terms and names, built from what you translated there. Terms come out the same way every time. You can see the note and clear it.

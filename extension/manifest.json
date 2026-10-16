@@ -35,6 +35,7 @@
         "content/notes-panel.js",
         "content/popup.js",
         "content/highlight.js",
+        "content/correction.js",
         "content/composer.js",
         "content/compose-window.js",
         "content/pup.js",

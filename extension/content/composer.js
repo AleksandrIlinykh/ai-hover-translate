@@ -1,4 +1,5 @@
-// The compose window: the user writes in their own language and gets a translation into another one to copy.
+// The compose window: the user writes, usually in their own language, and gets a translation into another one to
+// copy; with the same language on both sides, their own text back with its mistakes corrected (an AI provider only).
 // Shared by the window at a text field on a page (content/compose-window.js) and the toolbar popup (compose.html).
 (() => {
   const TRANSLATE_DELAY_MS = 1000; // after the typing stops
@@ -20,8 +21,8 @@
       text-align: left;
     }
     .head { display: flex; align-items: center; gap: 6px; min-height: 26px; user-select: none; }
-    .pair { font-weight: 600; white-space: nowrap; }
-    .target { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid #d0d7de; border-radius: 6px; padding: 1px 4px; }
+    .arrow { font-weight: 600; }
+    .source, .target { min-width: 0; font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid #d0d7de; border-radius: 6px; padding: 1px 4px; }
     .spacer { flex: 1; }
     .tool {
       flex: none; height: 22px; padding: 0 6px; border: 1px solid transparent; border-radius: 4px;
@@ -39,6 +40,11 @@
     .translation:empty::before { content: attr(data-placeholder); opacity: 0.5; }
     .pending { animation: pulse 1s ease-in-out infinite; }
     .composer.is-error .translation { color: #cf222e; }
+    .removed { color: #cf222e; text-decoration: line-through; }
+    .added { color: #1a7f37; background: #dafbe1; text-decoration: none; border-radius: 3px; }
+    .fixes { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+    .fixes:empty { display: none; }
+    .fixes.none { padding-left: 0; list-style: none; opacity: 0.75; }
     .back { margin-top: 6px; font-size: 13px; opacity: 0.75; white-space: pre-wrap; overflow-wrap: anywhere; }
     .back:empty { display: none; }
     .foot { display: flex; align-items: center; gap: 8px; }
@@ -56,7 +62,9 @@
     @keyframes pulse { 50% { opacity: 0.3; } }
     @media (prefers-color-scheme: dark) {
       .composer { background: #161b22; color: #e6edf3; }
-      .target, .draft, .button { border-color: #30363d; }
+      .source, .target, .draft, .button { border-color: #30363d; }
+      .removed { color: #ff7b72; }
+      .added { color: #7ee787; background: #033a16; }
       .result { background: #0d1117; }
       .composer.is-error .translation { color: #ff7b72; }
     }
@@ -114,13 +122,15 @@
   }
 
   // Builds the window into `container` (its styles go to `styleRoot`, a shadow root or the document), and the site
-  // context panel after it, into `notesContainer`. `from` is the user's own language and `to` the one to write in;
+  // context panel after it, into `notesContainer`. `from` is the user's own language, which the window speaks,
+  // `source` the one they write in (their own unless chosen otherwise) and `to` the one to write in;
   // `engine` is 'browser' or 'api'. `site` is for the toolbar popup, which is not on the site.
   function createComposer({
     container,
     styleRoot,
     languages,
     from,
+    source: initialSource = from,
     to,
     engine,
     providerName,
@@ -129,6 +139,7 @@
     notesContainer = container,
     showSettings = false,
     showClose = false,
+    onSourceChange = () => {},
     onTargetChange = () => {},
     onDraftChange = () => {},
     onCopied = () => {},
@@ -147,14 +158,16 @@
 
     const root = element('div', 'composer');
     const head = element('div', 'head');
-    const pair = element('span', 'pair', `${nameOf(from)} →`);
-    const target = element('select', 'target');
-    target.setAttribute('aria-label', say('languageToWrite'));
-    for (const code of Object.keys(languages)) {
-      if (code !== from) target.add(new Option(nameOf(code), code));
-    }
-    target.value = to;
-    head.append(pair, target, element('span', 'spacer'));
+    const languageSelect = (className, label, value) => {
+      const select = element('select', className);
+      select.setAttribute('aria-label', say(label));
+      for (const code of Object.keys(languages)) select.add(new Option(nameOf(code), code));
+      select.value = value;
+      return select;
+    };
+    const source = languageSelect('source', 'draftLanguage', initialSource);
+    const target = languageSelect('target', 'resultLanguage', to);
+    head.append(source, element('span', 'arrow', '→'), target, element('span', 'spacer'));
     if (showSettings) {
       const settings = element('button', 'tool settings', '⚙');
       settings.type = 'button';
@@ -172,14 +185,14 @@
     }
 
     const draftEl = element('textarea', 'draft');
-    draftEl.placeholder = say('writePlaceholder');
     draftEl.value = draft;
     draftEl.spellcheck = true;
     const result = element('div', 'result');
     result.setAttribute('aria-live', 'polite');
     const translationEl = element('div', 'translation');
+    const fixesEl = element('ul', 'fixes');
     const backEl = element('div', 'back');
-    result.append(translationEl, backEl);
+    result.append(translationEl, fixesEl, backEl);
 
     const foot = element('div', 'foot');
     const contextButton = element('button', 'button context-toggle', say('context'));
@@ -202,13 +215,23 @@
     container.append(root);
     notesContainer.append(notesPanel.element);
 
-    let translation = ''; // the finished translation of the current draft
+    let translation = ''; // the finished translation of the current draft, or the corrected text
     let shown = ''; // the last finished translation, kept on screen while the next one is on its way
     let pending = null; // the translation in progress: { controller, done: Promise }
     let translateTimer = 0;
     let saveTimer = 0;
     let composing = false; // an IME composition is in progress
     let action = null;
+
+    // The same language on both sides: the draft is checked, not translated.
+    const checking = () => source.value === target.value;
+
+    function showMode() {
+      const placeholder = checking() ? 'writeCheckPlaceholder' : source.value === from ? 'writePlaceholder' : 'writeOtherPlaceholder';
+      draftEl.placeholder = say(placeholder);
+      translationEl.dataset.placeholder = say(checking() ? 'correctionPlaceholder' : 'translationPlaceholder');
+      copyButton.title = say(checking() ? 'copyCorrectedTitle' : 'copyTitle');
+    }
 
     function showEngine() {
       engineEl.textContent = engine === 'browser' ? say('onDevice') : providerName;
@@ -229,6 +252,8 @@
     function showResult(text, { loading = false, error = null } = {}) {
       if (loading) translationEl.replaceChildren(...(text ? [`${text} `] : []), element('span', 'pending', '\u2026'));
       else translationEl.textContent = text;
+      fixesEl.replaceChildren();
+      fixesEl.classList.remove('none');
       root.classList.toggle('is-loading', loading);
       root.classList.toggle('is-error', Boolean(error));
       action = error?.action ?? null;
@@ -239,6 +264,23 @@
       checkButton.disabled = !ready;
     }
 
+    // The corrected text with what changed from the draft, and a line on each mistake.
+    function showCorrection(draft, corrected, notes) {
+      showResult(corrected);
+      // A changed word is marked without the spaces after it.
+      translationEl.replaceChildren(
+        ...globalThis.spotslate.diffWords(draft, corrected).flatMap(({ type, text }) => {
+          if (type === 'same') return [text];
+          const word = text.trimEnd();
+          return [element(type === 'added' ? 'ins' : 'del', type, word), text.slice(word.length)];
+        }),
+      );
+      const unchanged = corrected === draft;
+      fixesEl.classList.toggle('none', unchanged);
+      if (unchanged) fixesEl.append(element('li', '', say('noMistakes')));
+      else fixesEl.append(...notes.map((note) => element('li', '', note)));
+    }
+
     function cancel() {
       clearTimeout(translateTimer);
       translateTimer = 0;
@@ -246,11 +288,11 @@
       pending = null;
     }
 
-    function run({ text, from: source, to: destination, purpose, onChunk, signal }) {
+    function run({ text, from: origin, to: destination, purpose, onChunk, signal }) {
       if (engine === 'browser') {
         return translateInPlace({
           text,
-          from: source,
+          from: origin,
           to: destination,
           onProgress: (share) => onChunk(say('downloading', { percent: Math.round(share * 100) }), true),
           ui,
@@ -258,7 +300,7 @@
       }
       return translateByApi({
         text,
-        from: source,
+        from: origin,
         to: destination,
         purpose,
         site,
@@ -281,17 +323,25 @@
       }
     }
 
-    // Translates the draft now; resolves when this translation is over (or replaced by a newer one).
+    // Translates (or checks) the draft now; resolves when this is over (or replaced by a newer one).
     function translateNow() {
       markChanged();
       const text = draftEl.value.trim();
       if (!text) return Promise.resolve();
+      const correcting = checking();
+      if (correcting && engine === 'browser') {
+        // Chrome's translator cannot check: the text stays as it is, to copy.
+        translation = text;
+        shown = '';
+        showResult(say('checkNeedsAi'));
+        return Promise.resolve();
+      }
       const controller = new AbortController();
       const done = run({
         text,
-        from,
+        from: source.value,
         to: target.value,
-        purpose: 'write',
+        purpose: correcting ? 'correct' : 'write',
         signal: controller.signal,
         // Only a download's progress shows; the translation itself shows when it is complete.
         onChunk: (partial, isProgress = false) => {
@@ -309,6 +359,13 @@
         }
         if (outcome.error) {
           showResult(outcome.error.message, { error: outcome.error });
+          return;
+        }
+        if (correcting) {
+          const { corrected, notes } = globalThis.spotslate.parseCorrection(outcome.text);
+          translation = corrected.trim() || text;
+          shown = translation;
+          showCorrection(text, translation, notes);
           return;
         }
         translation = outcome.text.trim();
@@ -412,8 +469,15 @@
         closeWindow();
       }
     });
+    source.addEventListener('change', () => {
+      onSourceChange(source.value);
+      showMode();
+      shown = ''; // a translation and a correction are different things
+      translateNow();
+    });
     target.addEventListener('change', () => {
       onTargetChange(target.value);
+      showMode();
       shown = ''; // it is in the language before
       translateNow();
     });
@@ -427,7 +491,7 @@
 
     showEngine();
     showContext();
-    translationEl.dataset.placeholder = say('translationPlaceholder');
+    showMode();
     showResult('');
     if (draftEl.value.trim()) translateNow();
 

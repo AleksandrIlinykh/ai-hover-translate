@@ -1,6 +1,6 @@
 import { buildMessages } from './lib/prompt.js';
 import { MIN_PASSAGE, buildNotesMessages, cleanNotes, passageOf, takePassages } from './lib/notes.js';
-import { buildComposeMessages, chooseComposeTarget, countLanguage } from './lib/compose.js';
+import { buildComposeMessages, buildCorrectMessages, chooseComposeSource, chooseComposeTarget, countLanguage } from './lib/compose.js';
 import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
@@ -169,6 +169,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message?.type === 'compose-target') {
     saveComposeTarget(siteOf(sender, message.site), message.lang);
+  }
+  if (message?.type === 'compose-source') {
+    saveComposeSource(siteOf(sender, message.site), message.lang);
   }
   if (message?.type === 'compose-draft') {
     // Each site keeps its own draft, so what was written for one site never shows up on another.
@@ -339,6 +342,7 @@ async function composeState(site, pageLang) {
   return {
     languages: LANGUAGES,
     from,
+    source: chooseComposeSource({ own: from, saved: site ? saved.sources?.[site] : null }),
     to,
     engine: provider.api === 'browser' || siteMode.local ? 'browser' : 'api',
     aiProvider: provider.api !== 'browser',
@@ -354,10 +358,22 @@ async function saveComposeTarget(site, lang) {
   if (!Object.hasOwn(LANGUAGES, lang)) return;
   const { [COMPOSE_KEY]: saved = {} } = await chrome.storage.local.get(COMPOSE_KEY);
   const targets = { ...saved.targets, ...(site ? { [site]: lang } : {}) };
-  await chrome.storage.local.set({ [COMPOSE_KEY]: { targets, last: lang } });
+  await chrome.storage.local.set({ [COMPOSE_KEY]: { ...saved, targets, last: lang } });
 }
 
-// A draft into the page's language ('write'), or a translation back into the user's own ('check').
+// The language the user writes in on a site; their own is the default and is not kept.
+async function saveComposeSource(site, lang) {
+  if (!site || !Object.hasOwn(LANGUAGES, lang)) return;
+  const settings = await loadSettings();
+  const { [COMPOSE_KEY]: saved = {} } = await chrome.storage.local.get(COMPOSE_KEY);
+  const sources = { ...saved.sources };
+  if (lang === settings.targetLang) delete sources[site];
+  else sources[site] = lang;
+  await chrome.storage.local.set({ [COMPOSE_KEY]: { ...saved, sources } });
+}
+
+// A draft into the page's language ('write'), a translation back into the user's own ('check'), or the user's own
+// writing in `to` with its mistakes corrected and explained in the user's language ('correct').
 async function compose({ text, from, to, purpose }, site, signal, send) {
   const draft = typeof text === 'string' ? text.slice(0, MAX_DRAFT) : '';
   if (!draft || !Object.hasOwn(LANGUAGES, from) || !Object.hasOwn(LANGUAGES, to)) return;
@@ -379,10 +395,15 @@ async function compose({ text, from, to, purpose }, site, signal, send) {
     return;
   }
   // The check translates back without the notes, to show what the text says by itself.
+  if (purpose === 'check') {
+    await stream(provider, buildMessages(draft, LANGUAGES[to]), signal, send, settings.targetLang);
+    return;
+  }
+  const notes = siteMode.noContext ? '' : await notesOf(site);
   const messages =
-    purpose === 'check'
-      ? buildMessages(draft, LANGUAGES[to])
-      : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes: siteMode.noContext ? '' : await notesOf(site) });
+    purpose === 'correct'
+      ? buildCorrectMessages(draft, LANGUAGES[to], LANGUAGES[settings.targetLang], { notes })
+      : buildComposeMessages(draft, LANGUAGES[from], LANGUAGES[to], { notes });
   await stream(provider, messages, signal, send, settings.targetLang);
 }
 

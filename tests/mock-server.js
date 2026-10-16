@@ -28,7 +28,8 @@ const STREAM_END = { openai: 'data: [DONE]\n\n', anthropic: 'event: message_stop
 // slow → one chunk per second, late → the first chunk after 1.5 seconds, split → a four-byte emoji cut between writes,
 // flaky → 500 on the first request and normal answers after it,
 // strict → 400 for a request that carries a reasoning switch,
-// anything else → "[RU] <text>" in three chunks.
+// anything else → "[RU] <text>" in three chunks, or for a correction prompt (lib/compose.js) the text with "teh"
+// corrected into "the" and a note on it, in the tags the prompt asks for.
 // Requests that are not streamed update the site notes: bad → 401, anything else, after 600 ms so the update can be
 // seen running, → "Notes: " and the start of the newest passage. They are recorded in `notesRequests`, apart from the
 // translations in `requests`.
@@ -154,7 +155,8 @@ async function completions(req, res, { requests, notesRequests }, state, api) {
     return;
   }
 
-  const translation = `[RU] ${record.body.messages.at(-1).content}`;
+  const text = record.body.messages.at(-1).content;
+  const translation = isCorrection(record.body) ? correctionOf(text) : `[RU] ${text}`;
   const size = Math.ceil(translation.length / 3);
   const pause = key === 'slow' ? 1000 : 30;
   if (key === 'late') await delay(1500);
@@ -164,6 +166,16 @@ async function completions(req, res, { requests, notesRequests }, state, api) {
     res.write(SSE[api](translation.slice(i, i + size)));
   }
   finish(STREAM_END[api]);
+}
+
+function isCorrection(body) {
+  return String(body.system ?? body.messages[0].content).startsWith('The user is learning');
+}
+
+function correctionOf(text) {
+  const corrected = text.replaceAll('teh', 'the');
+  const notes = corrected === text ? '' : '- teh \u2192 the: spelling\n';
+  return `<corrected>\n${corrected}\n</corrected>\n<notes>\n${notes}</notes>`;
 }
 
 async function answerNotes(res, key, api, body) {

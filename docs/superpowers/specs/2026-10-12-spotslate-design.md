@@ -41,7 +41,8 @@ spotslate/
     background.js       ES module: 'translate' and 'compose' ports, API request, the site context, opening the settings
     lib/
       prompt.js         buildMessages(text, languageName, { mode, context, notes })
-      compose.js        buildComposeMessages(draft, fromName, toName, { notes }), countLanguage(counts, lang), chooseComposeTarget()
+      compose.js        buildComposeMessages(draft, fromName, toName, { notes }), buildCorrectMessages(draft, languageName, explainIn, { notes }),
+                        countLanguage(counts, lang), chooseComposeSource(), chooseComposeTarget()
       notes.js          buildNotesMessages(notes, passages, languageName), cleanNotes(answer), takePassages(queue), passageOf(), notesBlock()
       providers.js      PROVIDERS, chatRequest(), modelsRequest(), parseModels(), answerText(), setupProblem(), hostPattern()
       chat.js           sendChat(provider, payload, signal), readTextStream(body, onText, touch)
@@ -60,6 +61,7 @@ spotslate/
       notes-panel.js    createNotesPanel({ site, providerName }), NOTES_CSS: the site context panel
       popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose })
       highlight.js      createHighlight()
+      correction.js     parseCorrection(answer), diffWords(before, after): a checked text and what changed in it
       composer.js       createComposer(options): the compose window, also used by the toolbar popup
       compose-window.js createComposeWindow(): the compose window at a text field or by the mouse
       pup.js            heroes.pup: the companion's frames
@@ -102,7 +104,7 @@ The extension code lives apart from `node_modules` so Chrome does not pick up de
 - Tabs open before an install or an update are left as they are: they need a reload (the README says so, and after an update Alt there says "The extension was updated. Reload the page."). Injecting the content scripts into them (`chrome.scripting.executeScript`) would need host access to every site (`<all_urls>` in `host_permissions`): the content-script matches do not grant it. That would add no install warning, but it would let background send requests to any site, so by choice the permissions stay narrow.
 - `optional_host_permissions: ["https://*/*", "http://*/*"]`: any other API host, asked for when the user saves or tests a URL outside the list.
 - `background: { service_worker: "background.js", type: "module" }`.
-- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/config.js", "content/strings.js", "content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/notes-panel.js", "content/popup.js", "content/highlight.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
+- `content_scripts: [{ matches: ["<all_urls>"], js: ["content/config.js", "content/strings.js", "content/block.js", "content/selection.js", "content/language.js", "content/translator.js", "content/notes-panel.js", "content/popup.js", "content/highlight.js", "content/correction.js", "content/composer.js", "content/compose-window.js", "content/pup.js", "content/hero.js", "content/main.js"], run_at: "document_end" }]`, top frame only. `document_end` rather than `document_idle`: the script is guaranteed to be in place by the `load` event (the e2e tests need this), and it only registers event listeners, so it does not slow page loading.
 - `options_ui: { page: "options.html", open_in_tab: true }`.
 - `icons` and `action.default_icon`: `icons/icon-{16,32,48,128}.png`.
 - `action: { default_title: "SpotSlate: write in another language", default_popup: "compose.html" }`: the icon opens the compose window. The settings open from its gear and from the "Options" item Chrome adds to the icon's menu.
@@ -172,7 +174,7 @@ Everything SpotSlate says on a page and in its windows is in the language the us
 - `STRINGS` holds one table per language of `LANGUAGES`, all with the same keys and the same `{placeholders}`; `t(lang, key, params)` fills them in and falls back to English.
 - The wording avoids putting a language name into a sentence, where many languages would need another grammatical case: "Alt+click: write in your language.", "Already in your language.", "Back translation: {text}". Language names come from `Intl.DisplayNames` in the interface language (`languageName`), capitalized for labels and lists, and a pair of languages is written with an arrow ("English → Russian").
 - Background words its errors in the same language (`makeError(code, provider, lang)`, `errorFromStatus(..., lang)`, `settingsChanged(lang)`); the settings page passes English. `describeProblem(result, targetLang, ui)` does the same for Chrome's translator.
-- The compose window speaks the user's own language (its `from`), which is the same one.
+- The compose window speaks the user's own language (its `from`), which is the same one, whichever language is chosen on its left.
 - `strings.js` is the one file in the project with text in other scripts. The e2e tests take the expected texts from it (`say(key, params)`), so they stay in English.
 
 ## Keys (lib/keys.js)
@@ -377,7 +379,7 @@ Problems (`describeProblem`):
 
 ## Compose window (writing in the page's language)
 
-The reverse of reading: the user writes in their own language (the language they translate into, `targetLang`) and gets a translation into another one, to copy wherever they want. SpotSlate never puts the text into a field or sends anything on the page by itself.
+The reverse of reading: the user writes, in their own language (the language they translate into, `targetLang`) unless they choose another, and gets a translation into another one, to copy wherever they want; or, with the same language on both sides, their own text with its mistakes corrected (see "Checking one's own writing"). SpotSlate never puts the text into a field or sends anything on the page by itself.
 
 Three ways in, one window (`createComposer` in `content/composer.js`):
 
@@ -387,13 +389,23 @@ Three ways in, one window (`createComposer` in `content/composer.js`):
 
 The window:
 
-- Title row: "{own language} →" and a select of the other languages (the target), and "×" or the gear.
+- Title row: two selects of all the languages, "{language of the draft} → {language of the result}", and "×" or the gear. The one on the left starts as the user's own language; the two never change each other. The pair decides what the window does: two languages translate, the same one twice checks (see below).
 - The draft (`textarea`, "Write in {language}"), focused on open. Below it, the translation, which follows the draft 1 s after the typing stops; nothing is sent during an IME composition. From the first key of a change, the translation so far stays with a pulsing ellipsis after it (only the ellipsis pulses), or the ellipsis alone when there is none, and Copy and Check wait; a request in flight for the draft before is cancelled. The new translation replaces the old one whole when it is complete, never in parts; only a model download shows its progress meanwhile. Another target language drops the translation so far, as it is in the language before.
 - Below the translation, after "Check", the translation back into the user's language ("Back in {language}: …"), to see whether the meaning held. Only on request, to keep the requests down.
 - With an AI provider "Context" (see "Site context"), then the engine in use ("Chrome, on this computer" or the provider's name), "Check", and "Copy" (also Ctrl+Enter, which waits for a translation still on its way). Errors show in place of the translation with the same buttons as the popup: "Open settings", "Retry" or "Download".
 - The last draft is kept in the session for each site (`draft:{site}`; Esc keeps it, Copy clears it) and comes back in either window on that site only, never on another one.
 
-The language to write in (`chooseComposeTarget`), never the user's own and never one outside `LANGUAGES`: the one chosen before on this site (kept in `chrome.storage.local` under `compose.targets`), else the most common language of the texts read on the site, else the page's `<html lang>`, else the last one chosen anywhere, else English. Nothing is read from around the field.
+The language to write in (`chooseComposeTarget`), never one outside `LANGUAGES`: the one chosen before on this site (kept in `chrome.storage.local` under `compose.targets`), whichever it is; else, never the user's own, the most common language of the texts read on the site, else the page's `<html lang>`, else the last one chosen anywhere, else English. The language of the draft (`chooseComposeSource`): the one chosen on this site (`compose.sources`; choosing the user's own removes it), else the user's own. Nothing is read from around the field, and the draft's language is never guessed: the user chooses it.
+
+The draft's placeholder says what to do: "Write in your language" with the user's own on the left, "Write here, and the mistakes get fixed" with the same language on both sides, "Write in the language on the left" otherwise.
+
+### Checking one's own writing
+
+For someone practising a language: with the same language on both sides (German → German), the draft is not translated but checked, after the same pause in typing and with the same ellipsis, cancelling and errors as a translation.
+
+- With an AI provider, the draft goes as `purpose: 'correct'` with the site context (`buildCorrectMessages`): the user is learning the language; correct only the mistakes (grammar, spelling, punctuation, wrongly used words), never the style, and keep the line breaks, code, URLs and names; answer as `<corrected>…</corrected>` and `<notes>` with a line `- …` on each correction, in the user's own language. `parseCorrection` reads it; an answer without the form is taken as the corrected text with no notes, an empty one as the draft unchanged.
+- The window shows the corrected text with what changed (`diffWords`, word by word, ignoring changes in spaces alone): removed words struck through in red before the added ones in green, then the notes as a list, or "No mistakes." when the text came back unchanged. Copy ("Copy the corrected text") copies the corrected text; Check translates it back into the user's own language.
+- With Chrome's translator (the free translator, or the AI switched off for the site), which cannot check, the result says "Only AI checks for mistakes.", nothing is sent, and Copy copies the draft as it is.
 
 What goes with the draft: with an AI provider, the site context (see "Site context"); "Check" goes without it. The prompt (`buildComposeMessages`) asks for clear, natural writing for work messages, comments and emails and keeps meaning, tone and line breaks. With Chrome's translator the draft is translated on the page or in the popup, from the user's language into the target one, without context; "Check" runs the other way.
 
@@ -414,7 +426,7 @@ Content opens `chrome.runtime.connect({ name: 'translate' })` and sends `{ text,
 - `{ type: 'done' }`: the translation is finished;
 - `{ type: 'error', code, message }`: an error with a readable `message`.
 
-For the compose window, `chrome.runtime.connect({ name: 'compose' })` takes `{ text, from, to, purpose, site }` (`purpose` is `'write'` or `'check'`; `site` only from the toolbar popup, which is not a tab) and answers like `'translate'`. Messages: `{ type: 'compose-open', site?, pageLang }` → `{ languages, from, to, engine, providerName, site, notes, draft }`; `{ type: 'compose-target', site?, lang }` saves the chosen language; `{ type: 'compose-draft', draft }` keeps the draft; `{ type: 'read-lang', lang }` counts a text read with Chrome's translator; `{ type: 'notes', site? }` and `{ type: 'clear-notes', site? }` read and clear the site context. The site of a message is the sender tab's host; extension pages name it themselves.
+For the compose window, `chrome.runtime.connect({ name: 'compose' })` takes `{ text, from, to, purpose, site }` (`purpose` is `'write'`, `'check'` or `'correct'`; `site` only from the toolbar popup, which is not a tab) and answers like `'translate'`. Messages: `{ type: 'compose-open', site?, pageLang }` → `{ languages, from, source, to, engine, providerName, site, notes, draft }`; `{ type: 'compose-target', site?, lang }` and `{ type: 'compose-source', site?, lang }` save the languages chosen on the right and on the left; `{ type: 'compose-draft', draft }` keeps the draft; `{ type: 'read-lang', lang }` counts a text read with Chrome's translator; `{ type: 'notes', site? }` and `{ type: 'clear-notes', site? }` read and clear the site context. The site of a message is the sender tab's host; extension pages name it themselves.
 
 A separate `chrome.runtime.sendMessage({ type: 'open-options' })` message makes background open the settings, and `{ type: 'page-settings' }` with `{ targetLang, engine, providerName, keys }`, where `engine` is `'browser'` for the free translator and `'api'` otherwise (see "Settings" and "Free translator").
 
@@ -484,7 +496,8 @@ Unit tests (`node --test`, no dependencies):
 - `selection.js`: `wordsAround` keeps 8 words on each side, stops at sentence boundaries, works for non-Latin scripts.
 - `errors.js`: every status in the table; a JSON body with `error.message`; a non-JSON body.
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
-- `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
+- `compose.js`: the compose and correction prompts with and without the site context; counting languages; choosing the language to write in from the counts, and the language of the draft.
+- `correction.js`: reading the corrected text and its notes, also from an answer without the form; what changed, word by word, also in the longest drafts.
 - `sites.js`: the default mode; stored modes read with every value checked; setting one keeps the others, and the default leaves the list.
 - `settings.js`: the starting language from the browser's, or English; the old agreement field dropped; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
 - `pack.mjs`: the zip holds every file of `extension/`, unchanged, with the manifest at the top.
@@ -580,7 +593,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   77. "Save" with the free translator gets the model from English ready and says so.
   78. The settings say under the provider where the text goes: nowhere with Chrome's translator, to the provider chosen above with any other, the same line for all; and they link to the privacy policy.
   79. Alt over a text field says "Alt+click: write in Russian."; a password field keeps "Input fields are not translated." and opens nothing.
-  80. Alt+click on a field opens the compose window: "Russian →", English chosen from `<html lang>`, the draft focused, the provider's name.
+  80. Alt+click on a field opens the compose window: Russian on the left, English chosen from `<html lang>`, the draft focused, the provider's name.
   81. The draft is translated once after the typing stops, with the compose prompt; Ctrl+Enter copies it (also right after typing), closes the window and focuses the field; "Check" shows the translation back in Russian.
   82. Esc keeps the draft for the next window; keys typed in the window do not reach the page.
   83. Another language is used at once and remembered for the site, after a reload too.
@@ -639,5 +652,10 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   137. With the AI switched off for a site, Chrome translates it, the compose window says so, the context switch hides, and nothing is sent.
   138. Not learning a site's context clears it, sends none, and hides the Context button.
   139. The settings list the sites with a mode of their own; Reset brings one back.
+  140. With the same language on both sides the draft is checked: the corrections in place, a note on each in Russian, the correction prompt; Copy takes the corrected text.
+  141. A draft without mistakes says "No mistakes."; Check translates it back into Russian.
+  142. Another language on the left translates from it again, says so in the placeholder, and is remembered for the site, not for another one.
+  143. With Chrome's translator the same language on both sides says that only AI checks, sends nothing, and Copy takes the draft.
+  144. The toolbar popup checks the same way and shares the language on the left with the site.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.

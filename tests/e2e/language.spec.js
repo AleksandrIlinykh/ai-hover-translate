@@ -43,7 +43,7 @@ test('the compose window is in that language, with the language names in it too'
   await page.mouse.up();
   await page.keyboard.up('Alt');
   const compose = page.locator('#spotslate-compose');
-  await expect(compose.locator('.pair')).toHaveText('Deutsch →');
+  await expect(compose.locator('.source option:checked')).toHaveText('Deutsch');
   await expect(compose.locator('.target option:checked')).toHaveText('Englisch');
   await expect(compose.locator('.draft')).toHaveAttribute('placeholder', 'Schreiben Sie in Ihrer Sprache');
   await expect(compose.locator('.check')).toHaveText('Prüfen');

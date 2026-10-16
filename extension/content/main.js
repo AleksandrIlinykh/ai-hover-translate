@@ -296,6 +296,7 @@
     if (!state) return;
     composeWindow.open(anchor, {
       ...state,
+      onSourceChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-source', lang }).catch(() => {}),
       onTargetChange: (lang) => chrome.runtime.sendMessage({ type: 'compose-target', lang }).catch(() => {}),
       onDraftChange: (draft) => chrome.runtime.sendMessage({ type: 'compose-draft', draft }).catch(() => {}),
       onOpenSettings: () => chrome.runtime.sendMessage({ type: 'open-options' }).catch(() => {}),

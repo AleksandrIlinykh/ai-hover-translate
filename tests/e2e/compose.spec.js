@@ -34,7 +34,8 @@ test.beforeEach(async ({ setSettings }) => {
 
 test('Alt+click on a text field opens the compose window from the user language into the page language', async ({ page, server }) => {
   await openOnComment(page, server);
-  await expect(part(page, 'pair')).toHaveText(`${languageLabel('ru')} \u2192`);
+  await expect(part(page, 'source')).toHaveValue('ru');
+  await expect(part(page, 'source').locator('option:checked')).toHaveText(languageLabel('ru'));
   await expect(part(page, 'target')).toHaveValue('en');
   await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writePlaceholder'));
   await expect(part(page, 'engine')).toHaveText('DeepSeek');
@@ -249,10 +250,103 @@ test('with the free translator the draft is translated on the page and nothing i
   expect(server.requests).toHaveLength(0);
 });
 
+test.describe('the same language on both sides', () => {
+  const MISTAKE = 'teh cat sat'; // the mock corrects "teh" into "the"
+
+  async function writeIn(page, server, lang) {
+    await openOnComment(page, server);
+    await part(page, 'source').selectOption(lang);
+    await part(page, 'draft').focus();
+  }
+
+  test('checks the draft: the corrections in place, a note on each in the user language, Copy takes the corrected text', async ({ page, server, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: server.url });
+    await writeIn(page, server, 'en');
+    await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writeCheckPlaceholder'));
+    await expect(part(page, 'translation')).toHaveAttribute('data-placeholder', say('correctionPlaceholder'));
+    await expect(part(page, 'copy')).toHaveAttribute('title', say('copyCorrectedTitle'));
+    await write(page, MISTAKE);
+    await expect(part(page, 'added')).toHaveText('the');
+    await expect(part(page, 'removed')).toHaveText('teh');
+    await expect(part(page, 'translation')).toHaveText('teh the cat sat');
+    await expect(part(page, 'fixes')).toHaveText('teh \u2192 the: spelling');
+    expect(server.requests).toHaveLength(1);
+    const [request] = server.requests;
+    expect(systemOf(request)).toContain('The user is learning English and wrote the text in it.');
+    expect(systemOf(request)).toContain('one short line in Russian for each correction');
+    expect(userOf(request)).toBe(MISTAKE);
+    await page.keyboard.press('Control+Enter');
+    await expect(compose(page)).toHaveCount(0);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('the cat sat');
+  });
+
+  test('says when there are no mistakes, and Check translates the text back into the user language', async ({ page, server }) => {
+    await writeIn(page, server, 'en');
+    await write(page, 'the cat sat');
+    await expect(part(page, 'fixes')).toHaveText(say('noMistakes'));
+    await expect(part(page, 'translation')).toHaveText('the cat sat');
+    await expect(part(page, 'added')).toHaveCount(0);
+    await part(page, 'check').click();
+    await expect(part(page, 'back')).toHaveText(say('back', { text: '[RU] the cat sat' }));
+    expect(systemOf(server.requests.at(-1))).toContain("Translate the user's text into Russian.");
+  });
+
+  test('a different pair translates again, and the language on the left is remembered for the site only', async ({ page, server }) => {
+    await writeIn(page, server, 'en');
+    await write(page, MISTAKE);
+    await expect(part(page, 'added')).toHaveText('the');
+    await part(page, 'source').selectOption('de');
+    await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writeOtherPlaceholder'));
+    await expect(part(page, 'translation')).toHaveText(`[RU] ${MISTAKE}`);
+    await expect(part(page, 'fixes')).toBeEmpty();
+    expect(systemOf(server.requests.at(-1))).toContain('from German into English');
+    await part(page, 'close').click();
+    await page.reload();
+    await altClick(page, '#comment');
+    await expect(part(page, 'source')).toHaveValue('de');
+    await page.keyboard.press('Escape');
+    await page.goto(`http://other.test:${new URL(server.url).port}/page.html`);
+    await altClick(page, '#comment');
+    await expect(part(page, 'source')).toHaveValue('ru');
+    await expect(part(page, 'draft')).toHaveAttribute('placeholder', say('writePlaceholder'));
+  });
+
+  test("with Chrome's translator only says that AI checks mistakes, and Copy takes the draft as it is", async ({ page, server, context, setSettings }) => {
+    await setSettings({ provider: 'chrome', apiKey: '' });
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: server.url });
+    await page.goto(`${server.url}/page.html`);
+    await inContentScript(page, fakeBuiltInAI());
+    await altClick(page, '#comment');
+    await part(page, 'source').selectOption('en');
+    await part(page, 'draft').focus();
+    await write(page, MISTAKE);
+    await expect(part(page, 'translation')).toHaveText(say('checkNeedsAi'));
+    await part(page, 'copy').click();
+    await expect(compose(page)).toHaveCount(0);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(MISTAKE);
+    expect(server.requests).toHaveLength(0);
+  });
+
+  test('works in the toolbar popup too, which shares the choice with the site', async ({ page, server, context, serviceWorker, extensionId }) => {
+    await page.goto(`${server.url}/page.html`);
+    const tabId = await serviceWorker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0].id, page.url());
+    const toolbar = await context.newPage();
+    await toolbar.goto(`chrome-extension://${extensionId}/compose.html?tab=${tabId}`);
+    await toolbar.locator('.source').selectOption('en');
+    await toolbar.locator('.draft').pressSequentially(MISTAKE, { delay: 20 });
+    await expect(toolbar.locator('.added')).toHaveText('the');
+    await expect(toolbar.locator('.fixes')).toHaveText('teh \u2192 the: spelling');
+    await toolbar.close();
+    await page.bringToFront();
+    await altClick(page, '#comment');
+    await expect(part(page, 'source')).toHaveValue('en');
+  });
+});
+
 test.describe('the toolbar popup', () => {
   test('opens the same window with a settings button and translates the draft', async ({ page, extensionId, server, context }) => {
     await page.goto(`chrome-extension://${extensionId}/compose.html`);
-    await expect(page.locator('.pair')).toHaveText(`${languageLabel('ru')} \u2192`);
+    await expect(page.locator('.source')).toHaveValue('ru');
     await expect(page.locator('.target')).toHaveValue('en');
     await expect(page.locator('.draft')).toBeFocused();
     await page.locator('.draft').pressSequentially(DRAFT, { delay: 20 });
