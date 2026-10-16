@@ -101,7 +101,7 @@ test('DeepSeek shows its defaults, a key link and its models', async ({ page, ex
   await expect(page.locator('#apiFields')).toBeVisible();
   await expect(page.locator('#apiKey')).toHaveValue('');
   await expect(page.locator('#model')).toHaveValue('deepseek-flash');
-  await expect(page.locator('#modelList option')).toHaveCount(2);
+  await expect(page.locator('#modelList [role="option"]')).toHaveCount(2);
   await expect(page.locator('#baseUrl')).toHaveValue('https://api.deepseek.com');
   await expect(page.locator('#keyLink')).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
   await expect(page.locator('#targetLang')).toHaveValue(await browserDefault(page));
@@ -198,8 +198,69 @@ test('Load models adds the chat models from the API to the suggestions', async (
   await page.goto(optionsUrl(extensionId));
   await page.getByRole('button', { name: 'Load models' }).click();
   await expect(page.locator('#modelHint')).toHaveText('Loaded 3 models.');
-  const suggestions = await page.locator('#modelList option').evaluateAll((options) => options.map((option) => option.value));
+  const suggestions = await page.locator('#modelList [role="option"]').allTextContents();
   expect(suggestions).toEqual(['deepseek-flash', 'deepseek-v4-pro', 'mock-gemini', 'mock-large', 'mock-small']);
+});
+
+const shownModels = (page) => page.locator('#modelList [role="option"]:visible').allTextContents();
+
+test('a click on the model opens the list with every model, as wide as the fields above', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('mistral');
+  await expect(page.locator('#modelList')).toBeHidden();
+  await page.locator('#model').click();
+  await expect(page.locator('#modelList')).toBeVisible();
+  expect(await shownModels(page)).toEqual(['mistral-small-latest', 'mistral-large-latest']);
+  await expect(page.locator('#modelList [aria-selected="true"]')).toHaveText('mistral-small-latest');
+  const list = await page.locator('#modelList').boundingBox();
+  const select = await page.locator('#provider').boundingBox();
+  expect(Math.abs(list.x - select.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(list.width - select.width)).toBeLessThanOrEqual(1);
+  await page.locator('#apiKey').click();
+  await expect(page.locator('#modelList')).toBeHidden();
+});
+
+test('typing filters the models, and a model clicked in the list is saved', async ({ page, extensionId, serviceWorker }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('mistral');
+  await page.locator('#model').fill('LARGE');
+  expect(await shownModels(page)).toEqual(['mistral-large-latest']);
+  await page.locator('#modelList').getByText('mistral-large-latest').click();
+  await expect(page.locator('#model')).toHaveValue('mistral-large-latest');
+  await expect(page.locator('#modelList')).toBeHidden();
+  await save(page);
+  expect((await stored(serviceWorker)).providers).toEqual({ mistral: { apiKey: '', model: 'mistral-large-latest', baseUrl: '' } });
+});
+
+test('the keys pick a model: Down opens the list and moves, Enter picks without saving, Escape closes', async ({ page, extensionId, serviceWorker }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('mistral');
+  await page.locator('#model').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#model')).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#modelList [aria-selected="true"]')).toHaveText('mistral-large-latest');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#model')).toHaveValue('mistral-large-latest');
+  await expect(page.locator('#modelList')).toBeHidden();
+  await expect(page.locator('#status')).toHaveText('');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#modelList')).toBeHidden();
+  await expect(page.locator('#model')).toHaveValue('mistral-large-latest');
+  expect(await stored(serviceWorker)).toBeUndefined();
+});
+
+test('the arrow in the model field opens and closes the list', async ({ page, extensionId }) => {
+  await page.goto(optionsUrl(extensionId));
+  await page.locator('#provider').selectOption('deepseek');
+  await page.locator('#modelToggle').click();
+  await expect(page.locator('#modelList')).toBeVisible();
+  await expect(page.locator('#model')).toBeFocused();
+  await page.locator('#modelToggle').click();
+  await expect(page.locator('#modelList')).toBeHidden();
+  await page.locator('#provider').selectOption('custom');
+  await expect(page.locator('#modelToggle')).toBeHidden();
 });
 
 test('Load models explains an API error', async ({ page, extensionId, setSettings }) => {

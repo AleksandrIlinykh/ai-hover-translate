@@ -23,6 +23,20 @@
     #sites .site-mode { margin-right: auto; font-size: 13px; opacity: 0.75; }
     #sites button { padding: 2px 12px; }
     #sitesEmpty[hidden] { display: none; }
+    .model-row { position: relative; }
+    .combo { position: relative; flex: 1; min-width: 0; }
+    .combo input { padding-right: 28px; }
+    .combo-toggle { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; padding: 0 9px; border: 0; background: none; color: inherit; cursor: pointer; }
+    .combo-toggle[hidden] { display: none; }
+    #modelList {
+      position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 1; box-sizing: border-box;
+      max-height: 16em; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none;
+      background: Field; color: FieldText; border: 1px solid rgba(127, 127, 127, 0.5); border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    #modelList li { padding: 6px 8px; cursor: pointer; overflow-wrap: anywhere; }
+    #modelList li[aria-selected="true"] { background: #1a73e8; color: #fff; }
+    @media (prefers-color-scheme: dark) { #modelList li[aria-selected="true"] { background: #8ab4f8; color: #202124; } }
     #writeKey { cursor: pointer; caret-color: transparent; }
     #status.error, #keysProblem { color: #c62828; }
     @media (prefers-color-scheme: dark) { #status.error, #keysProblem { color: #ef9a9a; } }
@@ -51,11 +65,14 @@
     <p class="hint" id="keyHint">Get a key: <a id="keyLink" target="_blank" rel="noreferrer"></a></p>
 
     <label for="model">Model</label>
-    <div class="row">
-      <input id="model" name="model" list="modelList" autocomplete="off" spellcheck="false">
+    <div class="row model-row">
+      <div class="combo">
+        <input id="model" name="model" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="modelList" autocomplete="off" spellcheck="false">
+        <button type="button" id="modelToggle" class="combo-toggle" tabindex="-1" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+      </div>
       <button type="button" id="loadModels">Load models</button>
+      <ul id="modelList" role="listbox" aria-label="Models" hidden></ul>
     </div>
-    <datalist id="modelList"></datalist>
     <p class="hint" id="modelHint" role="status"></p>
 
     <label for="baseUrl">API URL</label>

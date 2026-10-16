@@ -85,9 +85,60 @@ function showDataNote() {
   element('dataNote').textContent = dataNote(providerInForm());
 }
 
+// The models to pick from: the preset's and those loaded from the API. The list is the page's own: Chrome shows a
+// datalist as a narrow bubble with only the models that match the text already in the field.
 function showModelList() {
   const ids = new Set([...PROVIDERS[current].models, ...(loadedModels[current] ?? [])]);
-  element('modelList').replaceChildren(...[...ids].map((id) => new Option(id)));
+  const items = [...ids].map((id, index) => {
+    const item = Object.assign(document.createElement('li'), { id: `model-${index}`, textContent: id });
+    item.setAttribute('role', 'option');
+    return item;
+  });
+  modelList.replaceChildren(...items);
+  element('modelToggle').hidden = items.length === 0;
+  closeModels();
+}
+
+const modelField = form.elements.model;
+const modelList = element('modelList');
+const shownModels = () => [...modelList.children].filter((item) => !item.hidden);
+const activeModel = () => modelList.querySelector('[aria-selected="true"]');
+
+// Opens the list with the models that contain `filter`, or with every model and the one in the field marked.
+function openModels(filter = '') {
+  const needle = filter.trim().toLowerCase();
+  for (const item of modelList.children) item.hidden = !item.textContent.toLowerCase().includes(needle);
+  const shown = shownModels();
+  if (shown.length === 0) {
+    closeModels();
+    return;
+  }
+  modelList.hidden = false;
+  modelField.setAttribute('aria-expanded', 'true');
+  setActiveModel(needle ? null : shown.find((item) => item.textContent === modelField.value));
+}
+
+function closeModels() {
+  modelList.hidden = true;
+  modelField.setAttribute('aria-expanded', 'false');
+  setActiveModel(null);
+}
+
+function setActiveModel(item) {
+  for (const other of modelList.children) other.setAttribute('aria-selected', String(other === item));
+  if (item) {
+    modelField.setAttribute('aria-activedescendant', item.id);
+    item.scrollIntoView({ block: 'nearest' });
+  } else {
+    modelField.removeAttribute('aria-activedescendant');
+  }
+}
+
+function pickModel(item) {
+  modelField.value = item.textContent;
+  drafts[current].model = item.textContent;
+  report('');
+  closeModels();
 }
 
 // The provider on screen, as background would call it with these fields.
@@ -131,6 +182,55 @@ form.addEventListener('input', (event) => {
   if (FIELDS.includes(event.target.name)) drafts[current][event.target.name] = event.target.value;
   if (event.target.name === 'baseUrl') showDataNote();
   report('');
+});
+
+// The model field: a click or Down opens the list, typing filters it, Up and Down move, Enter picks (instead of
+// saving the form), Escape closes.
+modelField.addEventListener('click', () => {
+  if (modelList.hidden) openModels();
+});
+modelField.addEventListener('input', () => openModels(modelField.value));
+modelField.addEventListener('blur', closeModels);
+modelField.addEventListener('keydown', (event) => {
+  const open = !modelList.hidden;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (!open) {
+      openModels();
+      return;
+    }
+    const shown = shownModels();
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    const index = activeModel() ? shown.indexOf(activeModel()) + step : step > 0 ? 0 : shown.length - 1;
+    setActiveModel(shown[Math.min(Math.max(index, 0), shown.length - 1)]);
+  } else if (event.key === 'Enter' && open) {
+    event.preventDefault();
+    if (activeModel()) pickModel(activeModel());
+    else closeModels();
+  } else if (event.key === 'Escape' && open) {
+    event.preventDefault();
+    closeModels();
+  }
+});
+
+modelList.addEventListener('mousedown', (event) => event.preventDefault()); // the focus stays in the field
+modelList.addEventListener('click', (event) => {
+  const item = event.target.closest('[role="option"]');
+  if (item) pickModel(item);
+});
+modelList.addEventListener('mousemove', (event) => {
+  const item = event.target.closest('[role="option"]');
+  if (item && item !== activeModel()) setActiveModel(item);
+});
+
+element('modelToggle').addEventListener('mousedown', (event) => event.preventDefault());
+element('modelToggle').addEventListener('click', () => {
+  if (!modelList.hidden) {
+    closeModels();
+    return;
+  }
+  modelField.focus();
+  openModels();
 });
 
 element('showKey').addEventListener('click', (event) => {

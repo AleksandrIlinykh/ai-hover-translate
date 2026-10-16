@@ -154,9 +154,9 @@ Settings page (`options.html`), top to bottom:
 
 - "Translate into": the language picker.
 - "Translate with": a select grouped into "Free, on this computer", "Cloud APIs", "Local AI models" and "Other", with the preset's hint under it. For the free translator the key, model and URL fields are hidden (`#apiFields`).
-- Under it, `dataNote(provider)` says where the text goes, and follows the API URL as it is typed: nothing leaves the computer (free translator); "goes to {name} on this computer ({host})" for `localhost`, `127.0.0.1` and `[::1]`; "is sent to {name} at {host} with your key; their privacy policy applies" otherwise; "will go to the API URL you enter" without a valid URL. Chrome Web Store asks for this disclosure in the product itself.
+- Under it, `dataNote(provider)` says where the text goes (see "Where the text goes" below). Chrome Web Store asks for this disclosure in the product itself.
 - "API key" (`type=password`, "API key (optional)" for local and custom ones) with a "Show"/"Hide" button and a "Get a key" link to the provider's key page (hidden when there is none).
-- "Model": free text with suggestions (a `datalist` of the preset's models) and a "Load models" button that asks the API for its `/models` list, keeps chat models only and adds them to the suggestions ("Loaded N models." or the error under the field). Blank with "Choose or type a model" when the provider has no default.
+- "Model": free text with a list of models to pick from (the preset's, then those loaded) and a "Load models" button that asks the API for its `/models` list, keeps chat models only and adds them to the list ("Loaded N models." or the error under the field). Blank with "Choose or type a model" when the provider has no default. The list is the page's own combobox (`#modelList`, `role="listbox"`) rather than a `datalist`, which Chrome shows as a narrow bubble with only the models matching the text already in the field: as wide as the fields above, it opens on a click in the field, on Down or on the arrow at the field's right end (hidden when there is nothing to pick) with every model and the one in the field marked; typing filters it (case aside); Up and Down move, Enter picks (and does not save the form), Escape and leaving the field close it; a click on a model picks it, and the focus stays in the field.
 - "API URL": the address up to `/v1`; clearing it brings back the provider's own.
 - "Save" stores all providers the user filled in (defaults stored as blanks) and says "Saved". "Test" translates "The quick brown fox jumps over the lazy dog." with the fields as they are, without saving, through the same streaming path as pages, and shows "Works, {seconds} s: {translation}" or the error in red. With the free translator it runs Chrome's translator right in the settings page, from English (from German when the target is English); the click lets Chrome download that model, with "Downloading the translation model: {n}%" meanwhile.
 
@@ -589,7 +589,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   62. OpenRouter gets its attribution headers; a provider without a model reports `no_model`, sends nothing, and the popup offers "Open settings".
   63. The session cache is per provider.
   64. Settings page: opens on DeepSeek with its defaults and 12 providers in 3 groups; each provider keeps its own key, model and URL while switching, and all are saved; defaults are stored as blanks; old settings show up under DeepSeek; a local server needs no key and leaves the model to choose; "Show" reveals the key.
-  65. "Load models" adds the API's chat models to the suggestions, or shows the API error.
+  65. "Load models" adds the API's chat models to the list, or shows the API error.
   66. "Test" translates a sentence with the fields as they are, without saving them, or says what is wrong.
   67. Saving a URL outside the manifest asks Chrome for its host; when Chrome refuses, the settings are saved with a warning.
   68. The free translator translates on the page: no API request and no context update, a translator for English to Russian made without a gesture.
@@ -676,6 +676,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   151. Every window's title row: the grip on a page, the languages by code with their names as tooltips, the gear (which opens the settings) and "×".
   152. A language list shows the thirteen languages by code and own name, the current one ticked, and works from the keyboard: the arrows, a letter, Enter, Esc closing only the list.
   153. A language list scrolls and stays open, never scrolls the page past its end, and follows its button when the page scrolls.
+  154. The model list opens on a click with every model, the current one marked, as wide as the fields above; typing filters it, a click picks a model that is then saved; the keys work it (Down, Enter without saving, Escape); the arrow opens and closes it and is hidden with nothing to pick.
   149. Alt+click on a selection in a field or an editor translates it, keeps it selected and opens no compose window; without a selection Alt+click on a field opens the window.
 
 Manual check (by you, with your own key): load the unpacked extension, set the key, try it on real sites; make sure releasing Alt after a translation does not focus the Chrome menu. That is browser UI behavior and the e2e tests cannot see it.
