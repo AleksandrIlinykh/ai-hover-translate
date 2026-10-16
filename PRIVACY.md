@@ -26,6 +26,7 @@ SpotSlate does not read or send anything until you hold Alt, write in its compos
 - **A local server** (Ollama, LM Studio, or another API URL on `localhost`): the text goes to that server on your computer.
 - **An API URL you enter yourself**: the text goes to that address, and Chrome asks you first whether SpotSlate may reach it.
 - **"Report" on the popup**: it opens a new GitHub issue in your browser with the SpotSlate version, the translator and model, the language and your browser's user agent, and copies the text and its translation to your clipboard. Nothing is sent until you submit the issue yourself, and the text goes there only if you paste it.
+- **When you remove SpotSlate**: Chrome opens a short form on GitHub about why, with only the SpotSlate version in its address; you can close it without answering.
 
 SpotSlate sends nothing anywhere else: no analytics, telemetry, crash reports or ads, and it loads no code from the internet. Requests to OpenRouter carry two headers that name the extension (`HTTP-Referer` with this repository's address and `X-Title: SpotSlate`); they contain no data about you.
 

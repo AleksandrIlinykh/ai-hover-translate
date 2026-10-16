@@ -34,3 +34,12 @@ test('the welcome page loads the content scripts in the manifest order, so the g
   const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(([, file]) => file);
   assert.deepEqual(scripts, manifest.content_scripts[0].js);
 });
+
+test('the GitHub issue forms the extension opens exist', () => {
+  const background = fs.readFileSync(path.join(EXTENSION, 'background.js'), 'utf8');
+  const forms = [...background.matchAll(/template[=', ]+([\w-]+\.yml)/g)].map(([, file]) => file);
+  assert.deepEqual([...new Set(forms)].sort(), ['translation.yml', 'uninstall.yml']);
+  for (const form of forms) {
+    assert.ok(fs.existsSync(path.join(EXTENSION, '..', '.github', 'ISSUE_TEMPLATE', form)), form);
+  }
+});

@@ -24,6 +24,11 @@ const COMPOSE_KEY = 'compose'; // { targets: { [site]: lang }, last: lang } in c
 // The settings hold API keys: only extension pages and this worker may read them, never content scripts.
 chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
 
+// Someone who removes SpotSlate lands on a short form on GitHub about why; only the version goes with it.
+chrome.runtime
+  .setUninstallURL(`${REPOSITORY}/issues/new?template=uninstall.yml&version=${chrome.runtime.getManifest().version}`)
+  .catch(() => {});
+
 // A new user starts on the welcome page: the language, the gestures to try, and what leaves the computer.
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });

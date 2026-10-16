@@ -1,0 +1,27 @@
+name: Removed SpotSlate
+description: Why SpotSlate was removed. Chrome opens this form after SpotSlate is removed.
+title: "Removed SpotSlate"
+body:
+  - type: markdown
+    attributes:
+      value: Sorry to see you go. These short questions help make SpotSlate better; all of them are optional.
+  - type: checkboxes
+    id: why
+    attributes:
+      label: Why did you remove it?
+      options:
+        - label: The translations were not good enough
+        - label: Holding Alt got in the way, or I forgot about it
+        - label: It did not work on a site I need
+        - label: Setting up an AI provider was too much
+        - label: The dog was too much
+        - label: I only wanted to try it
+  - type: textarea
+    id: better
+    attributes:
+      label: What would have made you keep it?
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Filled in by SpotSlate.

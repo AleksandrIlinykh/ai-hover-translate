@@ -327,6 +327,10 @@ A small pixel character keeps the reader company, so that SpotSlate has a face. 
 
 "Report" on the popup's title bar copies the text and its translation to the clipboard ("Text copied" for 1.2 s) and asks background (`{ type: 'report', mode }`) to open a new GitHub issue from the form `.github/ISSUE_TEMPLATE/translation.yml`, with its "Setup" field filled in: the SpotSlate version, the engine (Chrome's built-in translator, or the provider and model), the language translated into, a paragraph or a dictionary entry, and the browser's user agent. The issue never gets the text, the page or the API URL (which may name an internal server): the text may be confidential, so the form asks to paste it only if it is not. Nothing is sent until the user submits the form on GitHub.
 
+## Feedback on removal
+
+Background sets Chrome's uninstall URL (`chrome.runtime.setUninstallURL`) to the GitHub issue form `.github/ISSUE_TEMPLATE/uninstall.yml` with the version filled in: why it was removed (checkboxes), what would have kept it, the version. Nothing else goes with it; answering needs a GitHub account.
+
 ## Free translator (content/translator.js)
 
 With the `chrome` provider the page translates by itself with Chrome's on-device Translator API (Chrome 138+ on desktop; also in Edge). It is not available in the service worker, so content runs it; nothing is sent to background or anywhere else.
