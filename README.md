@@ -6,6 +6,34 @@ Translate on the spot. Hold **Alt** and hover over a paragraph to see its transl
 
 SpotSlate is for deliberate, in-context translation of just the part you need: right where you are reading, without leaving the page or breaking its flow. The page stays as it was.
 
+## At a glance
+
+What it does:
+
+- **Read**: the translation of a paragraph, a selection or a few words (a short dictionary entry) appears right by the text, which stays outlined and joined to the popup by a dashed line.
+- **Write**: a window by any text field turns what you write in your language into the page's language, to copy and paste.
+- **Practise**: with the same language on both sides, the window corrects your own text instead and explains each mistake.
+- **Learn the site**: with an AI provider, each site gets a short context of its subject and terms, so they come out the same way every time.
+- **Your choice of engine**: Chrome's built-in translator (free, nothing leaves your computer) or an AI model of your own, under your own key.
+- **Per site**: turn SpotSlate off, or keep a site to Chrome's translator, from the toolbar window.
+
+Keys and gestures out of the box (on a Mac, Alt is Option):
+
+| To | Do |
+|---|---|
+| Translate a paragraph | Hold **Alt** over it |
+| Translate only a part | Select it, then hold **Alt** over it or **Alt+click** it |
+| Get a dictionary entry | Select one to three words, then hold **Alt** over them |
+| Write into a text field in another language | **Alt+click** the field |
+| Open the writing window where you are | **Alt+T** (again to close it) |
+| Write for anywhere else | **Ctrl+Shift+Y** (Command+Shift+Y on a Mac) or the SpotSlate icon |
+| Copy what the writing window made | **Ctrl+Enter** or "Copy" |
+| Pick a language | Click its code in a window's title row ("RU"); the arrow keys, a letter and Enter work too |
+| Pin the popup, or move it | Click it; drag it by its title bar |
+| Close a window | **Esc**, its "×" or a click outside |
+
+Hold Ctrl to read instead of Alt, or record another key to write, in the settings under "Keys" (see "Keys" below). The toolbar shortcut is changed at `chrome://extensions/shortcuts`.
+
 ## Install
 
 1. Open `chrome://extensions` and turn on "Developer mode".
@@ -68,7 +96,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 
 ## On a site of your own
 
-The toolbar window starts with a switch for the site you are on: turn SpotSlate off there (where Alt means something else, as in Figma), or keep the site on this computer (only Chrome's translator, nothing sent) or without a context, for confidential wikis. It takes effect at once; the settings list such sites, with a Reset button each.
+The toolbar window starts with a switch for the site you are on: turn SpotSlate off there (where Alt means something else, as in Figma), or, with an AI provider, turn the AI off for the site (only Chrome's translator, nothing sent) or its context, for confidential wikis. It takes effect at once; the settings list such sites, with a Reset button each.
 
 ## Writing in another language
 
