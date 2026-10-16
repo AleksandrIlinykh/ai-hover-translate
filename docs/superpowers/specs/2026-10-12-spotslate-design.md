@@ -118,7 +118,6 @@ Stored in `chrome.storage.local` under the `settings` key:
 | `targetLang` | the browser's language, else `"en"` | target language code; until one is saved, `defaultTargetLang()` takes Chrome's interface language (`chrome.i18n.getUILanguage()`) when it is in `LANGUAGES`, else English |
 | `providers` | `{}` | `{ [id]: { apiKey, model, baseUrl } }`, remembered for every provider the user filled in |
 | `keys` | `{ read: "Alt", write: Alt+T }` | the key held to read and the shortcut to write (see "Keys") |
-| `consent` | `0` | the `CONSENT_VERSION` of what is sent to AI providers that the user agreed to (see "Agreement") |
 
 A blank `model` or `baseUrl` means the provider's default, so a changed default reaches everyone. Values are trimmed (keys are often pasted with a space or a line break); unknown providers and fields are dropped; an unknown provider falls back to `chrome`, an unknown language code to `ru`; the retired DeepSeek models `deepseek-chat` and `deepseek-reasoner` fall back to the default model. Settings saved before providers existed (`apiKey`, `model`, `baseUrl` at the top level) become the `deepseek` entry, and DeepSeek stays in use. `activeProvider(settings)` gives the provider in use with its preset fields, key, model and URL (defaults filled in, trailing `/` removed).
 
@@ -160,7 +159,7 @@ Settings page (`options.html`), top to bottom:
 
 At the bottom, a "Privacy policy" link to `PRIVACY.md` on GitHub, the policy the store listing points to.
 
-**Agreement.** Chrome's translator sends nothing, so it needs no agreement. For an AI provider, a box under the provider's note says "I agree that the texts I translate or write in SpotSlate, with the context it keeps for each site, go there."; Save refuses an AI provider without it ("Tick the box to agree that the texts go to {provider}, then save.") and stores `consent: CONSENT_VERSION`. Background sends nothing to an AI provider (translations, compose drafts, site context updates) while `consent` is below `CONSENT_VERSION`, and answers `no_consent` with "Open settings". Raising `CONSENT_VERSION` when what is sent changes asks everyone to agree again before anything goes out.
+**Where the text goes.** Under the provider one line says it (`dataNote`): "Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text." for Chrome's translator, and "The texts you translate or write in SpotSlate are sent to the translation provider chosen above." for any other, the same for all of them: the provider, its URL and the key are right there. There is no separate agreement: choosing a provider and giving it a key is the user's own decision to send texts there. (Settings saved with the older `consent` field keep working; `withDefaults` drops it.)
 
 **Welcome page.** On install (`chrome.runtime.onInstalled`, reason `install`) background opens `welcome.html`: the language to translate into (native language names; saved at once, then the page reloads so SpotSlate on it follows), a paragraph to hold Alt over (English, or German for someone who translates into English) and a field to try Alt+click and Alt+T (the page loads the content scripts in the manifest order), what leaves the computer with a link to the privacy policy, and a button to the settings. It is in English, like the settings page.
 
@@ -487,13 +486,13 @@ Unit tests (`node --test`, no dependencies):
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
 - `sites.js`: the default mode; stored modes read with every value checked; setting one keeps the others, and the default leaves the list.
-- `settings.js`: the starting language from the browser's, or English; the agreement kept only as a version number; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `settings.js`: the starting language from the browser's, or English; the old agreement field dropped; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
 - `pack.mjs`: the zip holds every file of `extension/`, unchanged, with the manifest at the top.
 - `manifest.json`: the icons exist at every declared size; every content script exists; the welcome page loads them in the manifest order.
 - `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.
 - `translator.js`: language codes from tags; the source language from the detector's guesses, from a sample and from the page's language; translating with a stand-in Translator (unsupported, ready pair made once, same language, download only after a gesture with progress, unavailable, failure); getting a pair ready ahead, sharing a running download and its progress with a translation, starting again after a failed download; the problem texts.
-- `providers.js`: the list of providers and that the manifest covers their hosts, by name, with Chrome 140 at least; where the text goes (`dataNote`, naming the read key); no key over plain http but to this computer; the request of each API (URL, headers, body, reasoning off, without extras, the context update's limits); the model list request and parsing; reading answers; the setup check; host patterns.
+- `providers.js`: the list of providers and that the manifest covers their hosts, by name, with Chrome 140 at least; where the text goes (`dataNote`: nowhere, or to the provider chosen); no key over plain http but to this computer; the request of each API (URL, headers, body, reasoning off, without extras, the context update's limits); the model list request and parsing; reading answers; the setup check; host patterns.
 
 E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`):
 
@@ -578,7 +577,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   75. Alt during that download shows its progress, then the translation; a page in the target language gets nothing ready.
   76. A selected word is translated from the language of its paragraph; text whose language cannot be told, from the page's `<html lang>`.
   77. "Save" with the free translator gets the model from English ready and says so.
-  78. The settings say under the provider where the text goes, following the API URL, and link to the privacy policy.
+  78. The settings say under the provider where the text goes: nowhere with Chrome's translator, to the provider chosen above with any other, the same line for all; and they link to the privacy policy.
   79. Alt over a text field says "Alt+click: write in Russian."; a password field keeps "Input fields are not translated." and opens nothing.
   80. Alt+click on a field opens the compose window: "Russian →", English chosen from `<html lang>`, the draft focused, the provider's name.
   81. The draft is translated once after the typing stops, with the compose prompt; Ctrl+Enter copies it (also right after typing), closes the window and focuses the field; "Check" shows the translation back in Russian.
@@ -629,11 +628,10 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   126. With German as the language to translate into, the hints over the page, the popup, its errors, the context panel and the compose window (with the language names) are in German.
   127. With nothing saved, the settings page shows the browser's language to translate into.
   128. Installing opens the welcome page; it saves the language, says what leaves the computer, and Alt over its paragraph translates it.
-  129. Without the agreement nothing is sent to the AI provider, not even a context update, and the popup leads to the settings; the settings save an AI provider only with the box ticked, and keep it.
+  129. An AI provider is saved like any other setting; settings saved with the old agreement field still translate.
   130. Report opens a GitHub issue with the setup only (never the text or the site) and copies the text and its translation; it shows only with a translation.
   131. Letting Alt go after a hold of 300 ms or more is kept from Chrome (`defaultPrevented`); a quick tap is not.
   132. A translation request whose text is not a string or is blank sends nothing; a longer one is cut to 3000 characters.
-  133. The note under an AI provider names the read key: "The text you hold Ctrl over" with Ctrl.
   134. The site context and the words around a phrase arrive in the reference turn, not in the system prompt.
   135. The toolbar window starts with the site's switch, on, naming the site, with the two options under it.
   136. Switched off, the site gets nothing at once: no popup, dog or outline, Alt+T reaches the page, nothing is sent; switched on again it works, without a reload.

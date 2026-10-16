@@ -237,20 +237,13 @@ export function setupProblem(provider) {
   return null;
 }
 
-// One line for the settings page: where the text goes with this provider; `readKey` names the key held to read.
-export function dataNote(provider, readKey = 'Alt') {
+// One line for the settings page, under the provider: nothing leaves the computer with Chrome's translator, and the
+// texts go to any other provider, the one chosen just above.
+export function dataNote(provider) {
   if (provider.api === 'browser') {
     return 'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.';
   }
-  if (!hostPattern(provider.baseUrl)) return `The text you hold ${readKey} over or write in SpotSlate will go to the API URL you enter.`;
-  const { host, hostname } = new URL(provider.baseUrl);
-  if (LOCAL_HOSTS.has(hostname)) {
-    return `The text you hold ${readKey} over or write in SpotSlate goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
-  }
-  return (
-    `The text you hold ${readKey} over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ` +
-    `is sent to ${provider.name} at ${host} with your key; their privacy policy applies. Nothing else leaves your browser.`
-  );
+  return 'The texts you translate or write in SpotSlate are sent to the translation provider chosen above.';
 }
 
 // The host permission an API URL needs, such as https://api.example.com/*; null for anything but http(s).

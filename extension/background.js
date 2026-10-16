@@ -4,7 +4,7 @@ import { buildComposeMessages, chooseComposeTarget, countLanguage } from './lib/
 import { readTextStream, sendChat } from './lib/chat.js';
 import { answerText, setupProblem } from './lib/providers.js';
 import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
-import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
+import { LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
 import { DEFAULT_SITE_MODE, siteModeOf, withSiteMode } from './lib/sites.js';
 
@@ -260,7 +260,7 @@ async function updateNotes(site) {
     const provider = activeProvider(settings);
     const siteMode = await modeOf(site);
     const allowed = !siteMode.off && !siteMode.local && !siteMode.noContext;
-    if (provider.api !== 'browser' && !setupProblem(provider) && settings.consent >= CONSENT_VERSION && allowed) {
+    if (provider.api !== 'browser' && !setupProblem(provider) && allowed) {
       const messages = buildNotesMessages(await notesOf(site), passages, LANGUAGES[settings.targetLang]);
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(NOTES_TIMEOUT_MS)]);
       const response = await sendChat(provider, { messages, stream: false, purpose: 'notes' }, signal);
@@ -372,10 +372,6 @@ async function compose({ text, from, to, purpose }, site, signal, send) {
     send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
     return;
   }
-  if (settings.consent < CONSENT_VERSION) {
-    send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
-    return;
-  }
   const siteMode = await modeOf(site);
   if (siteMode.off || siteMode.local) {
     // The page did not hear yet that this site is off or kept on this computer.
@@ -401,10 +397,6 @@ async function translate(request, site, signal, send, onTranslated = () => {}) {
   const problem = setupProblem(provider);
   if (problem) {
     send({ type: 'error', ...makeError(problem, provider, settings.targetLang) });
-    return;
-  }
-  if (settings.consent < CONSENT_VERSION) {
-    send({ type: 'error', ...makeError('no_consent', provider, settings.targetLang) });
     return;
   }
   const siteMode = await modeOf(site);

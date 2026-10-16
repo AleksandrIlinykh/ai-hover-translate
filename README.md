@@ -11,7 +11,7 @@ SpotSlate is for deliberate, in-context translation of just the part you need: r
 1. Open `chrome://extensions` and turn on "Developer mode".
 2. Click "Load unpacked" and pick the `extension/` folder.
 3. A welcome page opens: check the language to translate into (it starts as your browser's), and try the gestures right there. Out of the box the extension uses Chrome's built-in translator: free, and nothing leaves your computer. Tabs that were open before need a reload.
-4. For translations that fit the subject of a site (the site context, dictionary entries), open the settings (right-click the extension icon, then "Options"), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), tick the box to agree that your texts go there, click "Test", then "Save".
+4. For translations that fit the subject of a site (the site context, dictionary entries), open the settings (right-click the extension icon, then "Options"), pick an AI provider under "Translate with", paste its API key ("Get a key" links to the provider's page), click "Test", then "Save". From then on the texts you translate go to that provider.
 
 ## Providers
 

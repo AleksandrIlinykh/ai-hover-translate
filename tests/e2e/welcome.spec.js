@@ -1,4 +1,4 @@
-import { test, expect, moveTo, popupRoot, popupText, say } from './fixtures.js';
+import { test, expect, moveTo, popupText } from './fixtures.js';
 
 const welcomeUrl = (extensionId) => `chrome-extension://${extensionId}/welcome.html`;
 const stored = async (serviceWorker) => (await serviceWorker.evaluate(() => chrome.storage.local.get('settings'))).settings;
@@ -33,33 +33,20 @@ test('Alt over the practice paragraph on the welcome page translates it', async 
   await expect(popupText(page)).toContainText('[RU]');
 });
 
-test.describe('agreement to send texts to an AI provider', () => {
-  test('without it nothing is sent, and the popup leads to the settings', async ({ page, server, setSettings }) => {
-    await setSettings({ consent: 0 });
-    await page.goto(`${server.url}/page.html`);
-    await moveTo(page, '#p1');
-    await page.keyboard.down('Alt');
-    await expect(popupText(page)).toHaveText(say('noConsent', { name: 'DeepSeek' }));
-    await expect(popupRoot(page).locator('.settings')).toBeVisible();
-    await page.waitForTimeout(500);
-    expect(server.requests).toHaveLength(0);
-    expect(server.notesRequests).toHaveLength(0);
+test('an AI provider is saved like any other setting, and settings saved with the old agreement field still translate', async ({ page, server, setSettings, extensionId, serviceWorker }) => {
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.locator('#provider').selectOption('deepseek');
+  await page.locator('#apiKey').fill('sk-deep');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('#status')).toHaveText('Saved');
+  expect(await stored(serviceWorker)).not.toHaveProperty('consent');
+  await setSettings();
+  await serviceWorker.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings');
+    await chrome.storage.local.set({ settings: { ...settings, consent: 0 } });
   });
-
-  test('the settings save an AI provider only with the box ticked, and keep the agreement', async ({ page, extensionId, serviceWorker }) => {
-    await page.goto(`chrome-extension://${extensionId}/options.html`);
-    await expect(page.locator('#consentRow')).toBeHidden(); // nothing leaves the computer with Chrome's translator
-    await page.locator('#provider').selectOption('deepseek');
-    await page.locator('#apiKey').fill('sk-deep');
-    await expect(page.locator('#consentRow')).toBeVisible();
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.locator('#status')).toHaveText('Tick the box to agree that the texts go to DeepSeek, then save.');
-    expect((await stored(serviceWorker))?.provider ?? 'chrome').toBe('chrome');
-    await page.locator('#consent').check();
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.locator('#status')).toHaveText('Saved');
-    expect(await stored(serviceWorker)).toMatchObject({ provider: 'deepseek', consent: 1 });
-    await page.reload();
-    await expect(page.locator('#consent')).toBeChecked();
-  });
+  await page.goto(`${server.url}/page.html`);
+  await moveTo(page, '#p1');
+  await page.keyboard.down('Alt');
+  await expect(popupText(page)).toContainText('[RU] The quick brown fox');
 });

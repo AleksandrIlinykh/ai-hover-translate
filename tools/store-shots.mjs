@@ -98,7 +98,7 @@ const extensionId = new URL(worker.url()).host;
 await worker.evaluate(
   (baseUrl) =>
     chrome.storage.local.set({
-      settings: { provider: 'deepseek', targetLang: 'en', providers: { deepseek: { apiKey: 'demo', model: '', baseUrl } }, consent: 1 },
+      settings: { provider: 'deepseek', targetLang: 'en', providers: { deepseek: { apiKey: 'demo', model: '', baseUrl } } },
     }),
   `${origin}/v1`,
 );

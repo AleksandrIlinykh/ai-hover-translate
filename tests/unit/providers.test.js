@@ -213,32 +213,12 @@ test('hostPattern turns an API URL into the host permission it needs', () => {
   assert.equal(hostPattern('nonsense'), null);
 });
 
-test('dataNote names the key the user holds to read', () => {
-  assert.ok(dataNote(provider('deepseek'), 'Ctrl').startsWith('The text you hold Ctrl over or write in SpotSlate'));
-  assert.ok(dataNote(provider('ollama'), 'Option').startsWith('The text you hold Option over'));
-});
-
-test('dataNote says where the text goes for each kind of provider', () => {
+test('dataNote says that nothing leaves the computer with Chrome, and that the texts go to any other provider chosen', () => {
   assert.equal(
     dataNote({ id: 'chrome', ...PROVIDERS.chrome, baseUrl: '' }),
     'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.',
   );
-  assert.equal(
-    dataNote(provider('deepseek')),
-    'The text you hold Alt over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ' +
-      'is sent to DeepSeek at api.deepseek.com with your key; their privacy policy applies. Nothing else leaves your browser.',
-  );
-  assert.equal(
-    dataNote(provider('ollama')),
-    'The text you hold Alt over or write in SpotSlate goes to Ollama on this computer (localhost:11434). Nothing else leaves your browser.',
-  );
-  assert.equal(
-    dataNote(provider('custom', { baseUrl: 'http://127.0.0.1:8080/v1' })),
-    'The text you hold Alt over or write in SpotSlate goes to Other OpenAI-compatible API on this computer (127.0.0.1:8080). ' +
-      'Nothing else leaves your browser.',
-  );
-  assert.equal(
-    dataNote(provider('custom', { baseUrl: '' })),
-    'The text you hold Alt over or write in SpotSlate will go to the API URL you enter.',
-  );
+  const note = 'The texts you translate or write in SpotSlate are sent to the translation provider chosen above.';
+  for (const id of ['deepseek', 'anthropic', 'ollama', 'custom']) assert.equal(dataNote(provider(id)), note, id);
+  assert.equal(dataNote(provider('custom', { baseUrl: '' })), note);
 });

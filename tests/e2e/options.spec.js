@@ -121,7 +121,6 @@ test('each provider keeps its own key, model and URL while switching, and all ar
   await page.locator('#provider').selectOption('deepseek');
   await expect(page.locator('#apiKey')).toHaveValue('sk-deep');
   await page.locator('#provider').selectOption('openai');
-  await page.locator('#consent').check();
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   expect(await stored(serviceWorker)).toEqual({
@@ -132,7 +131,6 @@ test('each provider keeps its own key, model and URL while switching, and all ar
       openai: { apiKey: 'sk-open', model: '', baseUrl: '' },
     },
     keys: DEFAULT_KEYS,
-    consent: 1,
   });
 });
 
@@ -143,7 +141,6 @@ test('saves trimmed values, and a blank model or URL means the default', async (
   await page.locator('#targetLang').selectOption('de');
   await page.locator('#model').fill('');
   await page.locator('#baseUrl').fill('');
-  await page.locator('#consent').check();
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   await expect(page.locator('#model')).toHaveValue('deepseek-flash');
@@ -153,7 +150,6 @@ test('saves trimmed values, and a blank model or URL means the default', async (
     targetLang: 'de',
     providers: { deepseek: { apiKey: 'sk-test', model: '', baseUrl: '' } },
     keys: DEFAULT_KEYS,
-    consent: 1,
   });
 });
 
@@ -240,7 +236,6 @@ test('saving a custom API URL asks Chrome for access to its host', async ({ page
   await page.locator('#provider').selectOption('custom');
   await page.locator('#baseUrl').fill('https://llm.example.com/v1');
   await page.locator('#model').fill('my-model');
-  await page.locator('#consent').check();
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   expect(await page.evaluate(() => window.asked)).toEqual([{ origins: ['https://llm.example.com/*'] }]);
@@ -256,7 +251,6 @@ test('when Chrome is not allowed to reach the host, the settings are saved with 
   await stubPermissionPrompt(page, false);
   await page.locator('#provider').selectOption('custom');
   await page.locator('#baseUrl').fill('https://llm.example.com/v1');
-  await page.locator('#consent').check();
   await save(page);
   await expect(page.locator('#status')).toHaveText(
     'Saved, but Chrome was not allowed to reach llm.example.com, so requests to it will fail.',
@@ -266,21 +260,20 @@ test('when Chrome is not allowed to reach the host, the settings are saved with 
 test('the status disappears when a field changes', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
   await page.locator('#provider').selectOption('deepseek');
-  await page.locator('#consent').check();
   await save(page);
   await expect(page.locator('#status')).toHaveText('Saved');
   await page.locator('#apiKey').fill('sk-other');
   await expect(page.locator('#status')).toHaveText('');
 });
 
-test('the note under the provider says where the text goes, and follows the API URL', async ({ page, extensionId }) => {
+test('the note under an AI provider is the same for every one: the texts go to the provider chosen above', async ({ page, extensionId }) => {
   await page.goto(optionsUrl(extensionId));
-  await page.locator('#provider').selectOption('anthropic');
-  await expect(page.locator('#dataNote')).toContainText('is sent to Anthropic Claude at api.anthropic.com with your key');
-  await page.locator('#provider').selectOption('custom');
-  await expect(page.locator('#dataNote')).toHaveText('The text you hold Alt over or write in SpotSlate will go to the API URL you enter.');
-  await page.locator('#baseUrl').fill('https://llm.example.com/v1');
-  await expect(page.locator('#dataNote')).toContainText('is sent to Other OpenAI-compatible API at llm.example.com');
+  const note = 'The texts you translate or write in SpotSlate are sent to the translation provider chosen above.';
+  for (const id of ['anthropic', 'ollama', 'custom']) {
+    await page.locator('#provider').selectOption(id);
+    await expect(page.locator('#dataNote')).toHaveText(note);
+  }
+  await expect(page.locator('#consent')).toHaveCount(0);
 });
 
 test('a provider picked while the saved settings are still loading is not overwritten by them', async ({ page, extensionId }) => {

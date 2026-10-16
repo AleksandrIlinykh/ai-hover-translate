@@ -1,4 +1,4 @@
-import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings, withDefaults } from './lib/settings.js';
+import { LANGUAGES, activeProvider, loadSettings, withDefaults } from './lib/settings.js';
 import { DEFAULT_SITE_MODE, siteModeOf } from './lib/sites.js';
 import { PROVIDERS, dataNote, hostPattern, modelsRequest, parseModels, setupProblem } from './lib/providers.js';
 import { readTextStream, sendChat } from './lib/chat.js';
@@ -51,7 +51,6 @@ function report(text, isError = false) {
 
 // Fields show the provider's defaults instead of blanks.
 function show(settings) {
-  element('consent').checked = settings.consent >= CONSENT_VERSION;
   element('intro').textContent = `Hold ${readKeyName(settings.keys.read, platform)} and hover over a paragraph to see its translation above it.`;
   showKeys(settings.keys);
   form.elements.targetLang.value = settings.targetLang;
@@ -81,12 +80,9 @@ function showProvider(id) {
   showDataNote();
 }
 
-// Where the text goes with the provider on screen; it follows the API URL as it is typed. AI providers need the
-// user's agreement before anything is sent to them; Chrome's translator sends nothing.
+// Where the text goes with the provider on screen: nowhere with Chrome's translator, to the provider chosen otherwise.
 function showDataNote() {
-  const provider = providerInForm();
-  element('dataNote').textContent = dataNote(provider, readKeyName(form.elements.readKey.value, platform));
-  element('consentRow').hidden = provider.api === 'browser';
+  element('dataNote').textContent = dataNote(providerInForm());
 }
 
 function showModelList() {
@@ -277,11 +273,7 @@ form.elements.writeKey.addEventListener('keydown', (event) => {
   form.elements.writeKey.value = formatShortcut(shortcut, platform);
 });
 
-element('resetKeys').addEventListener('click', () => {
-  showKeys(DEFAULT_KEYS);
-  showDataNote();
-});
-form.elements.readKey.addEventListener('change', () => showDataNote());
+element('resetKeys').addEventListener('click', () => showKeys(DEFAULT_KEYS));
 
 // The toolbar window's shortcut is Chrome's to set, on its own page for extension shortcuts.
 async function showToolbarKey() {
@@ -300,18 +292,12 @@ element('chromeShortcuts').addEventListener('click', (event) => {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const provider = providerInForm();
-  const agreed = element('consent').checked;
-  if (provider.api !== 'browser' && !agreed) {
-    report(`Tick the box to agree that the texts go to ${provider.name}, then save.`, true);
-    return;
-  }
   const allowed = requestHost(provider);
   const settings = withDefaults({
     provider: current,
     targetLang: form.elements.targetLang.value,
     providers: entriesToStore(),
     keys: { read: form.elements.readKey.value, write: writeShortcut },
-    consent: agreed ? CONSENT_VERSION : 0,
   });
   await chrome.storage.local.set({ settings });
   show(settings);

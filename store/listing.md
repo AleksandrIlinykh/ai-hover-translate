@@ -34,7 +34,7 @@ What to fill in when submitting SpotSlate. The package is `dist/spotslate-<versi
 >
 > FREE AND PRIVATE BY DEFAULT
 > - Out of the box SpotSlate uses Chrome's built-in translator: free, and nothing you translate leaves your computer.
-> - Or pick an AI provider with your own key: DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI, Alibaba Qwen, a local Ollama or LM Studio, or any OpenAI-compatible API. Texts go straight from your browser to that provider, only after you agree in the settings.
+> - Or pick an AI provider with your own key: DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI, Alibaba Qwen, a local Ollama or LM Studio, or any OpenAI-compatible API. Texts go straight from your browser to that provider.
 > - No account, no server, no analytics. Web pages cannot read your key or look into SpotSlate's windows.
 >
 > AND

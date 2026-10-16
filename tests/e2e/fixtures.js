@@ -49,11 +49,10 @@ export const test = base.extend({
     await use(new URL(serviceWorker.url()).host);
   },
   // Saves settings with one provider (DeepSeek unless given) pointed at the mock; a blank model means its default.
-  // The user has agreed to send texts to AI providers unless `consent` says 0.
   setSettings: async ({ serviceWorker, server }, use) => {
     await use(async (overrides = {}) => {
-      const { provider = 'deepseek', targetLang = 'ru', apiKey = 'test-key', model = '', baseUrl = server.url, consent = 1 } = overrides;
-      const settings = { provider, targetLang, providers: { [provider]: { apiKey, model, baseUrl } }, consent };
+      const { provider = 'deepseek', targetLang = 'ru', apiKey = 'test-key', model = '', baseUrl = server.url } = overrides;
+      const settings = { provider, targetLang, providers: { [provider]: { apiKey, model, baseUrl } } };
       await serviceWorker.evaluate((value) => chrome.storage.local.set({ settings: value }), settings);
     });
   },

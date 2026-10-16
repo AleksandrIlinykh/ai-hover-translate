@@ -22,7 +22,7 @@ SpotSlate does not read or send anything until you hold Alt, write in its compos
 ## Where your data goes
 
 - **Chrome's built-in translator** (the default): the translation runs on your computer. Chrome downloads its translation models from Google once per pair of languages; that download contains none of your text.
-- **An AI provider you choose** (for example DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI or Alibaba Qwen): the text goes in an HTTPS request from your browser directly to the provider's API, with your own API key. The provider's privacy policy and terms then apply to it; please read them before choosing a provider. The settings page says, under the provider you pick, where the text goes, and nothing is sent to it until you tick the box there to agree.
+- **An AI provider you choose** (for example DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI or Alibaba Qwen): the text goes in an HTTPS request from your browser directly to the provider's API, with your own API key. The provider's privacy policy and terms then apply to it; please read them before choosing a provider. The settings page says, under the provider you pick, that the texts go to it.
 - **A local server** (Ollama, LM Studio, or another API URL on `localhost`): the text goes to that server on your computer.
 - **An API URL you enter yourself**: the text goes to that address, and Chrome asks you first whether SpotSlate may reach it.
 - **"Report" on the popup**: it opens a new GitHub issue in your browser with the SpotSlate version, the translator and model, the language and your browser's user agent, and copies the text and its translation to your clipboard. Nothing is sent until you submit the issue yourself, and the text goes there only if you paste it.
@@ -52,7 +52,7 @@ SpotSlate's use of information complies with the Chrome Web Store User Data Poli
 
 ## Changes
 
-Changes to this policy are listed in the repository history and the release notes, and the effective date above is updated. If a change alters what SpotSlate sends or where, the extension will tell you before it sends anything in the new way.
+Changes to this policy are listed in the repository history and the release notes, and the effective date above is updated. A change in what SpotSlate sends, or where, is also described in the release notes of the version that brings it.
 
 ## Contact
 

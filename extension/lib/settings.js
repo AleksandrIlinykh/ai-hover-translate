@@ -5,10 +5,6 @@ export const DEFAULTS = Object.freeze({
   provider: 'chrome',
 });
 
-// The version of what SpotSlate sends to AI providers that the user has agreed to (`consent` in the settings).
-// Raising it after a change in what is sent asks everyone to agree again before anything goes out.
-export const CONSENT_VERSION = 1;
-
 export const LANGUAGES = Object.freeze({
   ru: 'Russian',
   en: 'English',
@@ -51,8 +47,7 @@ export function defaultTargetLang(uiLanguage = browserLanguage()) {
 }
 
 // Stored settings with every value checked: { provider, targetLang, providers: { [id]: { apiKey, model, baseUrl } },
-// keys: { read, write }, consent } (see keys.js; keys refused on `platform` become the defaults; consent is the
-// CONSENT_VERSION the user agreed to, 0 for none).
+// keys: { read, write } } (see keys.js; keys refused on `platform` become the defaults).
 // Settings saved before providers existed kept apiKey, model and baseUrl at the top: they become the DeepSeek entry,
 // and DeepSeek stays in use.
 export function withDefaults(stored, platform = currentPlatform(), uiLanguage = browserLanguage()) {
@@ -69,7 +64,6 @@ export function withDefaults(stored, platform = currentPlatform(), uiLanguage = 
     targetLang: Object.hasOwn(LANGUAGES, targetLang) ? targetLang : defaultTargetLang(uiLanguage),
     providers,
     keys: checkedKeys(stored?.keys, platform),
-    consent: Number.isInteger(stored?.consent) && stored.consent > 0 ? stored.consent : 0,
   };
 }
 
