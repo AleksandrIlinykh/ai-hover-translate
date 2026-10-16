@@ -78,8 +78,8 @@
     }
     .tool:hover { opacity: 1; border-color: currentColor; }
     .close { font-size: 15px; }
-    .copy { visibility: hidden; }
-    .popup.has-text .copy { visibility: visible; }
+    .copy, .report { visibility: hidden; }
+    .popup.has-text .copy, .popup.has-text .report { visibility: visible; }
     .action {
       display: none;
       margin-top: 8px;
@@ -125,7 +125,8 @@
   // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   // With an AI provider a footer row has the Context button, which opens the site context panel under the popup.
-  function createPopup({ onOpenSettings, onRetry, onDownload, onClose }) {
+  // onReport() is called when the user reports a bad translation; it gets the popup's text.
+  function createPopup({ onOpenSettings, onRetry, onDownload, onClose, onReport }) {
     const { createNotesPanel, NOTES_CSS } = globalThis.spotslate;
     const host = document.createElement('div');
     host.id = ROOT_ID;
@@ -149,9 +150,10 @@
     popupEl.className = 'popup';
     const bar = document.createElement('div');
     bar.className = 'bar';
+    const reportButton = button('tool report', '', () => report());
     const copyButton = button('tool copy', '', () => copy());
     const closeButton = button('tool close', '×', () => onClose());
-    bar.append(copyButton, closeButton);
+    bar.append(reportButton, copyButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
@@ -195,6 +197,8 @@
     function label() {
       const { t } = globalThis.spotslate;
       copyButton.textContent = t(lang, 'copy');
+      reportButton.textContent = t(lang, 'report');
+      reportButton.title = t(lang, 'reportTitle');
       closeButton.setAttribute('aria-label', t(lang, 'close'));
       for (const [key, element] of Object.entries(actions)) element.textContent = t(lang, key);
       contextButton.textContent = t(lang, 'context');
@@ -218,8 +222,19 @@
       popupEl.classList.toggle('has-download', action === 'download');
     }
 
+    async function report() {
+      await onReport(textEl.textContent);
+      reportButton.textContent = globalThis.spotslate.t(lang, 'reportCopied');
+      setTimeout(label, COPIED_MS);
+    }
+
     async function copy() {
-      const text = textEl.textContent;
+      await writeClipboard(textEl.textContent);
+      copyButton.textContent = globalThis.spotslate.t(lang, 'copied');
+      setTimeout(label, COPIED_MS);
+    }
+
+    async function writeClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);
       } catch {
@@ -231,8 +246,6 @@
         document.execCommand('copy');
         area.remove();
       }
-      copyButton.textContent = globalThis.spotslate.t(lang, 'copied');
-      setTimeout(label, COPIED_MS);
     }
 
     function chooseSide(rect) {
@@ -389,6 +402,7 @@
         render(message, { error: true, action });
         schedulePosition();
       },
+      writeClipboard,
       // Everything the popup says is in `next`, the language the user translates into.
       setLanguage(next) {
         lang = next;

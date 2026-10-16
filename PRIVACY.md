@@ -25,6 +25,7 @@ SpotSlate does not read or send anything until you hold Alt, write in its compos
 - **An AI provider you choose** (for example DeepSeek, OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, Mistral, xAI or Alibaba Qwen): the text goes in an HTTPS request from your browser directly to the provider's API, with your own API key. The provider's privacy policy and terms then apply to it; please read them before choosing a provider. The settings page says, under the provider you pick, where the text goes, and nothing is sent to it until you tick the box there to agree.
 - **A local server** (Ollama, LM Studio, or another API URL on `localhost`): the text goes to that server on your computer.
 - **An API URL you enter yourself**: the text goes to that address, and Chrome asks you first whether SpotSlate may reach it.
+- **"Report" on the popup**: it opens a new GitHub issue in your browser with the SpotSlate version, the translator and model, the language and your browser's user agent, and copies the text and its translation to your clipboard. Nothing is sent until you submit the issue yourself, and the text goes there only if you paste it.
 
 SpotSlate sends nothing anywhere else: no analytics, telemetry, crash reports or ads, and it loads no code from the internet. Requests to OpenRouter carry two headers that name the extension (`HTTP-Referer` with this repository's address and `X-Title: SpotSlate`); they contain no data about you.
 

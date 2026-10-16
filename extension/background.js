@@ -7,6 +7,7 @@ import { errorFromStatus, makeError, settingsChanged } from './lib/errors.js';
 import { CONSENT_VERSION, LANGUAGES, activeProvider, loadSettings } from './lib/settings.js';
 import { currentPlatform, readKeyName } from './lib/keys.js';
 
+const REPOSITORY = 'https://github.com/AleksandrIlinykh/spotslate';
 const IDLE_TIMEOUT_MS = 30_000;
 const NOTES_TIMEOUT_MS = 15_000;
 const LEARNED_LIMIT = 50; // sources remembered per site, so a text shown again does not teach the notes twice
@@ -134,6 +135,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const site = siteOf(sender, message.site);
     if (site) clearNotes(site);
   }
+  if (message?.type === 'report') openReport(message.mode === 'dictionary' ? 'a dictionary entry' : 'a paragraph');
   if (message?.type === 'read-lang') {
     // A text the page translated by itself, with Chrome's translator: only its language is counted.
     const site = siteOf(sender);
@@ -154,6 +156,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     else chrome.storage.session.remove(key).catch(() => {});
   }
 });
+
+// A new GitHub issue about a bad translation, with the setup filled in: never the text, which may be confidential
+// (the page copies it for the user to paste), the page or the API URL, which may name an internal server.
+async function openReport(what) {
+  const settings = await loadSettings();
+  const provider = activeProvider(settings);
+  const engine = provider.api === 'browser' ? "Chrome's built-in translator" : `${provider.name}, ${provider.model}`;
+  const setup = [
+    `SpotSlate ${chrome.runtime.getManifest().version}`,
+    engine,
+    `into ${LANGUAGES[settings.targetLang]}, ${what}`,
+    navigator.userAgent,
+  ].join('\n');
+  const url = new URL(`${REPOSITORY}/issues/new`);
+  url.searchParams.set('template', 'translation.yml');
+  url.searchParams.set('setup', setup);
+  chrome.tabs.create({ url: url.href });
+}
 
 // The site context (notes). Each site has one update at a time; texts translated meanwhile wait in its queue
 // for the next one. `learned` keeps the latest sources so the same text does not teach the notes twice.

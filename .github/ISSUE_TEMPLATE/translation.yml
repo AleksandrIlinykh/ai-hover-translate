@@ -1,0 +1,27 @@
+name: Bad translation
+description: A translation that came out wrong. The Report button in the popup opens this form.
+title: "Bad translation"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for telling. This page is public: share the text only if it is not confidential.
+        The Report button has copied the text and its translation to your clipboard.
+  - type: textarea
+    id: text
+    attributes:
+      label: Text and translation
+      description: Paste them here if you can share them, or describe the kind of text instead.
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What was wrong
+      description: A wrong meaning, a wrong term, a name that should have stayed, the tone...
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Filled in by SpotSlate.
+      render: text

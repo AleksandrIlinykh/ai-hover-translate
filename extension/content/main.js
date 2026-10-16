@@ -40,6 +40,7 @@
     onRetry: () => retry(),
     onDownload: () => retry(), // the click lets Chrome download the model
     onClose: () => closePopup(),
+    onReport: (translation) => report(translation),
   });
   const highlight = createHighlight();
   const composeWindow = createComposeWindow();
@@ -182,6 +183,14 @@
     const cached = cache.get(cacheKey(shown));
     if (cached === undefined) translate(shown);
     else popup.setText(cached);
+  }
+
+  // A bad translation: GitHub gets only the setup, from background; the text and its translation go to the clipboard,
+  // for the user to paste into the issue if it is not confidential.
+  async function report(translation) {
+    if (!shown) return;
+    await popup.writeClipboard(`${shown.text}\n\n${translation}`);
+    chrome.runtime.sendMessage({ type: 'report', mode: shown.mode }).catch(() => {});
   }
 
   function retry() {

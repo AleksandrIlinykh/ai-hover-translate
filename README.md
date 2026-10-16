@@ -57,6 +57,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - Click the popup to pin it: it stays while you move the mouse away. Close it with Esc or the "×" on its title bar.
 - Drag the popup by its title bar to put it where you like, and resize it by any edge or corner: it then stays at that place on screen while you scroll, handy for reading a long paragraph.
 - "Copy" on the title bar copies the translation. After an error, "Retry" sends the text again.
+- "Report" opens a GitHub issue about a bad translation with the setup filled in, and copies the text for you: paste it there only if it is not confidential.
 - Close an unpinned popup with Esc, a click outside it, or by moving the mouse away from the paragraph and the popup.
 - A text translated once is reused in every tab until the browser closes: instant and free.
 - SpotSlate speaks the language you translate into: its hints, buttons, errors and windows follow the "Translate into" setting.
