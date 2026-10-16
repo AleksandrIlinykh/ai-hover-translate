@@ -96,7 +96,7 @@ For the Chrome Web Store:
     npm run store      # store/images/: the screenshots, the promo tile and the marquee
     npm run icons      # extension/icons/, drawn from the dog
 
-What to fill in on the store's pages, with the permission justifications and the privacy answers, is in `store/listing.md`.
+What to fill in on the store's pages, with the permission justifications and the privacy answers, is in `store/listing.md`; how to run the closed beta before the launch is in `store/beta.md`.
 
 Design: `docs/superpowers/specs/2026-10-12-spotslate-design.md`.
 

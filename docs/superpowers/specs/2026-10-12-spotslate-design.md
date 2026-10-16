@@ -77,6 +77,7 @@ spotslate/
     store-shots.mjs     takes the store images from store/demo.html and store/promo.html (npm run store)
   store/
     listing.md          what to fill in on the Chrome Web Store: description, permissions, privacy, reviewer notes
+    beta.md             the closed beta: handing it out, the testers' note, the questions
     demo.html           a made-up issue tracker in German for the screenshots
     promo.html          the promo tile and the marquee
     images/             the screenshots and the promo images
