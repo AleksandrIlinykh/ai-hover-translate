@@ -67,12 +67,15 @@
   let siteMode = { off: false, local: false, noContext: false };
   let localTicket = 0; // the on-page translation in progress; a new translation or a close makes it stale
   let modelAsked = false; // whether this page has asked Chrome to get its translation model ready
+  let settingsKnown = false; // whether background has answered with the settings below
   // The key held to read ('Alt' or 'Control') with its name on this platform, and the shortcut to write
   // (see lib/keys.js); background sends the ones in the settings.
   let keys = { read: 'Alt', readName: 'Alt', write: { ctrl: false, alt: true, shift: false, meta: false, code: 'KeyT' } };
 
   // The settings hold API keys, so pages get only the target language, the engine and the keys, from background.
-  chrome.runtime
+  // Until they are here the language and the engine are not known: a hint shown meanwhile is shown again in the right
+  // language, and a click that would get Chrome's model ready waits for them.
+  const settingsReady = chrome.runtime
     .sendMessage({ type: 'page-settings' })
     .then((answer) => {
       targetLang = answer?.targetLang || DEFAULT_LANG;
@@ -80,7 +83,9 @@
       keys = answer?.keys ?? keys;
       providerName = answer?.providerName ?? '';
       siteMode = answer?.siteMode ?? siteMode;
+      settingsKnown = true;
       applySettings();
+      if (readDown) updatePreview();
     })
     .catch(() => {});
 
@@ -309,9 +314,10 @@
   // With the free translator, the first click or key press on a page in another language gets its model ready,
   // since Chrome downloads a model only right after one (Alt does not count). By the time Alt is held it usually is.
   function prepareModel(event) {
-    if (modelAsked || engine !== 'browser' || siteMode.off || !event.isTrusted) return;
+    if (modelAsked || (settingsKnown && engine !== 'browser') || siteMode.off || !event.isTrusted) return;
     setTimeout(async () => {
-      if (modelAsked || !navigator.userActivation?.isActive) return;
+      await settingsReady; // a click right after the page opened can come before the settings
+      if (modelAsked || engine !== 'browser' || siteMode.off || !navigator.userActivation?.isActive) return;
       modelAsked = true;
       try {
         await prepareInBrowser(await pageLanguage(), targetLang);

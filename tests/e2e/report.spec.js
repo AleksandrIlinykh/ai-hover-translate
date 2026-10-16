@@ -23,6 +23,7 @@ test('Report opens a GitHub issue with the setup only, and copies the text for t
   await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
   await expect(popupRoot(page).locator('.report')).toHaveText(say('report'));
   await popupRoot(page).locator('.report').click();
+  await expect(popupRoot(page).locator('.report')).toHaveText(say('reportCopied')); // for 1.2 s
   await expect.poll(async () => (await opened()).length).toBe(1);
   const [address] = await opened();
   const url = new URL(address);
@@ -34,7 +35,6 @@ test('Report opens a GitHub issue with the setup only, and copies the text for t
   expect(setup).toContain('into Russian, a paragraph');
   expect(address).not.toContain('quick');
   expect(address).not.toContain(new URL(server.url).host);
-  await expect(popupRoot(page).locator('.report')).toHaveText(say('reportCopied'));
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
   expect(clipboard.replace(/\s*\r?\n\s*/g, '\n')).toBe(`${P1}\n[RU] ${P1}`); // the line breaks as the system keeps them
 });
