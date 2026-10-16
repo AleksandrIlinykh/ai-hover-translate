@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SpotSlate promo</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { display: flex; align-items: center; justify-content: center; gap: 6%;
+      background: radial-gradient(circle at 20% 30%, #fde68a 0, #fb923c 45%, #c2410c 100%);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; }
+    img { image-rendering: pixelated; filter: drop-shadow(0 6px 10px rgba(124, 45, 18, 0.35)); }
+    h1 { margin: 0; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 2px 8px rgba(124, 45, 18, 0.35); }
+    p { margin: 0.2em 0 0; font-weight: 600; opacity: 0.95; }
+    .small img { width: 112px; height: 112px; }
+    .small h1 { font-size: 44px; }
+    .small p { font-size: 18px; }
+    .large img { width: 256px; height: 256px; }
+    .large h1 { font-size: 104px; }
+    .large p { font-size: 40px; }
+    .large .more { margin-top: 0.6em; font-size: 26px; font-weight: 500; opacity: 0.9; }
+    .small .more { display: none; }
+  </style>
+</head>
+<body>
+  <img src="../extension/icons/icon-128.png" alt="">
+  <div>
+    <h1>SpotSlate</h1>
+    <p>Translate on the spot.</p>
+    <p class="more">Hold Alt over a paragraph. Free in Chrome, or with your own AI.</p>
+  </div>
+  <script>
+    document.body.className = new URLSearchParams(location.search).get('size') ?? 'small';
+  </script>
+</body>
+</html>

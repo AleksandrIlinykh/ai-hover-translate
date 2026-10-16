@@ -72,7 +72,14 @@ spotslate/
     options.js
     icons/              icon-16/32/48/128.png: the pup, drawn by tools/icons.mjs
   tools/
-    icons.mjs           draws the icons from the pup's resting frame (node tools/icons.mjs)
+    icons.mjs           draws the icons from the pup's resting frame (npm run icons)
+    pack.mjs            packs extension/ into dist/spotslate-<version>.zip, for the store (npm run pack)
+    store-shots.mjs     takes the store images from store/demo.html and store/promo.html (npm run store)
+  store/
+    listing.md          what to fill in on the Chrome Web Store: description, permissions, privacy, reviewer notes
+    demo.html           a made-up issue tracker in German for the screenshots
+    promo.html          the promo tile and the marquee
+    images/             the screenshots and the promo images
   tests/
     unit/               node --test
     e2e/                Playwright
@@ -467,6 +474,7 @@ Unit tests (`node --test`, no dependencies):
 - `pup.js`: every frame fills the hero's size with transparent cells and palette colors; the dance and the rest loop over several frames, and the dance moves.
 - `compose.js`: the compose prompt with and without the site context; counting languages; choosing the language to write in from the counts.
 - `settings.js`: the starting language from the browser's, or English; the agreement kept only as a version number; `withDefaults` keeps every provider entry, drops unknown ones, moves old settings to DeepSeek, keeps keys allowed on the platform and replaces the rest; `activeProvider` fills in the defaults.
+- `pack.mjs`: the zip holds every file of `extension/`, unchanged, with the manifest at the top.
 - `manifest.json`: the icons exist at every declared size; every content script exists; the welcome page loads them in the manifest order.
 - `strings.js`: every language has every text with the same placeholders as English; `t` fills them and falls back to English; language names in the interface language.
 - `keys.js`: the defaults; a shortcut from the physical key; every refusal rule with its reason on each platform, and shortcuts that are allowed; names of keys on each platform; stored keys kept or replaced; the platform from the navigator.

@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "pack": "node tools/pack.mjs",
+    "icons": "node tools/icons.mjs",
+    "store": "node tools/store-shots.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0"

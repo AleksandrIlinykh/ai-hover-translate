@@ -90,6 +90,14 @@ After changing the extension files, click "Reload" on its card in `chrome://exte
 
 GitHub Actions runs both on every push and pull request (`.github/workflows/test.yml`).
 
+For the Chrome Web Store:
+
+    npm run pack       # dist/spotslate-<version>.zip, the package to upload
+    npm run store      # store/images/: the screenshots, the promo tile and the marquee
+    npm run icons      # extension/icons/, drawn from the dog
+
+What to fill in on the store's pages, with the permission justifications and the privacy answers, is in `store/listing.md`.
+
 Design: `docs/superpowers/specs/2026-10-12-spotslate-design.md`.
 
 ## License
