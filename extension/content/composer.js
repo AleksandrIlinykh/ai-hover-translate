@@ -9,6 +9,7 @@
 
   const COMPOSER_CSS = `
     .composer {
+      color-scheme: light dark; /* the lists, when open, in the same theme as the window */
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -22,6 +23,11 @@
     }
     .head { display: flex; align-items: center; gap: 6px; min-height: 26px; user-select: none; }
     .arrow { font-weight: 600; }
+    .source option, .target option { background: #ffffff; color: #1f2328; }
+    .grip { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; margin-left: -6px; height: 22px; opacity: 0.35; cursor: grab; }
+    .grip:hover { opacity: 0.55; }
+    .grip svg { display: block; fill: currentColor; }
+
     .source, .target { min-width: 0; font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid #d0d7de; border-radius: 6px; padding: 1px 4px; }
     .spacer { flex: 1; }
     .tool {
@@ -63,6 +69,7 @@
     @media (prefers-color-scheme: dark) {
       .composer { background: #161b22; color: #e6edf3; }
       .source, .target, .draft, .button { border-color: #30363d; }
+      .source option, .target option { background: #161b22; color: #e6edf3; }
       .removed { color: #ff7b72; }
       .added { color: #7ee787; background: #033a16; }
       .result { background: #0d1117; }
@@ -124,7 +131,8 @@
   // Builds the window into `container` (its styles go to `styleRoot`, a shadow root or the document), and the site
   // context panel after it, into `notesContainer`. `from` is the user's own language, which the window speaks,
   // `source` the one they write in (their own unless chosen otherwise) and `to` the one to write in;
-  // `engine` is 'browser' or 'api'. `site` is for the toolbar popup, which is not on the site.
+  // `engine` is 'browser' or 'api'. `site` is for the toolbar popup, which is not on the site. `draggable` shows the
+  // grip of a window that can be moved by its title row.
   function createComposer({
     container,
     styleRoot,
@@ -139,6 +147,7 @@
     notesContainer = container,
     showSettings = false,
     showClose = false,
+    draggable = false,
     onSourceChange = () => {},
     onTargetChange = () => {},
     onDraftChange = () => {},
@@ -167,6 +176,7 @@
     };
     const source = languageSelect('source', 'draftLanguage', initialSource);
     const target = languageSelect('target', 'resultLanguage', to);
+    if (draggable) head.append(globalThis.spotslate.createGrip());
     head.append(source, element('span', 'arrow', '→'), target, element('span', 'spacer'));
     if (showSettings) {
       const settings = element('button', 'tool settings', '⚙');

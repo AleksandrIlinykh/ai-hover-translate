@@ -449,3 +449,44 @@ test.describe('a click elsewhere', () => {
     await expect(compose(page)).toHaveCount(0);
   });
 });
+
+test.describe('the window frame', () => {
+  test('a dim grip in the top left corner moves the window on the page', async ({ page, server }) => {
+    await openOnComment(page, server);
+    const grip = part(page, 'grip');
+    const [box, handle] = await Promise.all([compose(page).boundingBox(), grip.boundingBox()]);
+    expect(handle.x - box.x).toBeLessThan(16);
+    expect(handle.y - box.y).toBeLessThan(16);
+    expect(Number(await grip.evaluate((element) => getComputedStyle(element).opacity))).toBeLessThan(0.6);
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2 + 60, handle.y + handle.height / 2 - 90, { steps: 5 });
+    await page.mouse.up();
+    const after = await compose(page).boundingBox();
+    expect({ dx: Math.round(after.x - box.x), dy: Math.round(after.y - box.y) }).toEqual({ dx: 60, dy: -90 });
+    await expect(part(page, 'draft')).toBeVisible();
+  });
+
+  test('the toolbar popup, which cannot be moved, has no grip', async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/compose.html`);
+    await expect(page.locator('.draft')).toBeFocused();
+    await expect(page.locator('.grip')).toHaveCount(0);
+  });
+
+  for (const scheme of ['dark', 'light']) {
+    test(`the language lists open in the ${scheme} theme, the text readable on them`, async ({ page, server }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openOnComment(page, server);
+      const look = await part(page, 'source').evaluate((select) => {
+        const option = getComputedStyle(select.options[0]);
+        return { scheme: getComputedStyle(select).colorScheme, color: option.color, background: option.backgroundColor };
+      });
+      expect(look.scheme).toBe('light dark');
+      expect(look).toMatchObject(
+        scheme === 'dark'
+          ? { color: 'rgb(230, 237, 243)', background: 'rgb(22, 27, 34)' }
+          : { color: 'rgb(31, 35, 40)', background: 'rgb(255, 255, 255)' },
+      );
+    });
+  }
+});

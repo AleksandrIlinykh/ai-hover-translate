@@ -50,6 +50,10 @@
       touch-action: none;
     }
     .popup.is-dragging .bar { cursor: grabbing; }
+    .bar .grip { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; margin-right: auto; height: 22px; opacity: 0.35; cursor: grab; }
+    .grip:hover { opacity: 0.55; }
+    .grip svg { display: block; fill: currentColor; }
+    .popup.is-dragging .grip { cursor: grabbing; }
     .foot { justify-content: flex-start; border-top: 1px solid #d8dee4; border-bottom: none; cursor: auto; }
     .foot[hidden] { display: none; }
     .context-toggle[aria-expanded="true"] { opacity: 1; }
@@ -122,6 +126,26 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
+  // The six dots that say "drag me", for the title rows of the windows that can be moved (dimmed by `.grip` rules).
+  function createGrip() {
+    const grip = document.createElement('span');
+    grip.className = 'grip';
+    grip.setAttribute('aria-hidden', 'true');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 8 12');
+    svg.setAttribute('width', '8');
+    svg.setAttribute('height', '12');
+    for (const [cx, cy] of [[2, 2], [6, 2], [2, 6], [6, 6], [2, 10], [6, 10]]) {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', String(cx));
+      dot.setAttribute('cy', String(cy));
+      dot.setAttribute('r', '1.2');
+      svg.append(dot);
+    }
+    grip.append(svg);
+    return grip;
+  }
+
   // Translation popup with a small title bar. Clicking it pins it; dragging the bar or resizing it by
   // an edge or corner pins it and detaches it from the block, so it stays put on screen while the page scrolls.
   // With an AI provider a footer row has the Context button, which opens the site context panel under the popup.
@@ -153,7 +177,7 @@
     const reportButton = button('tool report', '', () => report());
     const copyButton = button('tool copy', '', () => copy());
     const closeButton = button('tool close', '×', () => onClose());
-    bar.append(reportButton, copyButton, closeButton);
+    bar.append(createGrip(), reportButton, copyButton, closeButton);
     const bodyEl = document.createElement('div');
     bodyEl.className = 'body';
     const textEl = document.createElement('div');
@@ -446,5 +470,5 @@
     };
   }
 
-  Object.assign((globalThis.spotslate ??= {}), { createPopup });
+  Object.assign((globalThis.spotslate ??= {}), { createPopup, createGrip });
 })();

@@ -65,6 +65,19 @@ test.describe('with a working key', () => {
     await expect(popupRoot(page)).toHaveCount(0);
   });
 
+  test('a dim grip at the left of the title bar moves the popup', async ({ page }) => {
+    const grip = tool(page, 'grip');
+    const [box, handle] = await Promise.all([popupBox(page).boundingBox(), grip.boundingBox()]);
+    expect(handle.x - box.x).toBeLessThan(12);
+    expect(Number(await grip.evaluate((element) => getComputedStyle(element).opacity))).toBeLessThan(0.6);
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2 + 120, handle.y + handle.height / 2 + 80, { steps: 5 });
+    await page.mouse.up();
+    const after = await popupBox(page).boundingBox();
+    expect({ dx: Math.round(after.x - box.x), dy: Math.round(after.y - box.y) }).toEqual({ dx: 120, dy: 80 });
+  });
+
   test('dragging the title bar moves the popup and pins it', async ({ page }) => {
     const before = await popupBox(page).boundingBox();
     await dragBar(page, 200, 150);

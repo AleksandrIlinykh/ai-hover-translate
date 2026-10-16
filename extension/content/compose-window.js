@@ -20,7 +20,7 @@
       box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18);
     }
     .head { cursor: grab; }
-    .frame.is-dragging .head { cursor: grabbing; }
+    .frame.is-dragging .head, .frame.is-dragging .grip { cursor: grabbing; }
     @media (prefers-color-scheme: dark) { .frame { box-shadow: 0 8px 24px rgba(1, 4, 9, 0.6); } }
   `;
 
@@ -120,6 +120,7 @@
         styleRoot: shadow,
         notesContainer: shadow,
         showClose: true,
+        draggable: true,
         onCopied: giveFocusBack,
         onClose: giveFocusBack,
       });
