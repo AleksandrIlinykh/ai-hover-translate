@@ -53,7 +53,8 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 - With an AI provider, SpotSlate learns what each site is about: after each text you translate there, the model rewrites a short context of one or two paragraphs (the subject, what its terms and abbreviations mean and how to render them, which names to keep), and every later translation on the site carries it. Terms come out the same way every time, and ambiguous words take the meaning they have on that site.
 - "Context" under the translation shows what SpotSlate knows about the site. It is built automatically and cannot be edited; "Clear" starts it over. It is kept until the browser closes; each new popup opens with it folded away.
 - Paragraphs inside editors (for example Confluence in edit mode) are translated like any other text; form fields are not, but what you select in one is, with Alt over it or Alt+click on it. Nothing else of the field is sent, and password fields never are.
-- A grey outline with a hint means there is nothing to send: a form field, too much text (select the part you need) or text already in your language.
+- A grey outline with a hint means there is nothing to send: a form field or too much text (select the part you need).
+- Text already in your language opens the popup saying so, with nothing sent: pick another language in its title bar to translate it into that one.
 - Click the popup to pin it: it stays while you move the mouse away. Close it with a click outside, Esc or the "×" on its title bar.
 - The code on the left of the popup's title bar ("→ RU") is the language you translate into: click it to pick another one, for every site, as in the settings. The gear opens the settings.
 - Drag the popup by its title bar to put it where you like, and resize it by any edge or corner: it then stays at that place on screen while you scroll, handy for reading a long paragraph.

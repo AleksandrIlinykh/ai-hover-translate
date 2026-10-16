@@ -71,6 +71,7 @@
     }
     .popup.is-loading .text { animation: pulse 1s ease-in-out infinite; }
     .popup.is-error .text { color: #cf222e; }
+    .popup.is-notice .text { opacity: 0.75; }
     .tool {
       height: 20px;
       padding: 0 6px;
@@ -257,11 +258,13 @@
     }
 
     // action: 'settings', 'retry' or 'download' adds that button under an error.
-    function render(text, { loading = false, error = false, action = null } = {}) {
+    // A `notice` says something about the text instead of translating it: nothing to copy or report.
+    function render(text, { loading = false, error = false, notice = false, action = null } = {}) {
       textEl.textContent = text;
       popupEl.classList.toggle('is-loading', loading);
       popupEl.classList.toggle('is-error', error);
-      popupEl.classList.toggle('has-text', !loading && !error);
+      popupEl.classList.toggle('is-notice', notice);
+      popupEl.classList.toggle('has-text', !loading && !error && !notice);
       popupEl.classList.toggle('has-settings', action === 'settings');
       popupEl.classList.toggle('has-retry', action === 'retry');
       popupEl.classList.toggle('has-download', action === 'download');
@@ -441,6 +444,10 @@
       },
       setText(text) {
         render(text);
+        schedulePosition();
+      },
+      setNotice(text) {
+        render(text, { notice: true });
         schedulePosition();
       },
       setError(message, { action = null } = {}) {

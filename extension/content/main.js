@@ -130,7 +130,6 @@
     if (picked.reason === 'editable') {
       return writableField(picked.target) ? t(targetLang, 'hintWrite', { key: keys.readName }) : t(targetLang, 'hintEditable');
     }
-    if (sameLanguage.get(picked.text)) return t(targetLang, 'hintAlready');
     return '';
   }
 
@@ -154,8 +153,7 @@
     const ticket = ++triggerTicket;
     const skip = await isAlreadyInTargetLanguage(picked.text);
     if (ticket !== triggerTicket) return; // the mouse has moved on to something else
-    if (skip) updatePreview();
-    else show(picked);
+    show(picked, { already: skip });
   }
 
   // Asks Chrome's on-device detector; a slow or missing detector never holds up a translation.
@@ -194,7 +192,9 @@
     });
   }
 
-  function show(picked) {
+  // The popup on `picked`, with its translation, or, for text `already` in the target language, saying so: its title
+  // bar can then pick another language to translate into.
+  function show(picked, { already = false } = {}) {
     closePopup();
     if (composeWindow.isOpen()) composeWindow.leave(); // one window at a time; the draft stays for next time
     const mode = picked.selection && isShortPhrase(picked.text) ? 'dictionary' : 'text';
@@ -205,7 +205,19 @@
     sample = (around && blockTextOf(picked.target)) || picked.text;
     popup.open(picked.target);
     hero.wake();
-    load();
+    if (already) popup.setNotice(t(targetLang, 'hintAlready'));
+    else load();
+  }
+
+  // The open popup in the language just chosen: its text translated into it, or that it is already in it.
+  async function translateAgain() {
+    if (!shown || !popup.isOpen()) return;
+    const current = shown;
+    popup.setLoading();
+    const already = await isAlreadyInTargetLanguage(current.text);
+    if (shown !== current || !popup.isOpen()) return;
+    if (already) popup.setNotice(t(targetLang, 'hintAlready'));
+    else translate(current);
   }
 
   // Shows the translation of the open popup's text: cached or from the API.
@@ -593,6 +605,6 @@
     languages = message.languages ?? languages;
     applySettings();
     modelAsked = false;
-    if (targetLang !== before) retry(); // the open popup shows its text in the new language
+    if (targetLang !== before) translateAgain();
   });
 })();

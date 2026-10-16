@@ -1,4 +1,4 @@
-import { test, expect, moveTo, altHover, popupRoot, popupText, say } from './fixtures.js';
+import { test, expect, moveTo, altHover, popupRoot, popupText, say, inContentScript, fakeBuiltInAI, chooseLanguage } from './fixtures.js';
 
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 
@@ -76,20 +76,38 @@ test('empty space between paragraphs shows no outline', async ({ page }) => {
   await expect(outline(page)).toHaveCount(0);
 });
 
-test('text already in the target language gets a hint instead of a request', async ({ page, server, setSettings }) => {
-  const availability = await page.evaluate(async () => {
-    try {
-      return await globalThis.LanguageDetector.availability();
-    } catch {
-      return 'unavailable';
-    }
-  });
-  test.skip(availability !== 'available', `Chrome's language detector is ${availability} in this browser`);
+test('text already in the target language opens the popup saying so, with no request', async ({ page, server, setSettings }) => {
   await setSettings({ targetLang: 'en' });
+  await inContentScript(page, fakeBuiltInAI({ language: 'en' })); // Chrome's detector, which says English
   await altHover(page, '#p1');
-  await expect(outline(page).locator('.hint')).toHaveText(say('hintAlready', {}, 'en'));
+  await expect(popupText(page)).toHaveText(say('hintAlready', {}, 'en'));
+  await expect(outline(page).locator('.hint')).toHaveCount(0);
+  await expect(popupRoot(page).locator('.copy')).toBeHidden();
   await page.waitForTimeout(300);
   expect(server.requests).toHaveLength(0);
+});
+
+test('another language picked in that popup translates the text into it', async ({ page, server, setSettings, serviceWorker }) => {
+  await setSettings({ targetLang: 'en' });
+  await inContentScript(page, fakeBuiltInAI({ language: 'en' }));
+  await altHover(page, '#p1');
+  await expect(popupText(page)).toHaveText(say('hintAlready', {}, 'en'));
+  await page.keyboard.up('Alt');
+  await chooseLanguage(popupRoot(page), 'lang', 'ru');
+  await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+  expect(server.requests[0].body.messages[0].content).toContain('into Russian');
+  expect(await serviceWorker.evaluate(async () => (await chrome.storage.local.get('settings')).settings.targetLang)).toBe('ru');
+});
+
+test('a popup on text in the language picked again says so again', async ({ page, server, setSettings }) => {
+  await setSettings({ targetLang: 'ru' });
+  await inContentScript(page, fakeBuiltInAI({ language: 'en' }));
+  await altHover(page, '#p1');
+  await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+  await page.keyboard.up('Alt');
+  await chooseLanguage(popupRoot(page), 'lang', 'en');
+  await expect(popupText(page)).toHaveText(say('hintAlready', {}, 'en'));
+  expect(server.requests).toHaveLength(1);
 });
 
 test('Shift held before Alt shows no outline', async ({ page }) => {
