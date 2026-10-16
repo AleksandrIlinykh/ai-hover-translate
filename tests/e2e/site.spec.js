@@ -60,6 +60,7 @@ test('only on this computer, the site is translated by Chrome and nothing is sen
   await inContentScript(page, fakeBuiltInAI());
   const toolbar = await toolbarFor(page, context, serviceWorker, extensionId);
   await toolbar.locator('.site-local').check();
+  await expect(toolbar.locator('.site-no-context')).toBeHidden(); // no AI here, so no context to learn
   await page.bringToFront();
   await altHover(page, '#p1');
   await expect(popupText(page)).toContainText('[ru on device] The quick brown fox');

@@ -7,26 +7,29 @@
     :root { color-scheme: light dark; }
     html, body { margin: 0; }
     body { width: 440px; background: #ffffff; color: #1f2328; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    .site { padding: 10px 12px 8px; border-bottom: 1px solid #d8dee4; background: #f6f8fa; }
-    .site-main { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
-    .site-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    /* The switch: a pill with a knob, green when SpotSlate is on for the site. */
-    .site-switch { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin: 0;
-      border-radius: 10px; background: #8c959f; cursor: pointer; transition: background 0.15s; }
-    .site-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-      border-radius: 50%; background: #ffffff; transition: transform 0.15s; }
-    .site-switch:checked { background: #1a7f37; }
-    .site-switch:checked::after { transform: translateX(16px); }
-    .site-switch:focus-visible { outline: 2px solid #1f6feb; outline-offset: 2px; }
-    .site-off { margin: 6px 0 0; font-size: 12px; opacity: 0.75; }
-    .site-option { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; cursor: pointer; }
-    .site-option input { margin: 0 0 0 10px; }
+    .site { padding: 8px 12px; border-bottom: 1px solid #d8dee4; background: #f6f8fa; }
+    .site-main, .site-option { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .site-main { font-weight: 600; }
+    .site-name, .site-option span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .site-option { margin: 6px 0 0 44px; font-size: 12px; }
+    .site-off { margin: 4px 0 0 44px; font-size: 12px; opacity: 0.75; }
     .site-off[hidden], .site-option[hidden] { display: none; }
+    /* Switches: a pill with a knob, green when on; the options under the site's switch are smaller. */
+    .switch { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin: 0;
+      border-radius: 10px; background: #8c959f; cursor: pointer; transition: background 0.15s; }
+    .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: #ffffff; transition: transform 0.15s; }
+    .switch:checked { background: #1a7f37; }
+    .switch:checked::after { transform: translateX(16px); }
+    .switch:focus-visible { outline: 2px solid #1f6feb; outline-offset: 2px; }
+    .switch.small { width: 26px; height: 14px; border-radius: 7px; }
+    .switch.small::after { width: 10px; height: 10px; }
+    .switch.small:checked::after { transform: translateX(12px); }
     @media (prefers-color-scheme: dark) {
       body { background: #161b22; color: #e6edf3; }
       .site { border-color: #30363d; background: #0d1117; }
-      .site-switch { background: #6e7681; }
-      .site-switch:checked { background: #2ea043; }
+      .switch { background: #6e7681; }
+      .switch:checked { background: #2ea043; }
     }
   </style>
 </head>

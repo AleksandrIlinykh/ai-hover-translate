@@ -32,17 +32,18 @@ const state = await chrome.runtime.sendMessage({ type: 'compose-open', site, pag
 const send = (message) => chrome.runtime.sendMessage(message).catch(() => {});
 const { t } = globalThis.spotslate;
 
-// The site's switch, the first thing in the window: SpotSlate on or off there, and with an AI provider, kept on this
-// computer or without a site context. Pages where SpotSlate cannot run have no site, and no switch.
+// The site's switch, the first thing in the window: SpotSlate on or off there; under it, with an AI provider, two small
+// switches: only Chrome's translator there, and, while the AI works there, no site context. Pages where SpotSlate
+// cannot run have no site, and no switch.
 function siteRow() {
   const say = (key, params) => t(state.from, key, params);
   const row = document.createElement('div');
   row.className = 'site';
   row.innerHTML = `
-    <label class="site-main"><input type="checkbox" class="site-switch" role="switch"><span class="site-name"></span></label>
+    <label class="site-main"><input type="checkbox" class="switch site-switch" role="switch"><span class="site-name"></span></label>
     <p class="site-off"></p>
-    <label class="site-option"><input type="checkbox" class="site-local"><span class="local-label"></span></label>
-    <label class="site-option"><input type="checkbox" class="site-no-context"><span class="no-context-label"></span></label>`;
+    <label class="site-option"><input type="checkbox" class="switch small site-local" role="switch"><span class="local-label"></span></label>
+    <label class="site-option"><input type="checkbox" class="switch small site-no-context" role="switch"><span class="no-context-label"></span></label>`;
   const part = (name) => row.querySelector(`.${name}`);
   part('site-name').textContent = say('siteSwitch', { site });
   part('site-off').textContent = say('siteOff');
@@ -53,8 +54,9 @@ function siteRow() {
     part('site-local').checked = mode.local;
     part('site-no-context').checked = mode.noContext;
     part('site-off').hidden = !mode.off;
-    for (const option of row.querySelectorAll('.site-option')) option.hidden = mode.off || !state.aiProvider;
-    part('site-no-context').disabled = mode.local; // nothing is learned when nothing is sent
+    // The options matter only with an AI provider, and the context only while the AI works on the site.
+    part('site-local').closest('label').hidden = mode.off || !state.aiProvider;
+    part('site-no-context').closest('label').hidden = mode.off || !state.aiProvider || mode.local;
   };
   const save = async () => {
     const mode = {

@@ -7,7 +7,7 @@
     en: {
       siteSwitch: 'SpotSlate on {site}',
       siteOff: 'Off on this site: SpotSlate does nothing here.',
-      siteLocal: "Only on this computer: Chrome's translator, nothing is sent",
+      siteLocal: "Only Chrome's translator, nothing is sent",
       siteNoContext: "Don't learn this site's context",
       copy: 'Copy',
       copied: 'Copied',
@@ -71,7 +71,7 @@
     ru: {
       siteSwitch: 'SpotSlate на {site}',
       siteOff: 'Выключен на этом сайте: SpotSlate здесь ничего не делает.',
-      siteLocal: 'Только на этом компьютере: переводчик Chrome, ничего не отправляется',
+      siteLocal: 'Только переводчик Chrome, ничего не отправляется',
       siteNoContext: 'Не запоминать контекст этого сайта',
       copy: 'Копировать',
       copied: 'Скопировано',
@@ -135,7 +135,7 @@
     de: {
       siteSwitch: 'SpotSlate auf {site}',
       siteOff: 'Auf dieser Website aus: SpotSlate tut hier nichts.',
-      siteLocal: 'Nur auf diesem Computer: der Übersetzer von Chrome, nichts wird gesendet',
+      siteLocal: 'Nur der Übersetzer von Chrome, nichts wird gesendet',
       siteNoContext: 'Den Kontext dieser Website nicht lernen',
       copy: 'Kopieren',
       copied: 'Kopiert',
@@ -199,7 +199,7 @@
     fr: {
       siteSwitch: 'SpotSlate sur {site}',
       siteOff: 'Désactivé sur ce site : SpotSlate ne fait rien ici.',
-      siteLocal: "Seulement sur cet ordinateur : le traducteur de Chrome, rien n'est envoyé",
+      siteLocal: "Seulement le traducteur de Chrome, rien n'est envoyé",
       siteNoContext: 'Ne pas apprendre le contexte de ce site',
       copy: 'Copier',
       copied: 'Copié',
@@ -263,7 +263,7 @@
     es: {
       siteSwitch: 'SpotSlate en {site}',
       siteOff: 'Desactivado en este sitio: SpotSlate no hace nada aquí.',
-      siteLocal: 'Solo en este ordenador: el traductor de Chrome, no se envía nada',
+      siteLocal: 'Solo el traductor de Chrome, no se envía nada',
       siteNoContext: 'No aprender el contexto de este sitio',
       copy: 'Copiar',
       copied: 'Copiado',
@@ -327,7 +327,7 @@
     it: {
       siteSwitch: 'SpotSlate su {site}',
       siteOff: 'Disattivato su questo sito: SpotSlate qui non fa nulla.',
-      siteLocal: 'Solo su questo computer: il traduttore di Chrome, non viene inviato nulla',
+      siteLocal: 'Solo il traduttore di Chrome, non si invia nulla',
       siteNoContext: 'Non imparare il contesto di questo sito',
       copy: 'Copia',
       copied: 'Copiato',
@@ -391,7 +391,7 @@
     pt: {
       siteSwitch: 'SpotSlate em {site}',
       siteOff: 'Desligado neste site: o SpotSlate não faz nada aqui.',
-      siteLocal: 'Só neste computador: o tradutor do Chrome, nada é enviado',
+      siteLocal: 'Só o tradutor do Chrome, nada é enviado',
       siteNoContext: 'Não aprender o contexto deste site',
       copy: 'Copiar',
       copied: 'Copiado',
@@ -455,7 +455,7 @@
     pl: {
       siteSwitch: 'SpotSlate na {site}',
       siteOff: 'Wyłączony na tej witrynie: SpotSlate nic tu nie robi.',
-      siteLocal: 'Tylko na tym komputerze: tłumacz Chrome, nic nie jest wysyłane',
+      siteLocal: 'Tylko tłumacz Chrome, nic nie jest wysyłane',
       siteNoContext: 'Nie ucz się kontekstu tej witryny',
       copy: 'Kopiuj',
       copied: 'Skopiowano',
@@ -519,7 +519,7 @@
     uk: {
       siteSwitch: 'SpotSlate на {site}',
       siteOff: 'Вимкнено на цьому сайті: SpotSlate тут нічого не робить.',
-      siteLocal: 'Лише на цьому комп’ютері: перекладач Chrome, нічого не надсилається',
+      siteLocal: 'Лише перекладач Chrome, нічого не надсилається',
       siteNoContext: 'Не запам’ятовувати контекст цього сайту',
       copy: 'Копіювати',
       copied: 'Скопійовано',
@@ -583,7 +583,7 @@
     tr: {
       siteSwitch: '{site} üzerinde SpotSlate',
       siteOff: 'Bu sitede kapalı: SpotSlate burada bir şey yapmaz.',
-      siteLocal: 'Yalnızca bu bilgisayarda: Chrome çevirmeni, hiçbir şey gönderilmez',
+      siteLocal: 'Yalnızca Chrome çevirmeni, hiçbir şey gönderilmez',
       siteNoContext: 'Bu sitenin bağlamını öğrenme',
       copy: 'Kopyala',
       copied: 'Kopyalandı',
@@ -647,7 +647,7 @@
     zh: {
       siteSwitch: '在 {site} 上使用 SpotSlate',
       siteOff: '已在此网站关闭：SpotSlate 在这里不做任何事。',
-      siteLocal: '仅在这台电脑上：使用 Chrome 翻译器，不发送任何内容',
+      siteLocal: '只用 Chrome 翻译器，不发送任何内容',
       siteNoContext: '不学习此网站的上下文',
       copy: '复制',
       copied: '已复制',
@@ -710,7 +710,7 @@
     ja: {
       siteSwitch: '{site} で SpotSlate を使う',
       siteOff: 'このサイトではオフ：SpotSlate はここでは何もしません。',
-      siteLocal: 'このコンピューターだけ：Chrome の翻訳機能を使い、何も送信しません',
+      siteLocal: 'Chrome の翻訳機能だけ、何も送信しない',
       siteNoContext: 'このサイトのコンテキストを学習しない',
       copy: 'コピー',
       copied: 'コピーしました',
@@ -773,7 +773,7 @@
     ko: {
       siteSwitch: '{site}에서 SpotSlate 사용',
       siteOff: '이 사이트에서 꺼짐: SpotSlate가 여기서 아무 작업도 하지 않습니다.',
-      siteLocal: '이 컴퓨터에서만: Chrome 번역기 사용, 아무것도 보내지 않음',
+      siteLocal: 'Chrome 번역기만, 아무것도 보내지 않음',
       siteNoContext: '이 사이트의 컨텍스트를 학습하지 않음',
       copy: '복사',
       copied: '복사됨',
