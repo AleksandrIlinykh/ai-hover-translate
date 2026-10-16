@@ -61,7 +61,7 @@ spotslate/
       notes-panel.js    createNotesPanel({ site, providerName }), NOTES_CSS: the site context panel
       lang-picker.js    createLanguagePicker(options), PICKER_CSS: the language picker of every title row
       popup.js          createPopup({ onOpenSettings, onRetry, onDownload, onClose })
-      highlight.js      createHighlight()
+      highlight.js      createHighlight(): the outline, and the line from it to the open popup
       correction.js     parseCorrection(answer), diffWords(before, after): a checked text and what changed in it
       composer.js       createComposer(options): the compose window, also used by the toolbar popup
       compose-window.js createComposeWindow(): the compose window at a text field or by the mouse
@@ -228,7 +228,8 @@ While Alt is held (and it is not a combo), the block that would be translated is
   - form field (`input`, `textarea`, `select`) with nothing selected in it: "Input fields are not translated."
   - block longer than `MAX_CHARS`: "Too much text. Select the part you need."
   - selection longer than `MAX_CHARS`: "Too much text. Select a shorter part."
-- Removed when Alt is released, on a combo, and on window `blur`. The popup stays open; the outline does not.
+- Removed when Alt is released, on a combo, and on window `blur`, unless a translation popup is open: then the outline goes back to the popup's text (the paragraph, the selection or the field) and stays there, in the same active style, until the popup closes.
+- **The line to the popup:** while a popup is open, its text's outline is joined to it by a dashed line of the same blue (`#spotslate-link`, 2 px, `position: fixed`, under the popup, `pointer-events: none`), along the shortest way between the two boxes: straight across where they overlap (a short bridge over the gap of a popup next to its paragraph), from corner to corner where they do not. It is redrawn every frame while the popup is open (written only when it moved), so it follows the page scrolling and the popup being dragged or resized; it goes off the window's edge with the text. While Alt points at other text, the outline shows that and the line is hidden, until the popup moves there.
 
 ## What gets translated
 
@@ -547,7 +548,7 @@ E2E (Playwright, real Chromium with the extension loaded, `channel: 'chromium'`)
   21. Selecting popup text with the mouse going past its edge → the popup stays open.
   22. Holding Alt over a paragraph → a dashed outline 3 px around it appears before any request is sent.
   23. With Alt held the mouse moves to another paragraph → the outline moves with it.
-  24. Releasing Alt → the outline disappears, the popup stays.
+  24. Releasing Alt with the popup open keeps the outline on its paragraph, joined to the popup by a dashed line along the shortest way; the line follows the popup dragged away and the page scrolling; closing the popup takes both away; Alt over another paragraph moves the outline there with no line until the popup follows; releasing Alt with no popup leaves no outline.
   25. Nothing translatable under the mouse (`#huge`, an input) → a grey outline with the matching hint, no request; empty space between paragraphs → no outline.
   26. Shift held before Alt → no outline.
   27. Page with hostile CSS → the outline is visible.

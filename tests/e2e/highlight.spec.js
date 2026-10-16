@@ -3,6 +3,33 @@ import { test, expect, moveTo, altHover, popupRoot, popupText, say, inContentScr
 const P1 = 'The quick brown fox jumps over the lazy dog. Read more';
 
 const outline = (page) => page.locator('#spotslate-highlight');
+const link = (page) => page.locator('#spotslate-link');
+
+// The segment between the closest points of two boxes: straight across where they overlap, corner to corner otherwise.
+function closest(a, b) {
+  const axis = (aStart, aEnd, bStart, bEnd) => {
+    if (Math.max(aStart, bStart) < Math.min(aEnd, bEnd)) {
+      const middle = (Math.max(aStart, bStart) + Math.min(aEnd, bEnd)) / 2;
+      return [middle, middle];
+    }
+    return bStart >= aEnd ? [aEnd, bStart] : [aStart, bEnd];
+  };
+  const [x1, x2] = axis(a.x, a.x + a.width, b.x, b.x + b.width);
+  const [y1, y2] = axis(a.y, a.y + a.height, b.y, b.y + b.height);
+  return { left: Math.min(x1, x2), right: Math.max(x1, x2), top: Math.min(y1, y2), bottom: Math.max(y1, y2) };
+}
+
+// How far the drawn line is from joining the outline and the popup, at its worst end, in pixels.
+async function linkMiss(page) {
+  const [line, box, panel] = await Promise.all([link(page).boundingBox(), outline(page).boundingBox(), popupRoot(page).locator('.popup').boundingBox()]);
+  const want = closest(box, panel);
+  return Math.max(
+    Math.abs(line.x - want.left),
+    Math.abs(line.x + line.width - want.right),
+    Math.abs(line.y - want.top),
+    Math.abs(line.y + line.height - want.bottom),
+  );
+}
 const nextFrames = (page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
@@ -43,13 +70,63 @@ test('the outline follows the mouse to another paragraph', async ({ page }) => {
   await expect.poll(() => outlineOffset(page, '#p2')).toEqual({ left: 3, top: 3, right: 3, bottom: 3 });
 });
 
-test('releasing Alt removes the outline but keeps the popup', async ({ page }) => {
+test("releasing Alt keeps the outline on the popup's paragraph, joined to the popup by a dashed line", async ({ page }) => {
   await altHover(page, '#p1');
   await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
-  await expect(outline(page)).toHaveCount(1);
   await page.keyboard.up('Alt');
-  await expect(outline(page)).toHaveCount(0);
   await expect(popupRoot(page)).toHaveCount(1);
+  await expect(outline(page)).toHaveCount(1);
+  expect(await outlineOffset(page, '#p1')).toEqual({ left: 3, top: 3, right: 3, bottom: 3 });
+  expect(await outline(page).getAttribute('data-muted')).toBe('false');
+  await expect(link(page)).toBeVisible();
+  expect(await link(page).evaluate((line) => getComputedStyle(line).borderTopStyle)).toBe('dashed');
+  await expect.poll(() => linkMiss(page)).toBeLessThan(2.5);
+});
+
+test('the line follows the popup dragged away, and the page scrolling', async ({ page }) => {
+  await altHover(page, '#p1');
+  await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+  await page.keyboard.up('Alt');
+  const bar = await popupRoot(page).locator('.bar').boundingBox();
+  await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2); // clear of the picker and the buttons
+  await page.mouse.down();
+  await page.mouse.move(bar.x + bar.width / 2 + 300, bar.y + 260, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => linkMiss(page)).toBeLessThan(2.5);
+  const { width, height } = await link(page).boundingBox();
+  expect(Math.max(width, height)).toBeGreaterThan(100);
+  await page.evaluate(() => scrollBy(0, 40));
+  await expect.poll(() => linkMiss(page)).toBeLessThan(2.5);
+});
+
+test('closing the popup takes the outline and the line away', async ({ page }) => {
+  await altHover(page, '#p1');
+  await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+  await page.keyboard.up('Alt');
+  await expect(link(page)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(popupRoot(page)).toHaveCount(0);
+  await expect(outline(page)).toHaveCount(0);
+  await expect(link(page)).toHaveCount(0);
+});
+
+test('Alt over another paragraph outlines it with no line, until the popup moves there', async ({ page }) => {
+  await altHover(page, '#p1');
+  await expect(popupText(page)).toHaveText(`[RU] ${P1}`);
+  await moveTo(page, '#p2');
+  await expect.poll(() => outlineOffset(page, '#p2')).toEqual({ left: 3, top: 3, right: 3, bottom: 3 });
+  await expect(popupText(page)).toContainText('[RU] Second paragraph');
+  await expect(link(page)).toBeVisible();
+  await expect.poll(() => linkMiss(page)).toBeLessThan(2.5);
+});
+
+test('releasing Alt before anything is translated leaves no outline', async ({ page }) => {
+  await moveTo(page, '#p1');
+  await page.keyboard.down('Alt');
+  await page.keyboard.up('Alt');
+  await page.waitForTimeout(300);
+  await expect(outline(page)).toHaveCount(0);
+  await expect(popupRoot(page)).toHaveCount(0);
 });
 
 for (const [selector, hint] of [

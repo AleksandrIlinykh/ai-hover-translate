@@ -46,7 +46,7 @@ The full [privacy policy](PRIVACY.md) explains it in detail. With the built-in t
 
 ## Usage
 
-- Hold Alt: the paragraph under the mouse gets a dashed outline, so you can see what will be translated.
+- Hold Alt: the paragraph under the mouse gets a dashed outline, so you can see what will be translated. While its translation is open, the paragraph keeps the outline, joined to the popup by a dashed line, also when you drag the popup away: you never lose your place on the page.
 - Alt + hover over a paragraph: the translation appears above it (below it if there is little room above, to its right if the block is tall). The popup is as wide as the paragraph, between 320 and 720 px, from the moment it opens.
 - Keep Alt held and move across paragraphs: the one where the mouse stops gets translated.
 - Select text first, then hold Alt over it: only the selection is translated. Select one to three words (a double click selects a word) to get a short dictionary entry; its first line is the meaning that fits the words around it (up to 8 on each side, from the same sentence).

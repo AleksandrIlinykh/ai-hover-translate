@@ -181,7 +181,7 @@
       return;
     }
     const hint = hintFor(picked);
-    highlight.show(picked.target, { muted: Boolean(hint), hint });
+    highlight.show(picked.target, { muted: Boolean(hint), hint, linked: popup.isOpen() && sameTarget(picked.target, popup.getBlock()) });
   }
 
   function schedulePreview() {
@@ -204,6 +204,8 @@
     // Chrome's translator needs the source language: a few selected words tell too little, their paragraph more.
     sample = (around && blockTextOf(picked.target)) || picked.text;
     popup.open(picked.target);
+    highlight.anchor(picked.target, () => popup.getRect());
+    if (readDown) updatePreview(); // the outline under the mouse is the popup's text now, with the line
     hero.wake();
     if (already) popup.setNotice(t(targetLang, 'hintAlready'));
     else load();
@@ -369,6 +371,7 @@
     clearTimeout(leaveTimer);
     leaveTimer = 0;
     popup.close();
+    highlight.release();
   }
 
   function isInside(rect, x, y) {
