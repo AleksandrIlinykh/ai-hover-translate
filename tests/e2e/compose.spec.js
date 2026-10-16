@@ -35,6 +35,21 @@ async function altT(page, key = 't') {
   await client.detach();
 }
 
+// Presses `keys` one right after another, as fast typing does: none waits for what the one before set off.
+async function rapidKeys(page, keys) {
+  const codes = { ArrowDown: 40, ArrowUp: 38, Enter: 13, Escape: 27 };
+  const client = await page.context().newCDPSession(page);
+  const sent = keys.flatMap((key) => {
+    const event = { key, code: key, windowsVirtualKeyCode: codes[key], nativeVirtualKeyCode: codes[key] };
+    return [
+      client.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...event }),
+      client.send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }),
+    ];
+  });
+  await Promise.all(sent);
+  await client.detach();
+}
+
 async function write(page, text) {
   await part(page, 'draft').pressSequentially(text, { delay: 20 });
 }
@@ -565,9 +580,11 @@ test.describe('the window frame', () => {
     await expect(compose(page)).toHaveCount(1);
     await expect(part(page, 'target').locator('.picker-button')).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown'); // from English to German
-    await page.keyboard.press('Enter');
+    await expect(list).toBeVisible();
+    // Closed and opened again, down from English to German and chosen, faster than the list's own events come.
+    await rapidKeys(page, ['Escape', 'ArrowDown', 'ArrowDown', 'Enter']);
     await expect(list).toBeHidden();
+    await expect(compose(page)).toHaveCount(1);
     await expect(part(page, 'target')).toHaveAttribute('data-value', 'de');
     await expect.poll(() => server.requests.length).toBe(2);
     expect(systemOf(server.requests[1])).toContain('from Russian into German');

@@ -110,16 +110,9 @@
       list.style.top = `${down ? rect.bottom + GAP : rect.top - GAP - height}px`;
     }
 
-    function open() {
-      if (isOpen()) return;
-      list.showPopover();
-      ready(); // at once, so the next key already works the list
-    }
-
-    let readied = false;
+    // The list just opened: by its button, with the current language focused, following the button.
     function ready() {
-      if (readied) return;
-      readied = true;
+      button.setAttribute('aria-expanded', 'true');
       place();
       (options().find((option) => option.dataset.code === current) ?? options()[0])?.focus();
       addEventListener('scroll', follow, true);
@@ -127,8 +120,22 @@
       onOpen();
     }
 
+    function done() {
+      button.setAttribute('aria-expanded', 'false');
+      removeEventListener('scroll', follow, true);
+      removeEventListener('resize', follow);
+    }
+
+    // By the keyboard, made ready at once, so the next key already works the list.
+    function open() {
+      if (isOpen()) return;
+      list.showPopover();
+      ready();
+    }
+
     function close(focusButton) {
       if (isOpen()) list.hidePopover();
+      done();
       if (focusButton) button.focus();
     }
 
@@ -147,16 +154,11 @@
       if (bottom < 0 || top > window.innerHeight) close(false);
       else place();
     }
-    list.addEventListener('toggle', (event) => {
-      const opened = event.newState === 'open';
-      button.setAttribute('aria-expanded', String(opened));
-      if (opened) {
-        ready(); // opened by the button
-        return;
-      }
-      readied = false;
-      removeEventListener('scroll', follow, true);
-      removeEventListener('resize', follow);
+    // Opened by the button, or closed by a click elsewhere or Esc. The event comes later and may sum up several changes,
+    // so the list's own state decides; a list that has the focus is ready already, and a later key may have moved it.
+    list.addEventListener('toggle', () => {
+      if (!isOpen()) done();
+      else if (!list.contains(button.getRootNode().activeElement)) ready();
     });
 
     button.addEventListener('keydown', (event) => {
