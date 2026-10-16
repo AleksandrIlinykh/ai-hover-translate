@@ -47,7 +47,7 @@ test('a selection inside an editor is translated', async ({ page, server }) => {
   await page.locator('#editor-p1').scrollIntoViewIfNeeded();
   await altOver(page, await select(page, '#editor-p1', 6, 15));
   await expect(popupText(page)).toHaveText('[RU] paragraph');
-  expect(server.requests[0].body.messages[1].content).toBe('paragraph');
+  expect(server.requests[0].body.messages.at(-1).content).toBe('paragraph');
 });
 
 test('a selection inside a form field is not translated', async ({ page, server }) => {

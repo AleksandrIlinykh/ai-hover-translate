@@ -12,6 +12,7 @@ const IDLE_TIMEOUT_MS = 30_000;
 const NOTES_TIMEOUT_MS = 15_000;
 const LEARNED_LIMIT = 50; // sources remembered per site, so a text shown again does not teach the notes twice
 const MAX_CONTEXT = 1000;
+const MAX_TEXT = 3000; // what a page may ask to translate at once (MAX_CHARS in content/block.js)
 const MODES = new Set(['text', 'dictionary']);
 const CACHE_PREFIX = 'cache:';
 const LOCAL_ORIGIN_RULE = 1;
@@ -109,8 +110,9 @@ chrome.runtime.onConnect.addListener((port) => {
       return;
     }
     const { text, mode, context, lang } = message;
+    if (typeof text !== 'string' || !text.trim()) return;
     const request = {
-      text,
+      text: text.slice(0, MAX_TEXT),
       mode: MODES.has(mode) ? mode : 'text',
       context: typeof context === 'string' ? context.slice(0, MAX_CONTEXT) : '',
     };
@@ -424,10 +426,12 @@ async function cacheKey({ id, baseUrl, model }, targetLang, { mode, text, contex
   return CACHE_PREFIX + Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+// When the session storage is full the cache starts over; the site contexts, the language counts and the drafts stay.
 async function remember(key, translation) {
   try {
     await chrome.storage.session.set({ [key]: translation });
   } catch {
-    await chrome.storage.session.clear(); // quota is full: start over
+    const cached = Object.keys(await chrome.storage.session.get(null)).filter((name) => name.startsWith(CACHE_PREFIX));
+    await chrome.storage.session.remove(cached);
   }
 }

@@ -89,7 +89,7 @@ None of it is sold, used for advertising, credit or lending, or read by people; 
 
 ## Notes for the reviewer
 
-> SpotSlate works without any account or key: by default it uses Chrome's built-in Translator API (Chrome 138 or later, on desktop).
+> SpotSlate works without any account or key: by default it uses Chrome's built-in Translator API (SpotSlate needs Chrome 140 or later, on desktop).
 >
 > To test: open any page in a language other than your Chrome's (for example https://de.wikipedia.org), click once on the page so Chrome can download its translation model, then hold Alt over a paragraph. The translation appears above it. Alt+T opens the compose window. The welcome page that opens on install has a paragraph and a field to try the same.
 >

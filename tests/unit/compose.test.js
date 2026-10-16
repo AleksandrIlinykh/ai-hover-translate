@@ -15,10 +15,12 @@ test('the compose prompt asks for natural work writing from one language into th
   assert.deepEqual(messages[1], { role: 'user', content: 'Der Build schlägt fehl' });
 });
 
-test('the compose prompt carries the site notes, the user message only the draft', () => {
-  const [system, user] = buildComposeMessages('Der Build schl\u00e4gt wieder fehl', 'German', 'English', { notes: 'A site about CI.' });
-  assert.ok(system.content.endsWith(`\n\n${notesBlock('A site about CI.', 'the site the user is writing on')}`));
-  assert.equal(user.content, 'Der Build schl\u00e4gt wieder fehl');
+test('the compose prompt gives the site notes as reference, never in the system prompt; the last message is the draft', () => {
+  const [system, reference, reply, user] = buildComposeMessages('Der Build schl\u00e4gt wieder fehl', 'German', 'English', { notes: 'A site about CI.' });
+  assert.doesNotMatch(system.content, /<notes>/);
+  assert.ok(reference.content.endsWith(`\n\n${notesBlock('A site about CI.', 'the site the user is writing on')}`));
+  assert.equal(reply.role, 'assistant');
+  assert.deepEqual(user, { role: 'user', content: 'Der Build schl\u00e4gt wieder fehl' });
 });
 
 test('countLanguage counts the languages read on a site, ignoring unknown ones', () => {

@@ -231,3 +231,16 @@ test.describe('free built-in translator', () => {
     expect(server.notesRequests).toHaveLength(0);
   });
 });
+
+test('a translation request that is not text sends nothing, and a long one is cut to 3000 characters', async ({ page, server, setSettings }) => {
+  await setSettings();
+  await page.evaluate(() => {
+    const port = chrome.runtime.connect({ name: 'translate' });
+    port.postMessage({ text: 42 });
+    port.postMessage({ text: '   ' });
+  });
+  await page.waitForTimeout(500);
+  expect(server.requests).toHaveLength(0);
+  await translateViaPort(page, 'a'.repeat(5000));
+  expect(server.requests[0].body.messages.at(-1).content).toHaveLength(3000);
+});

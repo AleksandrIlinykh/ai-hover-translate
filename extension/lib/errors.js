@@ -6,6 +6,7 @@ const KEYS = {
   no_key: 'noKey',
   no_model: 'noModel',
   no_url: 'noUrl',
+  insecure_url: 'insecureUrl',
   auth: 'auth',
   balance: 'balance',
   rate_limit: 'rateLimit',

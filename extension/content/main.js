@@ -25,13 +25,14 @@
   } = globalThis.spotslate;
 
   const TRIGGER_DELAY_MS = 200;
+  const DELIBERATE_HOLD_MS = 300; // a read key held this long was meant for SpotSlate, not for Chrome's menu
   const LEAVE_GRACE_MS = 300;
   const CACHE_LIMIT = 100;
   const DETECT_TIMEOUT_MS = 300;
   const PAGE_SAMPLE_CHARS = 1000;
   const DEFAULT_LANG = 'en'; // until background answers with the language from the settings
   // setupProblem() in lib/providers.js and a missing agreement to send texts: fixed in the settings
-  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url', 'no_consent']);
+  const SETUP_CODES = new Set(['no_key', 'no_model', 'no_url', 'insecure_url', 'no_consent']);
 
   const cache = new Map(); // [mode, text, context] -> translation, for this page
   const sameLanguage = new Map(); // text -> whether it is already in the target language
@@ -51,6 +52,7 @@
   let readDown = false;
   let combo = false;
   let usedReadKey = false;
+  let readDownAt = 0; // when the read key went down (event.timeStamp)
   let triggerTimer = 0;
   let leaveTimer = 0;
   let previewFrame = 0;
@@ -418,6 +420,7 @@
       if (event.key === keys.read) {
         if (event.repeat) return;
         readDown = true;
+        readDownAt = event.timeStamp;
         // Another modifier already held (Ctrl+Alt+…, the Alt+Shift layout switch) is not a translation request.
         combo = otherModifiers(event);
         usedReadKey = false;
@@ -450,10 +453,10 @@
     (event) => {
       if (!event.isTrusted || event.key !== keys.read) return;
       releaseReadKey();
-      if (usedReadKey) {
-        usedReadKey = false;
-        event.preventDefault(); // stop Chrome on Windows from focusing its "⋮" menu
-      }
+      // Chrome on Windows focuses its "⋮" menu when Alt is let go alone. After a translation, or a hold long enough to
+      // have been meant for SpotSlate, it must not; a quick tap is left to Chrome, which opens its menu that way.
+      if (usedReadKey || event.timeStamp - readDownAt >= DELIBERATE_HOLD_MS) event.preventDefault();
+      usedReadKey = false;
     },
     true,
   );
@@ -485,6 +488,25 @@
       const field = writableField(target);
       if (!field) return;
       usedReadKey = true; // releasing Alt must not focus Chrome's menu
+      highlight.hide();
+      closePopup();
+      openCompose({ field });
+    },
+    true,
+  );
+
+  // On a Mac, Ctrl+click opens the context menu instead of clicking: with Ctrl as the read key it is the Ctrl+click
+  // on a field that opens the compose window there. A right click elsewhere has button 2 and is left alone.
+  addEventListener(
+    'contextmenu',
+    (event) => {
+      if (keys.read !== 'Control' || !event.ctrlKey || event.button !== 0 || !event.isTrusted) return;
+      const target = event.composedPath()[0];
+      if (popup.isOwn(target) || composeWindow.isOwn(target)) return;
+      const field = writableField(target);
+      if (!field) return;
+      event.preventDefault();
+      usedReadKey = true;
       highlight.hide();
       closePopup();
       openCompose({ field });

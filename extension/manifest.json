@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "SpotSlate",
   "version": "0.1.0",
+  "minimum_chrome_version": "140",
   "description": "Translate on the spot: hold Alt over a paragraph to see its translation right above it, free in Chrome or with the AI you choose.",
   "permissions": ["storage", "activeTab", "declarativeNetRequestWithHostAccess"],
   "host_permissions": [
@@ -13,7 +14,9 @@
     "https://api.groq.com/*",
     "https://api.mistral.ai/*",
     "https://api.x.ai/*",
-    "https://*.aliyuncs.com/*",
+    "https://dashscope.aliyuncs.com/*",
+    "https://dashscope-intl.aliyuncs.com/*",
+    "https://dashscope-us.aliyuncs.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],

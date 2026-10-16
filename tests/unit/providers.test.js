@@ -58,6 +58,11 @@ test('the free built-in translator, the main cloud APIs, two local servers and a
   }
 });
 
+test('the manifest asks for the API hosts by name, and for a Chrome with the storage protection', () => {
+  assert.ok(manifest.host_permissions.every((pattern) => !pattern.includes('*.')), 'no wildcard subdomains');
+  assert.ok(Number(manifest.minimum_chrome_version) >= 140, 'chrome.storage.local.setAccessLevel');
+});
+
 test('the manifest lets the extension reach every preset API', () => {
   for (const [id, preset] of Object.entries(PROVIDERS)) {
     if (!preset.baseUrl) continue;
@@ -192,11 +197,25 @@ test('setupProblem names what is missing before anything is sent', () => {
   assert.equal(setupProblem({ id: 'chrome', ...PROVIDERS.chrome, apiKey: '', model: '', baseUrl: '' }), null);
 });
 
+test('setupProblem refuses to send a key over plain http, except to this computer', () => {
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'http://llm.example/v1' })), 'insecure_url');
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'http://llm.example/v1', apiKey: '' })), null);
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'http://localhost:8080/v1' })), null);
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'http://127.0.0.1:8080/v1' })), null);
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'http://[::1]:8080/v1' })), null);
+  assert.equal(setupProblem(provider('custom', { baseUrl: 'https://llm.example/v1' })), null);
+});
+
 test('hostPattern turns an API URL into the host permission it needs', () => {
   assert.equal(hostPattern('https://llm.example.com/v1'), 'https://llm.example.com/*');
   assert.equal(hostPattern('http://10.0.0.5:8080/v1'), 'http://10.0.0.5:8080/*');
   assert.equal(hostPattern('ftp://files.example.com'), null);
   assert.equal(hostPattern('nonsense'), null);
+});
+
+test('dataNote names the key the user holds to read', () => {
+  assert.ok(dataNote(provider('deepseek'), 'Ctrl').startsWith('The text you hold Ctrl over or write in SpotSlate'));
+  assert.ok(dataNote(provider('ollama'), 'Option').startsWith('The text you hold Option over'));
 });
 
 test('dataNote says where the text goes for each kind of provider', () => {

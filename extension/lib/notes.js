@@ -6,10 +6,10 @@ export const MAX_NOTES = 700;
 export const MIN_PASSAGE = 40; // shorter texts tell too little about the subject
 export const PASSAGE_BUDGET = 4000; // characters of passages in one update, sources and translations together
 const PASSAGE_PART = 1500; // of a source, and of its translation
-const OUR_TAGS = /<\/?\s*(?:notes|passage|translation)\b[^>]*>/gi;
+const OUR_TAGS = /<\/?\s*(?:notes|passage|translation|context)\b[^>]*>/gi;
 
 // Text that goes between our tags, unable to close them or open new ones.
-const inert = (text) => String(text ?? '').replace(OUR_TAGS, ' ').trim();
+export const inert = (text) => String(text ?? '').replace(OUR_TAGS, ' ').trim();
 
 // A translated text as the notes learn from it, cut to a size an update can take.
 export function passageOf(source, translation) {

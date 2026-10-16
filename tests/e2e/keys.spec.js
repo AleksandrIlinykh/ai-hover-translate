@@ -120,3 +120,11 @@ test("the settings show the toolbar window's shortcut and lead to Chrome's page 
   const [shortcuts] = await Promise.all([context.waitForEvent('page'), options.locator('#chromeShortcuts').click()]);
   await expect(shortcuts).toHaveURL('chrome://extensions/shortcuts');
 });
+
+test('the note under an AI provider names the key held to read', async ({ context, extensionId }) => {
+  const options = await openOptions(context, extensionId);
+  await options.locator('#provider').selectOption('deepseek');
+  await expect(options.locator('#dataNote')).toContainText('The text you hold Alt over');
+  await options.locator('#readKey').selectOption('Control');
+  await expect(options.locator('#dataNote')).toContainText('The text you hold Ctrl over');
+});

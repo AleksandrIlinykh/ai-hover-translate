@@ -223,29 +223,32 @@ export function answerText(data) {
     .join('');
 }
 
-// What has to be filled in before anything can be sent: 'no_url', 'no_key', 'no_model', or null.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// What has to be fixed before anything can be sent: 'no_url', 'insecure_url' (a key would go over plain http to
+// another computer), 'no_key', 'no_model', or null.
 export function setupProblem(provider) {
   if (provider.api === 'browser') return null;
   if (!hostPattern(provider.baseUrl)) return 'no_url';
+  const { protocol, hostname } = new URL(provider.baseUrl);
+  if (protocol === 'http:' && provider.apiKey && !LOCAL_HOSTS.has(hostname)) return 'insecure_url';
   if (provider.keyRequired && !provider.apiKey) return 'no_key';
   if (!provider.model) return 'no_model';
   return null;
 }
 
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
-
-// One line for the settings page: where the text goes with this provider.
-export function dataNote(provider) {
+// One line for the settings page: where the text goes with this provider; `readKey` names the key held to read.
+export function dataNote(provider, readKey = 'Alt') {
   if (provider.api === 'browser') {
     return 'Nothing you translate leaves this computer. Chrome downloads its translation models once, without your text.';
   }
-  if (!hostPattern(provider.baseUrl)) return 'The text you hold Alt over or write in SpotSlate will go to the API URL you enter.';
+  if (!hostPattern(provider.baseUrl)) return `The text you hold ${readKey} over or write in SpotSlate will go to the API URL you enter.`;
   const { host, hostname } = new URL(provider.baseUrl);
   if (LOCAL_HOSTS.has(hostname)) {
-    return `The text you hold Alt over or write in SpotSlate goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
+    return `The text you hold ${readKey} over or write in SpotSlate goes to ${provider.name} on this computer (${host}). Nothing else leaves your browser.`;
   }
   return (
-    'The text you hold Alt over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ' +
+    `The text you hold ${readKey} over or write in SpotSlate, with a few words around a selection and the context SpotSlate keeps for the site, ` +
     `is sent to ${provider.name} at ${host} with your key; their privacy policy applies. Nothing else leaves your browser.`
   );
 }

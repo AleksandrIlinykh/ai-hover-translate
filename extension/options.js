@@ -84,7 +84,7 @@ function showProvider(id) {
 // user's agreement before anything is sent to them; Chrome's translator sends nothing.
 function showDataNote() {
   const provider = providerInForm();
-  element('dataNote').textContent = dataNote(provider);
+  element('dataNote').textContent = dataNote(provider, readKeyName(form.elements.readKey.value, platform));
   element('consentRow').hidden = provider.api === 'browser';
 }
 
@@ -276,7 +276,11 @@ form.elements.writeKey.addEventListener('keydown', (event) => {
   form.elements.writeKey.value = formatShortcut(shortcut, platform);
 });
 
-element('resetKeys').addEventListener('click', () => showKeys(DEFAULT_KEYS));
+element('resetKeys').addEventListener('click', () => {
+  showKeys(DEFAULT_KEYS);
+  showDataNote();
+});
+form.elements.readKey.addEventListener('change', () => showDataNote());
 
 // The toolbar window's shortcut is Chrome's to set, on its own page for extension shortcuts.
 async function showToolbarKey() {

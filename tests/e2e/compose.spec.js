@@ -4,6 +4,9 @@ const DRAFT = 'privet mir'; // the user's own language, in the Latin script the 
 const compose = (page) => page.locator('#spotslate-compose');
 const part = (page, name) => compose(page).locator(`.${name}`);
 const systemOf = (request) => request.body.messages[0].content;
+// The reference turn before the draft (see lib/prompt.js), where the site context goes; '' without one.
+const referenceOf = (request) =>
+  request.body.messages.find(({ content }) => content.startsWith('Reference for the next text'))?.content ?? '';
 const userOf = (request) => request.body.messages.at(-1).content;
 
 // Holds Alt and clicks the middle of `selector`.
@@ -199,10 +202,11 @@ test('the site context shows in the window and goes with the draft, and Check go
   await part(page, 'draft').focus();
   await write(page, DRAFT);
   await expect(part(page, 'translation')).toHaveText(`[RU] ${DRAFT}`);
-  expect(systemOf(server.requests.at(-1))).toContain('<notes>\nNotes: Our team moved the whole build to a shared continuous integr\n</notes>');
+  expect(referenceOf(server.requests.at(-1))).toContain('<notes>\nNotes: Our team moved the whole build to a shared continuous integr\n</notes>');
+  expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
   await part(page, 'check').click();
   await expect(part(page, 'back')).toHaveText(say('back', { text: `[RU] [RU] ${DRAFT}` }));
-  expect(systemOf(server.requests.at(-1))).not.toContain('<notes>');
+  expect(referenceOf(server.requests.at(-1))).toBe('');
 });
 
 test('a password field gets neither the hint nor the window', async ({ page, server }) => {
