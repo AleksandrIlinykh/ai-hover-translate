@@ -51,6 +51,7 @@ test('switched off, the site gets nothing from SpotSlate at once, and switched o
 
   await toolbar.bringToFront();
   await toolbar.locator('.site-switch').check();
+  await expect(toolbar.locator('.site-off')).toBeHidden(); // background has it, and has told the page
   await page.bringToFront();
   await altHover(page, '#p2');
   await expect(popupText(page)).toContainText('[RU] Second paragraph');
@@ -88,7 +89,8 @@ test('not learning a site context clears it, sends none and hides the button', a
   await page.keyboard.press('Escape');
   const toolbar = await toolbarFor(page, context, serviceWorker, extensionId);
   await toolbar.locator('.site-context').uncheck();
-  expect(await serviceWorker.evaluate((key) => chrome.storage.session.get(key), `notes:${site(server)}`)).toEqual({});
+  // The switch tells background, which clears the context then.
+  await expect.poll(() => serviceWorker.evaluate((key) => chrome.storage.session.get(key), `notes:${site(server)}`)).toEqual({});
   await page.bringToFront();
   await altHover(page, '#long2');
   await expect(popupText(page)).toContainText('[RU]');
@@ -102,6 +104,7 @@ test('the settings list the sites with a mode of their own, and Reset brings a s
   await page.goto(`${server.url}/page.html`);
   const toolbar = await toolbarFor(page, context, serviceWorker, extensionId);
   await toolbar.locator('.site-switch').uncheck();
+  await expect(toolbar.locator('.site-off')).toBeVisible(); // saved
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html`);
   const row = options.locator('#sites li', { hasText: site(server) });
